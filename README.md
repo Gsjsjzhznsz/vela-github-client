@@ -59,13 +59,17 @@ dist/io.github.gsjsjzhznsz.github.debug.1.0.0.rpk
 3. 手表通过运动健康保持连接，IDE 顶部「真机调试」选择你的设备运行
 4. 详细步骤见官方文档《真机调试》：https://iot.mi.com/vela/quickapp/zh/tools/debug/real-machine.html
 
-**途径 B：AIoT-IDE + Vela 虚拟设备（无真机先验证）**
+**途径 B：官方模拟器（QEMU 镜像，无真机先验证）**
 
 ```bash
-npx aiot createVVD --help   # 创建 Vela 虚拟设备（VVD）
+npx aiot initEmulatorEnv        # 下载 QEMU + vela-miwear-watch-5.0 官方镜像（约 700MB）
+npx aiot createVVD              # 创建虚拟设备（选 vela-miwear-watch-5.0 镜像）
+npx aiot start                  # 启动模拟器并安装运行本应用
 ```
 
-在 AIoT-IDE 中选择虚拟设备运行，无需手表即可验证 UI 与逻辑。
+> 命令行 createVVD 交互存在校验 bug 时，可在 AIoT-IDE 设备管理器中创建；
+> 更新安装请先 `adb shell pm uninstall <包名>` 再 install —— **覆盖安装不会刷新页面代码（jsc 字节码缓存）**，
+> 也不更新 manifest（entry 变更需卸载重装）。
 
 **途径 C：直接安装 debug rpk**
 
@@ -91,10 +95,23 @@ npx aiot createVVD --help   # 创建 Vela 虚拟设备（VVD）
 ## ⚡ 性能设计
 
 - 纯文字头像（首字母 + 稳定色相哈希），全程零网络图片
-- `list` 组件节点复用 + `onscrollbottom` 分页，每页 10 条瘦字段
+- `scroll` 组件（`scroll-y`）+ 触底自动分页，每页 10 条瘦字段
 - README/源码分块渲染（40 块/片），非响应式大对象挂 `this._` 前缀，页面销毁即释放
-- 键盘子树 `if` 懒建保活，显式高度链规避固件首帧坍缩（继承 BandQQ InputMethod 实战经验）
+- 键盘为页面内联模板（数据由 `utils/kb.js` 构建），`onInit` 一次性建行 + `show` 显隐保活
 - 应用启动零网络请求，onShow 智能去重
+
+## 🔧 固件兼容性备忘（RW5 实测，20250716 镜像）
+
+以下坑均在官方 QEMU 模拟器实机复现并修复，源码内有注释标记：
+
+| 坑 | 现象 | 规避 |
+|----|------|------|
+| `router.push` uri 带前导斜杠 | `route info error!`，所有页面跳转失效 | uri 用 manifest pages key（`pages/xxx`，无斜杠） |
+| `for` 默认 `$item` / 带括号 `(i, it) in list` 形态 | 循环子树静默不渲染 | 用 `{{it in list}}` 具名形式 |
+| for 数据在事件回调内首次赋值 | for 不渲染（onInit 同步赋值则正常） | 列表数据在 `onInit` 同步初始化 |
+| 自定义组件子树 | `js_dom_create_component` 正常但 UI 全灭 | 关键 UI 内联到页面 |
+| `if` false→true 动态创建子树 | 容器背景在、内容全灭 | 交互元素改 `show` 显隐预渲染 |
+| 覆盖安装不刷新代码 | 改了代码行为依旧 | 先 `pm uninstall` 再 install |
 
 ## ⚠️ 已知限制
 
@@ -102,6 +119,7 @@ npx aiot createVVD --help   # 创建 Vela 虚拟设备（VVD）
 - PR 仅显示会话正文与评论，不含 code review diffs
 - 代码查看上限 3000 行 / 200KB，二进制文件不支持
 - 圆屏机型的安全边距为估算值，欢迎真机反馈
+- settings 状态卡文字在模拟器 swiftshader 下偶发不渲染（功能不受影响，待真机确认）
 
 ## 📄 许可证
 
@@ -109,5 +127,5 @@ npx aiot createVVD --help   # 创建 Vela 虚拟设备（VVD）
 
 ## 🙏 致谢
 
-- [BandQQ](https://github.com/Gsjsjzhznsz/BandQQ) 的 InputMethod 键盘组件架构（if 懒建 / 显式高度链 / 事件回传）
+- [BandQQ](https://github.com/Gsjsjzhznsz/BandQQ) 的 InputMethod 键盘架构与 RW5 固件兼容经验（`{{it in list}}` 具名循环、wrap+absolute 铺满布局）
 - [Xiaomi Vela JS 应用官方文档](https://iot.mi.com/vela/quickapp)与 aiot-toolkit

@@ -21,18 +21,18 @@
           ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
       <list-item type="repo" class="li" for="{{items}}" tid="id">
         <div class="cell" onclick="openRepo($item)">
-          <text class="rank" show="{{it.rank <= 3}}">{{it.rank}}</text>
-          <div class="ava" style="background-color: {{it.avc}}">
-            <text class="ava-t">{{it.avn}}</text>
+          <text class="rank" show="{{$item.rank <= 3}}">{{$item.rank}}</text>
+          <div class="ava" style="background-color: {{$item.avc}}">
+            <text class="ava-t">{{$item.avn}}</text>
           </div>
           <div class="cell-main">
-            <text class="cell-title">{{it.full}}</text>
-            <text class="cell-desc" show="{{!!it.desc}}">{{it.desc}}</text>
+            <text class="cell-title">{{$item.full}}</text>
+            <text class="cell-desc" show="{{!!it.desc}}">{{$item.desc}}</text>
             <div class="meta">
-              <div class="dot" show="{{!!it.lang}}" style="background-color: {{it.langc}}"></div>
-              <text class="meta-t" show="{{!!it.lang}}">{{it.lang}}</text>
+              <div class="dot" show="{{!!it.lang}}" style="background-color: {{$item.langc}}"></div>
+              <text class="meta-t" show="{{!!it.lang}}">{{$item.lang}}</text>
               <image class="meta-ic" src="/common/icons/star.png" />
-              <text class="meta-t">{{it.stars}}</text>
+              <text class="meta-t">{{$item.stars}}</text>
             </div>
           </div>
         </div>

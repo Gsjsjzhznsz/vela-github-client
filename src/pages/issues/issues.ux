@@ -22,11 +22,9 @@
         <div class="cell" onclick="openIssue($item)">
           <image class="cell-icon" src="/common/icons/issue.png" />
           <div class="cell-main">
-            <text class="cell-title">{{it.title}}</text>
-            <text class="cell-sub">#{{it.num}} · {{it.author}} · {{it.time}}{{it.comments > 0 ? ' · ' + it.comments + ' 评论' : ''}}</text>
-            <div class="labels" if="{{it.labels.length > 0}}">
-              <text class="lb" for="{{it.labels}}" style="color: {{lb.color}}">{{lb.name}}</text>
-            </div>
+            <text class="cell-title">{{$item.title}}</text>
+            <text class="cell-sub">#{{$item.num}} · {{$item.author}} · {{$item.time}}{{$item.comments > 0 ? ' · ' + $item.comments + ' 评论' : ''}}</text>
+            <text class="lb" if="{{$item.labelsText}}" style="color: {{$item.labelColor}}">{{$item.labelsText}}</text>
           </div>
         </div>
       </list-item>

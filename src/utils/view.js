@@ -45,6 +45,7 @@ export function mapNotif(n) {
 }
 
 export function mapIssue(i) {
+  const labels = (i.labels || []).slice(0, 3)
   return {
     id: String(i.id),
     num: i.number,
@@ -52,7 +53,8 @@ export function mapIssue(i) {
     open: i.state === 'open',
     author: i.user ? i.user.login : '',
     comments: i.comments || 0,
-    labels: (i.labels || []).slice(0, 3).map((l) => ({ name: truncate(l.name, 10), color: '#' + (l.color || '8b949e') })),
+    labelsText: labels.map((l) => truncate(l.name, 10)).join(' · '),
+    labelColor: labels[0] && labels[0].color ? '#' + labels[0].color : '#8b949e',
     time: relTime(i.created_at)
   }
 }

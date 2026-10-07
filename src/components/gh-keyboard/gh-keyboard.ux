@@ -2,16 +2,31 @@
   <!-- 键盘组件（参考 BandQQ InputMethod 架构）：
        1. 根容器显式定高，全链路无 auto 测量点，规避固件首帧坍缩问题
        2. if 懒建 + 保活：首次弹出才创建子树，之后 show 显隐不重建
-       3. 事件回传：@key{ch} / @del / @ok，由宿主页维护文本缓冲 -->
+       3. 事件回传：@key{ch} / @del / @ok，由宿主页维护文本缓冲
+       4. 四行按键为顶层独立数组（row0..row3），全部走官方 $item 默认循环，
+          无嵌套 for，无命名循环变量 -->
   <div class="kb-root" if="{{kbCreated}}" show="{{visible}}">
     <div class="kb-pad">
-      <block for="(ri, row) in rows">
-        <div class="kb-row">
-          <div class="kb-key {{key.cls}}" for="(ki, key) in row" onclick="onKey($item)">
-            <text class="kb-key-text {{key.small ? 'small' : ''}}" show="{{key.on !== false}}">{{key.label}}</text>
-          </div>
+      <div class="kb-row">
+        <div class="kb-key {{$item.cls}}" for="{{row0}}" onclick="onKey($item)">
+          <text class="kb-key-text {{$item.small ? 'small' : ''}}">{{$item.label}}</text>
         </div>
-      </block>
+      </div>
+      <div class="kb-row">
+        <div class="kb-key {{$item.cls}}" for="{{row1}}" onclick="onKey($item)">
+          <text class="kb-key-text {{$item.small ? 'small' : ''}}">{{$item.label}}</text>
+        </div>
+      </div>
+      <div class="kb-row">
+        <div class="kb-key {{$item.cls}}" for="{{row2}}" onclick="onKey($item)">
+          <text class="kb-key-text {{$item.small ? 'small' : ''}}">{{$item.label}}</text>
+        </div>
+      </div>
+      <div class="kb-row">
+        <div class="kb-key {{$item.cls}}" for="{{row3}}" onclick="onKey($item)">
+          <text class="kb-key-text {{$item.small ? 'small' : ''}}">{{$item.label}}</text>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -82,7 +97,7 @@
   const TAIL = [',', '.', '_', '-']
 
   function charKey(ch, shift) {
-    return { label: shift ? ch.toUpperCase() : ch, act: 'char', ch: ch }
+    return { label: shift ? ch.toUpperCase() : ch, act: 'char', ch: ch, cls: '', small: false, on: true }
   }
 
   function fnKey(label, act, on) {
@@ -94,24 +109,24 @@
     if (mode === 'abc') {
       rows.push(LOWER[0].split('').map((c) => charKey(c, shift)))
       rows.push(LOWER[1].split('').map((c) => charKey(c, shift)))
-      const r3 = [fnKey('↑', 'shift', shift)]
-      LOWER[2].split('').forEach((c) => r3.push(charKey(c, shift)))
-      r3.push(fnKey('←', 'del', undefined))
-      rows.push(r3)
+      const r2 = [fnKey('↑', 'shift', shift)]
+      LOWER[2].split('').forEach((c) => r2.push(charKey(c, shift)))
+      r2.push(fnKey('←', 'del', true))
+      rows.push(r2)
     } else {
       rows.push(NUM1.split('').map((c) => charKey(c, false)))
       rows.push(NUM2.split('').map((c) => charKey(c, false)))
-      const r3 = [fnKey('#', 'noop', false)]
-      NUM3.split('').forEach((c) => r3.push(charKey(c, false)))
-      r3.push(fnKey('←', 'del', undefined))
-      rows.push(r3)
+      const r2 = [fnKey('#', 'noop', false)]
+      NUM3.split('').forEach((c) => r2.push(charKey(c, false)))
+      r2.push(fnKey('←', 'del', true))
+      rows.push(r2)
     }
-    const r4 = [fnKey(mode === 'abc' ? '123' : 'abc', 'mode', undefined)]
-    TAIL.forEach((c) => r4.push(charKey(c, false)))
-    r4.push({ label: '空格', act: 'space', cls: 'k-space', small: true })
-    r4.push({ label: '完成', act: 'ok', cls: 'k-ok', small: true })
-    rows.push(r4)
-    return rows
+    const r3 = [fnKey(mode === 'abc' ? '123' : 'abc', 'mode', true)]
+    TAIL.forEach((c) => r3.push(charKey(c, false)))
+    r3.push({ label: '空格', act: 'space', cls: 'k-space', small: true, on: true })
+    r3.push({ label: '完成', act: 'ok', cls: 'k-ok', small: true, on: true })
+    rows.push(r3)
+    return rows // 4 组：0/1/2 字符排，3 为底部功能排
   }
 
   export default {
@@ -123,10 +138,17 @@
       kbCreated: false,
       mode: 'abc',
       shift: false,
-      rows: []
+      row0: [],
+      row1: [],
+      row2: [],
+      row3: []
     },
     onInit() {
-      this.rows = buildRows(this.mode, this.shift)
+      const rs = buildRows(this.mode, this.shift)
+      this.row0 = rs[0]
+      this.row1 = rs[1]
+      this.row2 = rs[2]
+      this.row3 = rs[3]
       this.$watch('visible', 'onVisibleChange')
     },
     onVisibleChange(newV) {
@@ -174,11 +196,12 @@
     refreshRows() {
       // 原地更新按键标签，避免整树重建
       const next = buildRows(this.mode, this.shift)
-      for (let ri = 0; ri < next.length && ri < this.rows.length; ri++) {
-        for (let ki = 0; ki < next[ri].length && ki < this.rows[ri].length; ki++) {
-          this.rows[ri][ki].label = next[ri][ki].label
-          this.rows[ri][ki].cls = next[ri][ki].cls
-          this.rows[ri][ki].on = next[ri][ki].on
+      const cur = [this.row0, this.row1, this.row2, this.row3]
+      for (let ri = 0; ri < 4; ri++) {
+        for (let ki = 0; ki < next[ri].length && ki < cur[ri].length; ki++) {
+          cur[ri][ki].label = next[ri][ki].label
+          cur[ri][ki].cls = next[ri][ki].cls
+          cur[ri][ki].on = next[ri][ki].on
         }
       }
     }

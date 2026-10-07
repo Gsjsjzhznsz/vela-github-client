@@ -18,21 +18,19 @@
           </div>
           <text class="h-title">{{title}}</text>
           <text class="h-meta">{{author}} · 创建于 {{created}}</text>
-          <div class="labels" if="{{labels.length > 0}}">
-            <text class="lb" for="{{labels}}" style="color: {{lb.color}}">{{lb.name}}</text>
-          </div>
+          <text class="lb" if="{{labelsText}}" style="color: {{labelColor}}">{{labelsText}}</text>
         </div>
       </list-item>
 
       <!-- 正文块 -->
       <list-item type="blk" class="li" for="{{bodyBlocks}}" tid="id">
-        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
-        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
-        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
-        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
-        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
-        <div class="br" elif="{{it.t === 'r'}}"></div>
-        <text class="bp" else>{{it.s}}</text>
+        <text class="bh" if="{{$item.t === 'h'}}">{{$item.s}}</text>
+        <text class="bp" elif="{{$item.t === 'p'}}">{{$item.s}}</text>
+        <text class="bc" elif="{{$item.t === 'c'}}">{{$item.s}}</text>
+        <text class="bq" elif="{{$item.t === 'q'}}">{{$item.s}}</text>
+        <text class="bl" elif="{{$item.t === 'l'}}">{{$item.s}}</text>
+        <div class="br" elif="{{$item.t === 'r'}}"></div>
+        <text class="bp" else>{{$item.s}}</text>
       </list-item>
 
       <!-- 评论分隔 -->
@@ -44,13 +42,13 @@
       <list-item type="cmt" class="li" for="{{comments}}" tid="id">
         <div class="cmt-card">
           <div class="cmt-hd">
-            <div class="ava" style="background-color: {{it.avc}}">
-              <text class="ava-t">{{it.avn}}</text>
+            <div class="ava" style="background-color: {{$item.avc}}">
+              <text class="ava-t">{{$item.avn}}</text>
             </div>
-            <text class="cmt-author">{{it.author}}</text>
-            <text class="cmt-time">{{it.time}}</text>
+            <text class="cmt-author">{{$item.author}}</text>
+            <text class="cmt-time">{{$item.time}}</text>
           </div>
-          <text class="cmt-body" if="{{it.text}}">{{it.text}}</text>
+          <text class="cmt-body" if="{{$item.text}}">{{$item.text}}</text>
           <text class="cmt-empty" if="{{!it.text}}">（无正文）</text>
         </div>
       </list-item>
@@ -130,7 +128,8 @@
       isPR: false,
       author: '',
       created: '',
-      labels: [],
+      labelsText: '',
+      labelColor: '#8b949e',
       commentN: 0,
       bodyBlocks: [],
       comments: [],
@@ -156,7 +155,8 @@
         this.isPR = !!iss.pull_request
         this.author = m.author
         this.created = m.time
-        this.labels = m.labels
+        this.labelsText = (iss.labels || []).map((l) => l.name).join(' · ')
+        this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : '#8b949e'
         this.commentN = iss.comments || 0
         const body = mdToBlocks(iss.body || '')
         const blocks = []

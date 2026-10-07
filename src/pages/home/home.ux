@@ -24,10 +24,10 @@
       <!-- 功能菜单 -->
       <list-item type="menu" class="li" for="{{menu}}" tid="id">
         <div class="cell" onclick="goMenu($item)">
-          <image class="cell-icon" src="{{it.icon}}" />
+          <image class="cell-icon" src="{{$item.icon}}" />
           <div class="cell-main">
-            <text class="cell-label">{{it.label}}</text>
-            <text class="cell-sub" show="{{!!it.sub}}">{{it.sub}}</text>
+            <text class="cell-label">{{$item.label}}</text>
+            <text class="cell-sub" show="{{!!it.sub}}">{{$item.sub}}</text>
           </div>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>

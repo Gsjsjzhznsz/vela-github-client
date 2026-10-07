@@ -11,13 +11,13 @@
 
     <list class="body" onscrollbottom="loadMoreBlocks">
       <list-item type="blk" class="li" for="{{items}}" tid="id">
-        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
-        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
-        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
-        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
-        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
-        <div class="br" elif="{{it.t === 'r'}}"></div>
-        <text class="bp" else>{{it.s}}</text>
+        <text class="bh" if="{{$item.t === 'h'}}">{{$item.s}}</text>
+        <text class="bp" elif="{{$item.t === 'p'}}">{{$item.s}}</text>
+        <text class="bc" elif="{{$item.t === 'c'}}">{{$item.s}}</text>
+        <text class="bq" elif="{{$item.t === 'q'}}">{{$item.s}}</text>
+        <text class="bl" elif="{{$item.t === 'l'}}">{{$item.s}}</text>
+        <div class="br" elif="{{$item.t === 'r'}}"></div>
+        <text class="bp" else>{{$item.s}}</text>
       </list-item>
       <list-item type="foot" class="li" if="{{state === 'ok' && rendered < totalBlocks}}">
         <text class="foot">上滑加载更多…</text>

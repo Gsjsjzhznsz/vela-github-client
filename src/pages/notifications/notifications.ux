@@ -16,12 +16,12 @@
           ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
       <list-item type="ntf" class="li" for="{{items}}" tid="id">
         <div class="cell" onclick="openNotif($item)">
-          <div class="unread" show="{{it.unread}}"></div>
-          <image class="cell-icon" src="{{it.icon}}" />
+          <div class="unread" show="{{$item.unread}}"></div>
+          <image class="cell-icon" src="{{$item.icon}}" />
           <div class="cell-main">
-            <text class="cell-repo">{{it.repo}}</text>
-            <text class="cell-title">{{it.title}}</text>
-            <text class="cell-time">{{it.time}}</text>
+            <text class="cell-repo">{{$item.repo}}</text>
+            <text class="cell-title">{{$item.title}}</text>
+            <text class="cell-time">{{$item.time}}</text>
           </div>
         </div>
       </list-item>

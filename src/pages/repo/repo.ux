@@ -48,10 +48,10 @@
       </div>
     </scroll>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="reload">点此重试</text>
     </div>
@@ -159,13 +159,13 @@
       }
     },
     goReadme() {
-      router.push({ uri: '/pages/readme', params: { full: this.full } })
+      router.push({ uri: 'pages/readme', params: { full: this.full } })
     },
     goIssues() {
-      router.push({ uri: '/pages/issues', params: { full: this.full } })
+      router.push({ uri: 'pages/issues', params: { full: this.full } })
     },
     goCode() {
-      router.push({ uri: '/pages/code', params: { full: this.full } })
+      router.push({ uri: 'pages/code', params: { full: this.full } })
     },
     goBack() {
       router.back()

@@ -6,47 +6,48 @@
       <image class="hd-act" src="/common/icons/gear.png" onclick="goSettings" />
     </div>
 
-    <list class="body">
-      <!-- 账户状态卡 -->
-      <list-item type="status" class="li">
-        <div class="card">
-          <div class="ava" style="background-color: {{avColor}}">
-            <text class="ava-t">{{avCh}}</text>
-          </div>
-          <div class="card-main">
-            <text class="row1">{{hasTk ? loginName : '游客模式'}}</text>
-            <text class="row2">{{hasTk ? '已登录 · ' + tokenMask : '登录后可看通知 / 私有仓库'}}</text>
-            <text class="row3">API 余量 {{rateText}}</text>
+    <div class="body">
+        <!-- 账户状态卡 -->
+        <div class="li">
+          <div class="card">
+            <div class="ava" style="background-color: {{avColor}}">
+              <text class="ava-t">{{avCh}}</text>
+            </div>
+            <div class="card-main">
+              <text class="row1">{{hasTk ? loginName : '游客模式'}}</text>
+              <text class="row2">{{hasTk ? '已登录 · ' + tokenMask : '登录后可看通知 / 私有仓库'}}</text>
+              <text class="row3">API 余量 {{rateText}}</text>
+            </div>
           </div>
         </div>
-      </list-item>
 
-      <!-- 功能菜单 -->
-      <list-item type="menu" class="li" for="{{menu}}" tid="id">
-        <div class="cell" onclick="goMenu($item)">
-          <image class="cell-icon" src="{{$item.icon}}" />
-          <div class="cell-main">
-            <text class="cell-label">{{$item.label}}</text>
-            <text class="cell-sub" show="{{!!it.sub}}">{{$item.sub}}</text>
+        <!-- 功能菜单 -->
+        <div class="li" for="{{it in menu}}" tid="id">
+          <div class="cell" onclick="goMenu(it)">
+            <image class="cell-icon" src="{{it.icon}}" />
+            <div class="cell-main">
+              <text class="cell-label">{{it.label}}</text>
+              <text class="cell-sub" show="{{!!it.sub}}">{{it.sub}}</text>
+            </div>
+            <image class="cell-arrow" src="/common/icons/chevron.png" />
           </div>
-          <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
-      </list-item>
 
-      <list-item type="foot" class="li">
         <text class="foot">Vela JS 应用 · AGPL-3.0 · Redmi Watch 5 适配</text>
-      </list-item>
-    </list>
+        <div class="pad-end"></div>
+    </div>
   </div>
 </template>
 
 <style>
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  /* RW5 根修：根容器确定尺寸（216x257dp = 432x514 物理像素 @DPR2），body absolute 定位，不依赖 flex/percent 继承链 */
+  .page { width: 216px; height: 257px; position: relative; flex-direction: column; background-color: #0d1117; }
   .hd { height: 42px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-logo { width: 26px; height: 26px; border-radius: 6px; }
   .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; margin-left: 8px; flex: 1; }
   .hd-act { width: 22px; height: 22px; }
-  .body { flex: 1; }
+  .body { position: absolute; left: 0; top: 42px; width: 216px; height: 215px; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 3px 10px; }
   .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 10px; }
   .ava { width: 42px; height: 42px; border-radius: 21px; justify-content: center; align-items: center; }
@@ -135,10 +136,10 @@
         this.toast('仓库列表需登录；游客可使用搜索/趋势')
         return
       }
-      router.push({ uri: '/pages/' + item.id })
+      router.push({ uri: 'pages/' + item.id })
     },
     goSettings() {
-      router.push({ uri: '/pages/settings' })
+      router.push({ uri: 'pages/settings' })
     },
     toast(msg) {
       prompt.showToast({ message: msg, duration: 2000 })

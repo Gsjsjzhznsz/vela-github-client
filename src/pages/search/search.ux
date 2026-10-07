@@ -1,4 +1,3 @@
-<import name="gh-kb" src="../../components/gh-keyboard/gh-keyboard.ux"></import>
 <template>
   <div class="page">
     <div class="hd">
@@ -14,43 +13,69 @@
       <text class="sbtn" onclick="doSearch">搜索</text>
     </div>
 
-    <list class="body {{kbShow ? 'shrink' : ''}}" onscrollbottom="loadMore">
-      <list-item type="repo" class="li" for="{{items}}" tid="id">
-        <div class="cell" onclick="openRepo($item)">
-          <div class="ava" style="background-color: {{$item.avc}}">
-            <text class="ava-t">{{$item.avn}}</text>
+    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
+      <scroll class="body {{kbShow ? 'shrink' : ''}}" scroll-y="true" onscroll="onListScroll">
+      <div class="li" for="{{it in items}}" tid="id">
+        <div class="cell" onclick="openRepo(it)">
+          <div class="ava" style="background-color: {{it.avc}}">
+            <text class="ava-t">{{it.avn}}</text>
           </div>
           <div class="cell-main">
-            <text class="cell-title">{{$item.full}}</text>
-            <text class="cell-desc" show="{{!!it.desc}}">{{$item.desc}}</text>
+            <text class="cell-title">{{it.full}}</text>
+            <text class="cell-desc" show="{{!!it.desc}}">{{it.desc}}</text>
             <div class="meta">
-              <div class="dot" show="{{!!it.lang}}" style="background-color: {{$item.langc}}"></div>
-              <text class="meta-t" show="{{!!it.lang}}">{{$item.lang}}</text>
+              <div class="dot" show="{{!!it.lang}}" style="background-color: {{it.langc}}"></div>
+              <text class="meta-t" show="{{!!it.lang}}">{{it.lang}}</text>
               <image class="meta-ic" src="/common/icons/star.png" />
-              <text class="meta-t">{{$item.stars}}</text>
+              <text class="meta-t">{{it.stars}}</text>
             </div>
           </div>
         </div>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && !hasMore && items.length > 0}}">
+      </div>
+      <div class="li" show="{{state === 'ok' && !hasMore && items.length > 0}}">
         <text class="foot">共 {{total}} 个结果 · 到底了</text>
-      </list-item>
-    </list>
+      </div>
+    </scroll>
+    </div>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">搜索中…</text>
     </div>
-    <div class="state" if="{{state === 'empty'}}">
+    <div class="state" show="{{state === 'empty'}}">
       <text class="state-t">{{emptyText}}</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="doSearch">重试</text>
     </div>
 
-    <!-- 键盘 dock：绝对锚定（方屏用 top 锚定规避固件 bottom 解析异常） -->
-    <div class="kb-dock {{kbShow ? '' : 'kb-hide'}}">
-      <gh-kb visible="{{kbShow}}" @key="onKbKey" @del="onKbDel" @ok="onKbOk"></gh-kb>
+    <!-- 内联键盘（组件在此固件不渲染，改页面内联；数据由 utils/kb.js 提供） -->
+    <div class="kb-dock" show="{{kbShow}}">
+      <div class="kb-root">
+        <div class="kb-pad">
+          <div class="kb-row">
+            <div class="kb-key" for="{{it in row0}}" onclick="onKey(it)" style="{{it.st}}">
+              <text class="kb-key-text">{{it.label}}</text>
+            </div>
+          </div>
+          <div class="kb-row">
+            <div class="kb-key" for="{{it in row1}}" onclick="onKey(it)" style="{{it.st}}">
+              <text class="kb-key-text">{{it.label}}</text>
+            </div>
+          </div>
+          <div class="kb-row">
+            <div class="kb-key" for="{{it in row2}}" onclick="onKey(it)" style="{{it.st}}">
+              <text class="kb-key-text">{{it.label}}</text>
+            </div>
+          </div>
+          <div class="kb-row">
+            <div class="kb-key" for="{{it in row3}}" onclick="onKey(it)" style="{{it.st}}">
+              <text class="kb-key-text">{{it.label}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -65,8 +90,11 @@
   .stext { font-size: 12px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .ph { color: #484f58; }
   .sbtn { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 15px; padding: 7px 12px; margin-left: 8px; }
-  .body { flex: 1; }
-  .shrink { margin-bottom: 152px; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
+  .shrink { height: calc(100% - 152px); }
   .li { padding: 3px 10px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
   .ava { width: 30px; height: 30px; border-radius: 15px; justify-content: center; align-items: center; }
@@ -84,9 +112,14 @@
   .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
   .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 152px; }
   @media (shape: rect) {
-    .kb-dock { bottom: auto; top: 105px; }
+    .kb-dock { bottom: auto; top: 93px; }
   }
   .kb-hide { display: none; }
+  .kb-root { width: 100%; height: 152px; background-color: #161b22; border-top: 1px solid #30363d; flex-direction: column; }
+  .kb-pad { flex-direction: column; justify-content: flex-start; width: 100%; height: 150px; padding: 3px 6px; }
+  .kb-row { flex-direction: row; height: 33px; margin-bottom: 3px; width: 100%; }
+  .kb-key { flex: 1; height: 33px; margin: 0 2px; justify-content: center; align-items: center; background-color: #21262d; border-radius: 4px; }
+  .kb-key-text { font-size: 13px; color: #e6edf3; text-align: center; lines: 1; }
 </style>
 
 <script>
@@ -95,11 +128,19 @@
   import api from '../../utils/api'
   import { mapRepo } from '../../utils/view'
 
+  import { buildRows, applyRows } from '../../utils/kb'
+
   export default {
     private: {
       query: '',
       kbTail: '',
       kbShow: false,
+      row0: [],
+      row1: [],
+      row2: [],
+      row3: [],
+      kbMode: 'abc',
+      kbShift: false,
       items: [],
       state: 'empty',   // empty | loading | ok | error
       errMsg: '',
@@ -110,18 +151,49 @@
       loadingMore: false,
       searched: false
     },
-    onInit() {},
+    onInit() {
+      this.refreshRows()
+    },
     showKb() {
       this.kbShow = true
     },
-    onKbKey(e) {
-      const ch = (e && e.ch) || ''
-      if (this.query.length >= 64) return
-      this.query += ch
-      this.syncTail()
+    refreshRows() {
+      const next = buildRows(this.kbMode, this.kbShift)
+      if (!this.row0.length) {
+        this.row0 = next[0]; this.row1 = next[1]; this.row2 = next[2]; this.row3 = next[3]
+        return
+      }
+      applyRows([this.row0, this.row1, this.row2, this.row3], next)
     },
-    onKbDel() {
-      this.query = this.query.slice(0, -1)
+    onKey(it) {
+      if (!it || !it.act) return
+      const act = it.act
+      if (act === 'char') {
+        if (this.query.length < 64) {
+          this.query += this.kbShift ? String(it.ch).toUpperCase() : it.ch
+        }
+        if (this.kbShift && this.kbMode === 'abc') {
+          this.kbShift = false
+          this.refreshRows()
+        }
+      } else if (act === 'del') {
+        this.query = this.query.slice(0, -1)
+      } else if (act === 'space') {
+        if (this.query.length < 64) this.query += ' '
+      } else if (act === 'ok') {
+        this.kbShow = false
+        this.onKbOk()
+        return
+      } else if (act === 'mode') {
+        this.kbMode = this.kbMode === 'abc' ? '123' : 'abc'
+        this.kbShift = false
+        this.refreshRows()
+      } else if (act === 'shift') {
+        if (this.kbMode === 'abc') {
+          this.kbShift = !this.kbShift
+          this.refreshRows()
+        }
+      }
       this.syncTail()
     },
     onKbOk() {
@@ -155,6 +227,15 @@
         this.errMsg = (e && e.message) || '搜索失败'
       }
     },
+    onListScroll(e) {
+      const y = (e && e.scrollY) || 0
+      // 触底自动加载（scrollY 估算：单项约 84px）
+      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+        const near = this.items.length * 84 - 340
+        if (near > 0 && y >= near) this.loadMore()
+      }
+    },
+
     async loadMore() {
       if (!this.searched || !this.hasMore || this.loadingMore || this.state !== 'ok') return
       this.loadingMore = true
@@ -172,7 +253,7 @@
     },
     openRepo(item) {
       if (!item) return
-      router.push({ uri: '/pages/repo', params: { full: item.full } })
+      router.push({ uri: 'pages/repo', params: { full: item.full } })
     },
     doRefresh() {
       if (this.query.trim()) this.doSearch()

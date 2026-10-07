@@ -9,28 +9,30 @@
       <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
-    <list class="body" onscrollbottom="loadMoreBlocks">
-      <list-item type="blk" class="li" for="{{items}}" tid="id">
-        <text class="bh" if="{{$item.t === 'h'}}">{{$item.s}}</text>
-        <text class="bp" elif="{{$item.t === 'p'}}">{{$item.s}}</text>
-        <text class="bc" elif="{{$item.t === 'c'}}">{{$item.s}}</text>
-        <text class="bq" elif="{{$item.t === 'q'}}">{{$item.s}}</text>
-        <text class="bl" elif="{{$item.t === 'l'}}">{{$item.s}}</text>
-        <div class="br" elif="{{$item.t === 'r'}}"></div>
-        <text class="bp" else>{{$item.s}}</text>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && rendered < totalBlocks}}">
-        <text class="foot">上滑加载更多…</text>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && rendered >= totalBlocks}}">
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll">
+      <div class="li" for="{{it in items}}" tid="id">
+        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
+        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
+        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
+        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
+        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
+        <div class="br" elif="{{it.t === 'r'}}"></div>
+        <text class="bp" else>{{it.s}}</text>
+      </div>
+      <div class="li" show="{{state === 'ok' && rendered < totalBlocks}}">
+        <text class="foot" onclick="loadMoreBlocks">上滑加载更多…</text>
+      </div>
+      <div class="li" show="{{state === 'ok' && rendered >= totalBlocks}}">
         <text class="foot">— 全文完 —</text>
-      </list-item>
-    </list>
+      </div>
+    </scroll>
+    </div>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载 README…</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="reload">点此重试</text>
     </div>
@@ -44,7 +46,10 @@
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; }
-  .body { flex: 1; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 2px 12px; }
   .bh { font-size: 16px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
   .bp { font-size: 13px; color: #e6edf3; line-height: 20px; }
@@ -109,6 +114,15 @@
       }
       this.rendered = end
     },
+    onListScroll(e) {
+      const y = (e && e.scrollY) || 0
+      this._sy = y
+      if (this.state === 'ok' && this.rendered < this.totalBlocks) {
+        const near = this.items.length * 60 - 340
+        if (near > 0 && y >= near) this.loadMoreBlocks()
+      }
+    },
+
     loadMoreBlocks() {
       if (this.state !== 'ok' || this.rendered >= this.totalBlocks) return
       this.appendMore()

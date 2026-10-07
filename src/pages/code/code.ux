@@ -9,30 +9,32 @@
       <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
-    <list class="body">
-      <list-item type="row" class="{{$item.kind === 'line' ? 'li-code' : 'li'}}" for="{{items}}" tid="id">
-        <div class="cell" if="{{$item.kind === 'up'}}" onclick="goUp">
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true">
+      <div class="{{it.kind === 'line' ? 'li-code' : 'li'}}" for="{{it in items}}" tid="id">
+        <div class="cell" if="{{it.kind === 'up'}}" onclick="goUp">
           <image class="cell-icon" src="/common/icons/back.png" />
           <text class="cell-name muted">返回上级</text>
         </div>
-        <div class="cell" elif="{{$item.kind === 'entry'}}" onclick="openEntry($item)">
-          <image class="cell-icon" src="{{$item.icon}}" />
-          <text class="cell-name">{{$item.name}}</text>
-          <text class="cell-size" show="{{$item.size}}">{{$item.size}}</text>
-          <image class="cell-arrow" src="/common/icons/chevron.png" show="{{$item.isDir}}" />
+        <div class="cell" elif="{{it.kind === 'entry'}}" onclick="openEntry(it)">
+          <image class="cell-icon" src="{{it.icon}}" />
+          <text class="cell-name">{{it.name}}</text>
+          <text class="cell-size" show="{{it.size}}">{{it.size}}</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" show="{{it.isDir}}" />
         </div>
-        <text class="code-line" elif="{{$item.kind === 'line'}}">{{$item.n}}  {{$item.s}}</text>
-        <text class="foot" else>{{$item.text}}</text>
-      </list-item>
-    </list>
+        <text class="code-line" elif="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
+        <text class="foot" else>{{it.text}}</text>
+      </div>
+    </scroll>
+    </div>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
     </div>
-    <div class="state" if="{{state === 'empty'}}">
+    <div class="state" show="{{state === 'empty'}}">
       <text class="state-t">空目录</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="reload">点此重试</text>
     </div>
@@ -46,7 +48,10 @@
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; lines: 1; text-overflow: ellipsis; }
-  .body { flex: 1; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 3px 10px; }
   .li-code { padding: 1px 8px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 8px; padding: 9px 10px; }

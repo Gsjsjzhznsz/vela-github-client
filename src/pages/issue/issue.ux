@@ -9,9 +9,10 @@
       <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
-    <list class="body" onscrollbottom="loadMoreComments">
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll">
       <!-- 标题头 -->
-      <list-item type="head" class="li">
+      <div class="li">
         <div class="head-card">
           <div class="badge {{open ? 'b-open' : 'b-closed'}}">
             <text class="badge-t">{{isPR ? (open ? 'PR · 开放' : 'PR · 已合并/关闭') : (open ? 'Issue · 开放' : 'Issue · 已关闭')}}</text>
@@ -20,51 +21,52 @@
           <text class="h-meta">{{author}} · 创建于 {{created}}</text>
           <text class="lb" if="{{labelsText}}" style="color: {{labelColor}}">{{labelsText}}</text>
         </div>
-      </list-item>
+      </div>
 
       <!-- 正文块 -->
-      <list-item type="blk" class="li" for="{{bodyBlocks}}" tid="id">
-        <text class="bh" if="{{$item.t === 'h'}}">{{$item.s}}</text>
-        <text class="bp" elif="{{$item.t === 'p'}}">{{$item.s}}</text>
-        <text class="bc" elif="{{$item.t === 'c'}}">{{$item.s}}</text>
-        <text class="bq" elif="{{$item.t === 'q'}}">{{$item.s}}</text>
-        <text class="bl" elif="{{$item.t === 'l'}}">{{$item.s}}</text>
-        <div class="br" elif="{{$item.t === 'r'}}"></div>
-        <text class="bp" else>{{$item.s}}</text>
-      </list-item>
+      <div class="li" for="{{it in bodyBlocks}}" tid="id">
+        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
+        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
+        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
+        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
+        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
+        <div class="br" elif="{{it.t === 'r'}}"></div>
+        <text class="bp" else>{{it.s}}</text>
+      </div>
 
       <!-- 评论分隔 -->
-      <list-item type="sepa" class="li" if="{{comments.length > 0}}">
+      <div class="li" if="{{comments.length > 0}}">
         <text class="sepa-t">—— 评论 ——</text>
-      </list-item>
+      </div>
 
       <!-- 评论项 -->
-      <list-item type="cmt" class="li" for="{{comments}}" tid="id">
+      <div class="li" for="{{it in comments}}" tid="id">
         <div class="cmt-card">
           <div class="cmt-hd">
-            <div class="ava" style="background-color: {{$item.avc}}">
-              <text class="ava-t">{{$item.avn}}</text>
+            <div class="ava" style="background-color: {{it.avc}}">
+              <text class="ava-t">{{it.avn}}</text>
             </div>
-            <text class="cmt-author">{{$item.author}}</text>
-            <text class="cmt-time">{{$item.time}}</text>
+            <text class="cmt-author">{{it.author}}</text>
+            <text class="cmt-time">{{it.time}}</text>
           </div>
-          <text class="cmt-body" if="{{$item.text}}">{{$item.text}}</text>
+          <text class="cmt-body" if="{{it.text}}">{{it.text}}</text>
           <text class="cmt-empty" if="{{!it.text}}">（无正文）</text>
         </div>
-      </list-item>
+      </div>
 
-      <list-item type="foot" class="li" if="{{loadingComments}}">
+      <div class="li" if="{{loadingComments}}">
         <text class="foot">加载评论中…</text>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && !hasMoreComments && comments.length > 0}}">
+      </div>
+      <div class="li" show="{{state === 'ok' && !hasMoreComments && comments.length > 0}}">
         <text class="foot">— 到底了 —</text>
-      </list-item>
-    </list>
+      </div>
+    </scroll>
+    </div>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="reload">点此重试</text>
     </div>
@@ -78,7 +80,10 @@
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; }
-  .body { flex: 1; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 3px 10px; }
   .head-card { background-color: #161b22; border-radius: 10px; padding: 10px; width: 100%; flex-direction: column; }
   .badge { align-self: flex-start; border-radius: 10px; padding: 2px 8px; }
@@ -175,6 +180,15 @@
         this.errMsg = (e && e.message) || '加载失败'
       }
     },
+    onListScroll(e) {
+      const y = (e && e.scrollY) || 0
+      this._sy = y
+      if (this.state === 'ok' && this.hasMoreComments && !this.loadingComments) {
+        const near = (this.bodyBlocks.length * 40 + this.comments.length * 90) - 340
+        if (near > 0 && y >= near) this.loadMoreComments()
+      }
+    },
+
     async loadMoreComments() {
       if (this.state !== 'ok' || this.loadingComments || !this.hasMoreComments) return
       this.loadingComments = true

@@ -16,25 +16,27 @@
       <text class="pull-text">{{pullText}}</text>
     </div>
 
-    <list class="body" onscrollbottom="loadMore" onscroll="onListScroll"
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll"
           ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
-      <list-item type="iss" class="li" for="{{items}}" tid="id">
-        <div class="cell" onclick="openIssue($item)">
+      <div class="li" for="{{it in items}}" tid="id">
+        <div class="cell" onclick="openIssue(it)">
           <image class="cell-icon" src="/common/icons/issue.png" />
           <div class="cell-main">
-            <text class="cell-title">{{$item.title}}</text>
-            <text class="cell-sub">#{{$item.num}} · {{$item.author}} · {{$item.time}}{{$item.comments > 0 ? ' · ' + $item.comments + ' 评论' : ''}}</text>
-            <text class="lb" if="{{$item.labelsText}}" style="color: {{$item.labelColor}}">{{$item.labelsText}}</text>
+            <text class="cell-title">{{it.title}}</text>
+            <text class="cell-sub">#{{it.num}} · {{it.author}} · {{it.time}}{{it.comments > 0 ? ' · ' + it.comments + ' 评论' : ''}}</text>
+            <text class="lb" if="{{it.labelsText}}" style="color: {{it.labelColor}}">{{it.labelsText}}</text>
           </div>
         </div>
-      </list-item>
-      <list-item type="foot" class="li" if="{{loadState === 'ok' && loadingMore}}">
-        <text class="foot">加载中…</text>
-      </list-item>
-      <list-item type="foot" class="li" if="{{loadState === 'ok' && !hasMore && items.length > 0}}">
+      </div>
+      <div class="li" if="{{loadState === 'ok' && loadingMore}}">
+        <text class="foot" onclick="loadMore">加载更多</text>
+      </div>
+      <div class="li" if="{{loadState === 'ok' && !hasMore && items.length > 0}}">
         <text class="foot">— 到底了 —</text>
-      </list-item>
-    </list>
+      </div>
+    </scroll>
+    </div>
 
     <div class="state" if="{{loadState === 'loading'}}">
       <text class="state-t">加载中…</text>
@@ -61,7 +63,10 @@
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 14px; height: 14px; }
   .pull-text { font-size: 10px; color: #8b949e; margin-left: 6px; }
-  .body { flex: 1; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 3px 10px; }
   .cell { flex-direction: row; align-items: flex-start; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
   .cell-icon { width: 15px; height: 15px; margin-top: 2px; }
@@ -141,7 +146,7 @@
     },
     openIssue(item) {
       if (!item) return
-      router.push({ uri: '/pages/issue', params: { full: this.full, n: String(item.num) } })
+      router.push({ uri: 'pages/issue', params: { full: this.full, n: String(item.num) } })
     },
     doRefresh() {
       if (this.refreshing) return
@@ -155,6 +160,11 @@
     },
     onListScroll(e) {
       this.scY = (e && e.scrollY) || 0
+      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
+      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+        const near = this.items.length * 78 - 340
+        if (near > 0 && this.scY >= near) this.loadMore()
+      }
     },
     onTouchStart(e) {
       if (this.scY <= 0 && !this.refreshing) {

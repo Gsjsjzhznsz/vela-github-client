@@ -12,35 +12,35 @@
       <text class="pull-text">{{pullText}}</text>
     </div>
 
-    <list class="body" onscrollbottom="loadMore" onscroll="onListScroll"
-          ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
-      <list-item type="ntf" class="li" for="{{items}}" tid="id">
-        <div class="cell" onclick="openNotif($item)">
-          <div class="unread" show="{{$item.unread}}"></div>
-          <image class="cell-icon" src="{{$item.icon}}" />
-          <div class="cell-main">
-            <text class="cell-repo">{{$item.repo}}</text>
-            <text class="cell-title">{{$item.title}}</text>
-            <text class="cell-time">{{$item.time}}</text>
+    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满，不依赖引擎 flex 高度计算 -->
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll"
+              ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
+        <div class="li" for="{{it in items}}" tid="id">
+          <div class="cell" onclick="openNotif(it)">
+            <div class="unread" show="{{it.unread}}"></div>
+            <image class="cell-icon" src="{{it.icon}}" />
+            <div class="cell-main">
+              <text class="cell-repo">{{it.repo}}</text>
+              <text class="cell-title">{{it.title}}</text>
+              <text class="cell-time">{{it.time}}</text>
+            </div>
           </div>
         </div>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && loadingMore}}">
-        <text class="foot">加载中…</text>
-      </list-item>
-      <list-item type="foot" class="li" if="{{state === 'ok' && !hasMore && items.length > 0}}">
-        <text class="foot">— 到底了 —</text>
-      </list-item>
-    </list>
+        <text class="foot" if="{{state === 'ok' && hasMore}}" onclick="loadMore">加载更多</text>
+        <text class="foot" show="{{state === 'ok' && !hasMore && items.length > 0}}">— 到底了 —</text>
+        <div class="pad-end"></div>
+      </scroll>
+    </div>
 
-    <div class="state" if="{{state === 'loading'}}">
+    <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
     </div>
-    <div class="state" if="{{state === 'empty'}}">
+    <div class="state" show="{{state === 'empty'}}">
       <text class="state-t">{{emptyText}}</text>
       <text class="state-btn" onclick="doRefresh">重新加载</text>
     </div>
-    <div class="state" if="{{state === 'error'}}">
+    <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="doRefresh">点此重试</text>
     </div>
@@ -56,7 +56,10 @@
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 14px; height: 14px; }
   .pull-text { font-size: 10px; color: #8b949e; margin-left: 6px; }
-  .body { flex: 1; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
   .li { padding: 3px 10px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
   .unread { position: absolute; left: 2px; top: 2px; width: 6px; height: 6px; border-radius: 3px; background-color: #3fb950; }
@@ -165,9 +168,9 @@
       }
       if ((item.icon === '/common/icons/issue.png' || item.icon === '/common/icons/pull.png') && item.url) {
         const n = item.url.split('/').pop()
-        router.push({ uri: '/pages/issue', params: { full: item.repo, n: n } })
+        router.push({ uri: 'pages/issue', params: { full: item.repo, n: n } })
       } else {
-        router.push({ uri: '/pages/repo', params: { full: item.repo } })
+        router.push({ uri: 'pages/repo', params: { full: item.repo } })
       }
     },
     /* ---- 下拉刷新（list 自定义手势） ---- */
@@ -183,6 +186,11 @@
     },
     onListScroll(e) {
       this.scY = (e && e.scrollY) || 0
+      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 78px）
+      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+        const near = this.items.length * 78 - 340
+        if (near > 0 && this.scY >= near) this.loadMore()
+      }
     },
     onTouchStart(e) {
       if (this.scY <= 0 && !this.refreshing) {

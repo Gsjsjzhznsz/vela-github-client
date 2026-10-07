@@ -1,0 +1,199 @@
+<import name="gh-kb" src="../../components/gh-keyboard/gh-keyboard.ux"></import>
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <text class="hd-title">设置</text>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="refreshRate" />
+    </div>
+
+    <scroll class="body {{kbShow ? 'shrink' : ''}}" scroll-y="true">
+      <div class="wrap">
+        <!-- 账户状态 -->
+        <div class="card">
+          <text class="c-title">GitHub 账户</text>
+          <text class="c-row">{{hasTk ? '已登录 · ' + tokenMask : '游客模式（公开数据，限流 60 次/小时）'}}</text>
+          <text class="c-row2">API 余量 {{rateText}}</text>
+        </div>
+
+        <!-- Token 操作 -->
+        <div class="cell" onclick="startInput">
+          <image class="cell-icon" src="/common/icons/gear.png" />
+          <text class="cell-label">{{hasTk ? '重新输入 Token' : '输入 Personal Access Token'}}</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
+        <div class="input-card" if="{{inputing}}">
+          <text class="c-title">Token 输入</text>
+          <text class="tk-preview">{{kbTail || '使用下方键盘输入…'}}</text>
+          <div class="tk-btns">
+            <text class="tk-btn tk-cancel" onclick="cancelInput">取消</text>
+            <text class="tk-btn tk-del" onclick="clearInput">清空</text>
+            <text class="tk-btn tk-save" onclick="saveInput">保存</text>
+          </div>
+        </div>
+
+        <div class="cell" if="{{hasTk}}" onclick="logout">
+          <image class="cell-icon" src="/common/icons/back.png" />
+          <text class="cell-label warn">退出登录（清除本机 Token）</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
+        <!-- 说明 -->
+        <div class="card">
+          <text class="c-title">如何获取 Token？</text>
+          <text class="c-body">1. 电脑打开 github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</text>
+          <text class="c-body">2. Generate new token，勾选 repo 与 notifications 权限即可</text>
+          <text class="c-body">3. 把生成的 ghp_ 开头字符串用键盘输入到本机（仅需一次）</text>
+          <text class="c-body warn">Token 仅保存在手表本地存储，不会上传到任何服务器</text>
+        </div>
+
+        <div class="card">
+          <text class="c-title">关于</text>
+          <text class="c-body">GitHub for Vela v1.0.0</text>
+          <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
+          <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
+          <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
+        </div>
+      </div>
+    </scroll>
+
+    <div class="kb-dock {{kbShow ? '' : 'kb-hide'}}">
+      <gh-kb visible="{{kbShow}}" @key="onKbKey" @del="onKbDel" @ok="onKbOk"></gh-kb>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
+  .body { flex: 1; }
+  .shrink { margin-bottom: 152px; }
+  .wrap { flex-direction: column; padding: 4px 10px 16px; }
+  .card { background-color: #161b22; border-radius: 10px; padding: 10px; margin-bottom: 8px; flex-direction: column; }
+  .c-title { font-size: 13px; color: #e6edf3; font-weight: bold; margin-bottom: 4px; }
+  .c-row { font-size: 11px; color: #c9d1d9; }
+  .c-row2 { font-size: 10px; color: #3fb950; margin-top: 3px; }
+  .c-body { font-size: 10px; color: #8b949e; line-height: 15px; margin-top: 2px; }
+  .warn { color: #d29922; }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 10px; padding: 11px 10px; margin-bottom: 8px; }
+  .cell-icon { width: 18px; height: 18px; }
+  .cell-label { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; }
+  .cell-arrow { width: 14px; height: 14px; }
+  .input-card { background-color: #161b22; border: 1px solid #1f6feb; border-radius: 10px; padding: 10px; margin-bottom: 8px; flex-direction: column; }
+  .tk-preview { font-size: 11px; color: #58a6ff; background-color: #0d1117; border-radius: 6px; padding: 6px 8px; lines: 2; text-overflow: ellipsis; }
+  .tk-btns { flex-direction: row; margin-top: 8px; }
+  .tk-btn { flex: 1; text-align: center; font-size: 12px; padding: 7px 0; border-radius: 14px; margin-right: 8px; }
+  .tk-cancel { color: #8b949e; background-color: #21262d; }
+  .tk-del { color: #f85149; background-color: #21262d; }
+  .tk-save { color: #ffffff; background-color: #238636; margin-right: 0; }
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 152px; }
+  @media (shape: rect) {
+    .kb-dock { bottom: auto; top: 105px; }
+  }
+  .kb-hide { display: none; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { maskToken } from '../../utils/fmt'
+
+  export default {
+    private: {
+      hasTk: false,
+      tokenMask: '',
+      rateText: '…',
+      inputing: false,
+      kbShow: false,
+      kbDraft: '',
+      kbTail: ''
+    },
+    async onShow() {
+      await api.loadToken()
+      this.hasTk = api.hasToken()
+      this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
+      this.refreshRate()
+    },
+    async refreshRate() {
+      try {
+        const r = await api.getRateLimit()
+        const core = r && r.resources && r.resources.core
+        if (core) this.rateText = core.remaining + '/' + core.limit
+      } catch (e) {
+        this.rateText = '未知'
+      }
+    },
+    /* ---- Token 输入 ---- */
+    startInput() {
+      this.inputing = true
+      this.kbDraft = ''
+      this.kbTail = ''
+      this.kbShow = true
+    },
+    onKbKey(e) {
+      const ch = (e && e.ch) || ''
+      if (this.kbDraft.length >= 100) return
+      this.kbDraft += ch
+      this.syncTail()
+    },
+    onKbDel() {
+      this.kbDraft = this.kbDraft.slice(0, -1)
+      this.syncTail()
+    },
+    onKbOk() {
+      // 键盘「完成」仅收起键盘，保存走「保存」按钮，防误触
+      this.kbShow = false
+    },
+    syncTail() {
+      const d = this.kbDraft
+      this.kbTail = d.length > 24 ? '…' + d.slice(-23) : d
+    },
+    cancelInput() {
+      this.inputing = false
+      this.kbShow = false
+      this.kbDraft = ''
+      this.kbTail = ''
+    },
+    clearInput() {
+      this.kbDraft = ''
+      this.kbTail = ''
+    },
+    async saveInput() {
+      const t = this.kbDraft.trim()
+      if (!t) {
+        prompt.showToast({ message: '请先输入 Token', duration: 1500 })
+        return
+      }
+      this.kbShow = false
+      prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
+      try {
+        await api.saveToken(t)
+        const me = await api.self()
+        this.hasTk = true
+        this.tokenMask = maskToken(api.currentToken())
+        this.inputing = false
+        prompt.showToast({ message: '登录成功：' + (me.login || ''), duration: 2000 })
+        this.refreshRate()
+      } catch (e) {
+        await api.clearToken()
+        this.hasTk = api.hasToken()
+        prompt.showToast({ message: 'Token 验证失败：' + ((e && e.message) || ''), duration: 2500 })
+      }
+    },
+    async logout() {
+      await api.clearToken()
+      this.hasTk = false
+      this.tokenMask = ''
+      this.inputing = false
+      this.kbShow = false
+      prompt.showToast({ message: '已退出登录', duration: 1500 })
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

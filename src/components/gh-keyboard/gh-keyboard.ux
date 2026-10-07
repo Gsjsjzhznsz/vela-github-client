@@ -1,0 +1,186 @@
+<template>
+  <!-- 键盘组件（参考 BandQQ InputMethod 架构）：
+       1. 根容器显式定高，全链路无 auto 测量点，规避固件首帧坍缩问题
+       2. if 懒建 + 保活：首次弹出才创建子树，之后 show 显隐不重建
+       3. 事件回传：@key{ch} / @del / @ok，由宿主页维护文本缓冲 -->
+  <div class="kb-root" if="{{kbCreated}}" show="{{visible}}">
+    <div class="kb-pad">
+      <block for="(ri, row) in rows">
+        <div class="kb-row">
+          <div class="kb-key {{key.cls}}" for="(ki, key) in row" onclick="onKey($item)">
+            <text class="kb-key-text {{key.small ? 'small' : ''}}" show="{{key.on !== false}}">{{key.label}}</text>
+          </div>
+        </div>
+      </block>
+    </div>
+  </div>
+</template>
+
+<style>
+  .kb-root {
+    width: 100%;
+    height: 152px;
+    background-color: #161b22;
+    border-top: 1px solid #30363d;
+    flex-direction: column;
+  }
+  .kb-pad {
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 100%;
+    height: 152px;
+    padding: 4px 6px;
+  }
+  .kb-row {
+    flex-direction: row;
+    height: 32px;
+    margin-bottom: 4px;
+    width: 100%;
+  }
+  .kb-key {
+    flex: 1;
+    height: 32px;
+    margin: 0 2px;
+    justify-content: center;
+    align-items: center;
+    background-color: #21262d;
+    border-radius: 4px;
+  }
+  .kb-key-text {
+    font-size: 13px;
+    color: #e6edf3;
+    text-align: center;
+    lines: 1;
+    text-overflow: clip;
+  }
+  .small {
+    font-size: 10px;
+  }
+  .k-fn {
+    flex: 1.4;
+    background-color: #30363d;
+  }
+  .k-on {
+    background-color: #1f6feb;
+  }
+  .k-space {
+    flex: 4;
+  }
+  .k-ok {
+    flex: 3;
+    background-color: #238636;
+  }
+</style>
+
+<script>
+  import vibrator from '@system.vibrator'
+
+  const LOWER = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm']
+  const NUM1 = '1234567890'
+  const NUM2 = '-_./:@#&+'
+  const NUM3 = "$%()!?;'\""
+  const TAIL = [',', '.', '_', '-']
+
+  function charKey(ch, shift) {
+    return { label: shift ? ch.toUpperCase() : ch, act: 'char', ch: ch }
+  }
+
+  function fnKey(label, act, on) {
+    return { label: label, act: act, cls: 'k-fn', on: on, small: true }
+  }
+
+  function buildRows(mode, shift) {
+    const rows = []
+    if (mode === 'abc') {
+      rows.push(LOWER[0].split('').map((c) => charKey(c, shift)))
+      rows.push(LOWER[1].split('').map((c) => charKey(c, shift)))
+      const r3 = [fnKey('↑', 'shift', shift)]
+      LOWER[2].split('').forEach((c) => r3.push(charKey(c, shift)))
+      r3.push(fnKey('←', 'del', undefined))
+      rows.push(r3)
+    } else {
+      rows.push(NUM1.split('').map((c) => charKey(c, false)))
+      rows.push(NUM2.split('').map((c) => charKey(c, false)))
+      const r3 = [fnKey('#', 'noop', false)]
+      NUM3.split('').forEach((c) => r3.push(charKey(c, false)))
+      r3.push(fnKey('←', 'del', undefined))
+      rows.push(r3)
+    }
+    const r4 = [fnKey(mode === 'abc' ? '123' : 'abc', 'mode', undefined)]
+    TAIL.forEach((c) => r4.push(charKey(c, false)))
+    r4.push({ label: '空格', act: 'space', cls: 'k-space', small: true })
+    r4.push({ label: '完成', act: 'ok', cls: 'k-ok', small: true })
+    rows.push(r4)
+    return rows
+  }
+
+  export default {
+    props: {
+      visible: { default: false },
+      haptic: { default: true }
+    },
+    data: {
+      kbCreated: false,
+      mode: 'abc',
+      shift: false,
+      rows: []
+    },
+    onInit() {
+      this.rows = buildRows(this.mode, this.shift)
+      this.$watch('visible', 'onVisibleChange')
+    },
+    onVisibleChange(newV) {
+      if (newV && !this.kbCreated) {
+        // 首次弹出才懒建子树，之后保活
+        this.kbCreated = true
+      }
+    },
+    buzz() {
+      if (!this.haptic) return
+      try {
+        vibrator.vibrate({ mode: 'short' })
+      } catch (e) {
+        // 振动失败不影响输入
+      }
+    },
+    onKey(item) {
+      if (!item || !item.act) return
+      this.buzz()
+      const act = item.act
+      if (act === 'char') {
+        this.$emit('key', { ch: this.shift ? String(item.ch).toUpperCase() : item.ch })
+        if (this.shift && this.mode === 'abc') {
+          // 大写输入一次后自动回落
+          this.shift = false
+          this.refreshRows()
+        }
+      } else if (act === 'del') {
+        this.$emit('del', {})
+      } else if (act === 'space') {
+        this.$emit('key', { ch: ' ' })
+      } else if (act === 'ok') {
+        this.$emit('ok', {})
+      } else if (act === 'mode') {
+        this.mode = this.mode === 'abc' ? '123' : 'abc'
+        this.shift = false
+        this.refreshRows()
+      } else if (act === 'shift') {
+        if (this.mode === 'abc') {
+          this.shift = !this.shift
+          this.refreshRows()
+        }
+      }
+    },
+    refreshRows() {
+      // 原地更新按键标签，避免整树重建
+      const next = buildRows(this.mode, this.shift)
+      for (let ri = 0; ri < next.length && ri < this.rows.length; ri++) {
+        for (let ki = 0; ki < next[ri].length && ki < this.rows[ri].length; ki++) {
+          this.rows[ri][ki].label = next[ri][ki].label
+          this.rows[ri][ki].cls = next[ri][ki].cls
+          this.rows[ri][ki].on = next[ri][ki].on
+        }
+      }
+    }
+  }
+</script>

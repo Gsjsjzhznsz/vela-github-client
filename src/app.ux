@@ -1,0 +1,26 @@
+<template>
+  <div class="app-root"></div>
+</template>
+
+<style>
+  .app-root {
+    flex-direction: column;
+    background-color: #0d1117;
+  }
+</style>
+
+<script>
+  /**
+   * GitHub for Vela — 应用入口
+   * 仅做轻量初始化，网络与页面逻辑全部在各页面内完成，
+   * 避免应用启动期做任何网络请求（官方启动性能规范）。
+   */
+  export default {
+    onCreate() {
+      console.log('[GH] app created')
+    },
+    onError(err) {
+      console.error('[GH] app error: ' + JSON.stringify(err))
+    }
+  }
+</script>

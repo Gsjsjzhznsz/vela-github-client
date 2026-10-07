@@ -1,0 +1,174 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <text class="hd-title">{{full}}</text>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
+    </div>
+
+    <scroll class="body" scroll-y="true">
+      <div class="wrap">
+        <!-- 描述卡 -->
+        <div class="card">
+          <text class="r-desc" show="{{!!desc}}">{{desc}}</text>
+          <div class="meta">
+            <div class="dot" show="{{!!lang}}" style="background-color: {{langc}}"></div>
+            <text class="meta-t" show="{{!!lang}}">{{lang}}</text>
+            <image class="meta-ic" src="/common/icons/star.png" />
+            <text class="meta-t">{{stars}}</text>
+            <image class="meta-ic" src="/common/icons/fork.png" />
+            <text class="meta-t">{{forks}}</text>
+            <image class="meta-ic" src="/common/icons/clock.png" />
+            <text class="meta-t">{{updated}}</text>
+          </div>
+          <text class="r-sub">Watch {{watchers}} · Issues {{openIssues}} · {{license}}</text>
+        </div>
+
+        <!-- 操作区 -->
+        <div class="grid">
+          <div class="gcell" onclick="goReadme">
+            <image class="gicon" src="/common/icons/book.png" />
+            <text class="glabel">README</text>
+          </div>
+          <div class="gcell" onclick="goIssues">
+            <image class="gicon" src="/common/icons/issue.png" />
+            <text class="glabel">Issues</text>
+          </div>
+          <div class="gcell" onclick="goCode">
+            <image class="gicon" src="/common/icons/code.png" />
+            <text class="glabel">代码</text>
+          </div>
+          <div class="gcell" onclick="toggleStar">
+            <image class="gicon" src="{{starred ? '/common/icons/star-fill.png' : '/common/icons/star.png'}}" />
+            <text class="glabel">{{starred ? '已 Star' : 'Star'}}</text>
+          </div>
+        </div>
+
+        <text class="hint" show="{{starHint}}">Star 需登录 Token</text>
+      </div>
+    </scroll>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-title { font-size: 15px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .body { flex: 1; }
+  .wrap { flex-direction: column; padding: 4px 10px 16px; }
+  .card { background-color: #161b22; border-radius: 10px; padding: 10px; }
+  .r-desc { font-size: 12px; color: #c9d1d9; lines: 3; text-overflow: ellipsis; }
+  .meta { flex-direction: row; align-items: center; margin-top: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 5px; margin-right: 3px; }
+  .meta-ic { width: 12px; height: 12px; margin-left: 10px; margin-right: 2px; }
+  .meta-t { font-size: 11px; color: #8b949e; }
+  .r-sub { font-size: 10px; color: #484f58; margin-top: 6px; }
+  .grid { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-top: 10px; }
+  .gcell { width: 94px; height: 56px; background-color: #161b22; border-radius: 10px; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .gicon { width: 20px; height: 20px; }
+  .glabel { font-size: 11px; color: #e6edf3; margin-top: 4px; }
+  .hint { font-size: 10px; color: #d29922; text-align: center; width: 100%; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { compact, relTime, langColor } from '../../utils/fmt'
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      desc: '',
+      lang: '',
+      langc: '#30363d',
+      stars: '0',
+      forks: '0',
+      watchers: '0',
+      openIssues: '0',
+      license: '',
+      updated: '',
+      starred: false,
+      starHint: false,
+      state: 'loading',
+      errMsg: ''
+    },
+    onInit(params) {
+      if (params && params.full) this.full = params.full
+    },
+    onShow() {
+      if (this.full && this.state !== 'ok') this.reload()
+    },
+    async reload() {
+      this.state = 'loading'
+      try {
+        const r = await api.getRepo(this.full)
+        this.desc = r.description || ''
+        this.lang = r.language || ''
+        this.langc = langColor(r.language)
+        this.stars = compact(r.stargazers_count)
+        this.forks = compact(r.forks_count)
+        this.watchers = compact(r.subscribers_count)
+        this.openIssues = compact(r.open_issues_count)
+        this.license = r.license && r.license.spdx_id ? r.license.spdx_id : '无协议'
+        this.updated = '更新于 ' + relTime(r.pushed_at)
+        this.state = 'ok'
+        this.checkStar()
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async checkStar() {
+      await api.loadToken()
+      if (!api.hasToken()) return
+      try {
+        this.starred = await api.isStarred(this.full)
+      } catch (e) {
+        // 忽略 Star 状态查询失败
+      }
+    },
+    async toggleStar() {
+      await api.loadToken()
+      if (!api.hasToken()) {
+        this.starHint = true
+        prompt.showToast({ message: 'Star 需登录 Token', duration: 1500 })
+        return
+      }
+      try {
+        const target = !this.starred
+        await api.setStarred(this.full, target)
+        this.starred = target
+        prompt.showToast({ message: target ? '已 Star ⭐' : '已取消 Star', duration: 1500 })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
+      }
+    },
+    goReadme() {
+      router.push({ uri: '/pages/readme', params: { full: this.full } })
+    },
+    goIssues() {
+      router.push({ uri: '/pages/issues', params: { full: this.full } })
+    },
+    goCode() {
+      router.push({ uri: '/pages/code', params: { full: this.full } })
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

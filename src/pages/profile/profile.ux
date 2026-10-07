@@ -1,0 +1,189 @@
+<import name="gh-kb" src="../../components/gh-keyboard/gh-keyboard.ux"></import>
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <text class="hd-title">个人主页</text>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
+    </div>
+
+    <scroll class="body" scroll-y="true">
+      <div class="wrap">
+        <div class="card head-card">
+          <div class="ava-big" style="background-color: {{avColor}}">
+            <text class="ava-big-t">{{avCh}}</text>
+          </div>
+          <text class="p-login">{{login}}</text>
+          <text class="p-name" show="{{!!name}}">{{name}}</text>
+          <text class="p-bio" show="{{!!bio}}">{{bio}}</text>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <text class="stat-n">{{reposN}}</text>
+            <text class="stat-l">仓库</text>
+          </div>
+          <div class="stat">
+            <text class="stat-n">{{followers}}</text>
+            <text class="stat-l">粉丝</text>
+          </div>
+          <div class="stat">
+            <text class="stat-n">{{following}}</text>
+            <text class="stat-l">关注</text>
+          </div>
+        </div>
+
+        <div class="cell" onclick="goUserRepos">
+          <image class="cell-icon" src="/common/icons/repo.png" />
+          <text class="cell-label">公开仓库</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
+        <div class="cell" if="{{!isSelf}}" onclick="showKb">
+          <image class="cell-icon" src="/common/icons/search.png" />
+          <text class="cell-label">游客模式：输入用户名查询</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+        <div class="cell" if="{{!isSelf}}" onclick="doLogin">
+          <image class="cell-icon" src="/common/icons/check.png" />
+          <text class="cell-label">去设置登录 Token</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+      </div>
+    </scroll>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+
+    <div class="kb-dock {{kbShow ? '' : 'kb-hide'}}">
+      <gh-kb visible="{{kbShow}}" @key="onKbKey" @del="onKbDel" @ok="onKbOk"></gh-kb>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
+  .body { flex: 1; }
+  .wrap { flex-direction: column; padding: 4px 10px 16px; }
+  .card { background-color: #161b22; border-radius: 10px; padding: 12px; }
+  .head-card { align-items: center; }
+  .ava-big { width: 56px; height: 56px; border-radius: 28px; justify-content: center; align-items: center; }
+  .ava-big-t { font-size: 24px; color: #ffffff; font-weight: bold; }
+  .p-login { font-size: 17px; color: #e6edf3; font-weight: bold; margin-top: 6px; }
+  .p-name { font-size: 12px; color: #c9d1d9; margin-top: 2px; }
+  .p-bio { font-size: 11px; color: #8b949e; margin-top: 4px; text-align: center; lines: 2; text-overflow: ellipsis; }
+  .stats { flex-direction: row; margin-top: 10px; }
+  .stat { flex: 1; background-color: #161b22; border-radius: 10px; padding: 10px 0; align-items: center; margin-right: 8px; }
+  .stat-n { font-size: 17px; color: #e6edf3; font-weight: bold; }
+  .stat-l { font-size: 10px; color: #8b949e; margin-top: 2px; }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 10px; padding: 11px 10px; margin-top: 8px; }
+  .cell-icon { width: 18px; height: 18px; }
+  .cell-label { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; }
+  .cell-arrow { width: 14px; height: 14px; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 152px; }
+  @media (shape: rect) {
+    .kb-dock { bottom: auto; top: 105px; }
+  }
+  .kb-hide { display: none; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import api from '../../utils/api'
+  import { compact, avatar } from '../../utils/fmt'
+
+  export default {
+    private: {
+      isSelf: false,
+      login: '',
+      name: '',
+      bio: '',
+      reposN: '0',
+      followers: '0',
+      following: '0',
+      avCh: 'G',
+      avColor: '#21262d',
+      state: 'loading',
+      errMsg: '',
+      kbShow: false,
+      kbQuery: ''
+    },
+    async onInit() {
+      await api.loadToken()
+      if (api.hasToken()) {
+        this.loadUser(null)
+      } else {
+        this.state = 'error'
+        this.errMsg = '游客模式：点击下方输入用户名查询，或登录 Token'
+      }
+    },
+    async loadUser(login) {
+      this.state = 'loading'
+      try {
+        const u = login ? await api.getUser(login) : await api.self()
+        this.isSelf = !login
+        this.applyUser(u)
+        this.state = 'ok'
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    applyUser(u) {
+      this.login = u.login || ''
+      this.name = u.name || ''
+      this.bio = u.bio || ''
+      this.reposN = compact(u.public_repos)
+      this.followers = compact(u.followers)
+      this.following = compact(u.following)
+      const av = avatar(this.login)
+      this.avCh = av.ch
+      this.avColor = av.color
+    },
+    reload() {
+      if (this.isSelf || (!api.hasToken() && !this.kbQuery)) {
+        this.loadUser(null)
+      } else {
+        this.loadUser(this.kbQuery || this.login)
+      }
+    },
+    showKb() {
+      this.kbShow = true
+    },
+    onKbKey(e) {
+      const ch = (e && e.ch) || ''
+      if (this.kbQuery.length >= 39) return
+      this.kbQuery += ch
+    },
+    onKbDel() {
+      this.kbQuery = this.kbQuery.slice(0, -1)
+    },
+    onKbOk() {
+      this.kbShow = false
+      const q = this.kbQuery.trim()
+      if (!q) return
+      this.loadUser(q)
+    },
+    goUserRepos() {
+      if (!this.login) return
+      router.push({ uri: '/pages/repos', params: { user: this.login } })
+    },
+    doLogin() {
+      router.push({ uri: '/pages/settings' })
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

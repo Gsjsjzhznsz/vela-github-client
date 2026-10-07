@@ -1,0 +1,211 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-main">
+        <text class="hd-title">{{full}} #{{n}}</text>
+        <text class="hd-sub">{{commentN}} 条评论</text>
+      </div>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
+    </div>
+
+    <list class="body" onscrollbottom="loadMoreComments">
+      <!-- 标题头 -->
+      <list-item type="head" class="li">
+        <div class="head-card">
+          <div class="badge {{open ? 'b-open' : 'b-closed'}}">
+            <text class="badge-t">{{isPR ? (open ? 'PR · 开放' : 'PR · 已合并/关闭') : (open ? 'Issue · 开放' : 'Issue · 已关闭')}}</text>
+          </div>
+          <text class="h-title">{{title}}</text>
+          <text class="h-meta">{{author}} · 创建于 {{created}}</text>
+          <div class="labels" if="{{labels.length > 0}}">
+            <text class="lb" for="{{labels}}" style="color: {{lb.color}}">{{lb.name}}</text>
+          </div>
+        </div>
+      </list-item>
+
+      <!-- 正文块 -->
+      <list-item type="blk" class="li" for="{{bodyBlocks}}" tid="id">
+        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
+        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
+        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
+        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
+        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
+        <div class="br" elif="{{it.t === 'r'}}"></div>
+        <text class="bp" else>{{it.s}}</text>
+      </list-item>
+
+      <!-- 评论分隔 -->
+      <list-item type="sepa" class="li" if="{{comments.length > 0}}">
+        <text class="sepa-t">—— 评论 ——</text>
+      </list-item>
+
+      <!-- 评论项 -->
+      <list-item type="cmt" class="li" for="{{comments}}" tid="id">
+        <div class="cmt-card">
+          <div class="cmt-hd">
+            <div class="ava" style="background-color: {{it.avc}}">
+              <text class="ava-t">{{it.avn}}</text>
+            </div>
+            <text class="cmt-author">{{it.author}}</text>
+            <text class="cmt-time">{{it.time}}</text>
+          </div>
+          <text class="cmt-body" if="{{it.text}}">{{it.text}}</text>
+          <text class="cmt-empty" if="{{!it.text}}">（无正文）</text>
+        </div>
+      </list-item>
+
+      <list-item type="foot" class="li" if="{{loadingComments}}">
+        <text class="foot">加载评论中…</text>
+      </list-item>
+      <list-item type="foot" class="li" if="{{state === 'ok' && !hasMoreComments && comments.length > 0}}">
+        <text class="foot">— 到底了 —</text>
+      </list-item>
+    </list>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
+  .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; }
+  .body { flex: 1; }
+  .li { padding: 3px 10px; }
+  .head-card { background-color: #161b22; border-radius: 10px; padding: 10px; width: 100%; flex-direction: column; }
+  .badge { align-self: flex-start; border-radius: 10px; padding: 2px 8px; }
+  .b-open { background-color: #238636; }
+  .b-closed { background-color: #8957e5; }
+  .badge-t { font-size: 10px; color: #ffffff; }
+  .h-title { font-size: 15px; color: #e6edf3; font-weight: bold; margin-top: 6px; lines: 3; text-overflow: ellipsis; }
+  .h-meta { font-size: 10px; color: #8b949e; margin-top: 4px; }
+  .labels { flex-direction: row; flex-wrap: wrap; margin-top: 6px; }
+  .lb { font-size: 9px; margin-right: 6px; border: 1px solid #30363d; border-radius: 8px; padding: 1px 6px; }
+  .bh { font-size: 14px; color: #58a6ff; font-weight: bold; margin-top: 4px; }
+  .bp { font-size: 13px; color: #e6edf3; line-height: 19px; }
+  .bc { font-size: 11px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 5px 8px; margin: 2px 0; }
+  .bq { font-size: 12px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 8px; }
+  .bl { font-size: 13px; color: #e6edf3; line-height: 19px; }
+  .br { height: 1px; background-color: #30363d; width: 100%; margin: 4px 0; }
+  .sepa-t { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .cmt-card { background-color: #161b22; border-radius: 10px; padding: 9px 10px; width: 100%; flex-direction: column; }
+  .cmt-hd { flex-direction: row; align-items: center; }
+  .ava { width: 20px; height: 20px; border-radius: 10px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 10px; color: #ffffff; font-weight: bold; }
+  .cmt-author { font-size: 12px; color: #58a6ff; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .cmt-time { font-size: 9px; color: #484f58; }
+  .cmt-body { font-size: 12px; color: #c9d1d9; line-height: 18px; margin-top: 6px; }
+  .cmt-empty { font-size: 11px; color: #484f58; margin-top: 4px; }
+  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import api from '../../utils/api'
+  import { mdToBlocks } from '../../utils/md'
+  import { relTime, truncate, avatar } from '../../utils/fmt'
+  import { mapIssue } from '../../utils/view'
+
+  export default {
+    protected: {
+      full: '',
+      n: ''
+    },
+    private: {
+      title: '',
+      open: true,
+      isPR: false,
+      author: '',
+      created: '',
+      labels: [],
+      commentN: 0,
+      bodyBlocks: [],
+      comments: [],
+      state: 'loading',
+      errMsg: '',
+      loadingComments: false,
+      hasMoreComments: false
+    },
+    onInit(params) {
+      if (params && params.full) this.full = params.full
+      if (params && params.n) this.n = String(params.n)
+    },
+    onShow() {
+      if (this.full && this.n && this.state !== 'ok') this.reload()
+    },
+    async reload() {
+      this.state = 'loading'
+      try {
+        const iss = await api.getIssue(this.full, this.n)
+        const m = mapIssue(iss)
+        this.title = m.title
+        this.open = m.open
+        this.isPR = !!iss.pull_request
+        this.author = m.author
+        this.created = m.time
+        this.labels = m.labels
+        this.commentN = iss.comments || 0
+        const body = mdToBlocks(iss.body || '')
+        const blocks = []
+        for (let i = 0; i < body.length && i < 80; i++) {
+          blocks.push({ id: 'b' + i, t: body[i].t, s: body[i].s })
+        }
+        this.bodyBlocks = blocks
+        this._cmtsUrl = iss.comments_url || ''
+        this.comments = []
+        this._cPage = 0
+        this.hasMoreComments = this.commentN > 0
+        this.state = 'ok'
+        this.loadMoreComments()
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async loadMoreComments() {
+      if (this.state !== 'ok' || this.loadingComments || !this.hasMoreComments) return
+      this.loadingComments = true
+      try {
+        const next = this._cPage + 1
+        const list = await api.getComments(this._cmtsUrl, next)
+        for (let i = 0; i < list.length; i++) {
+          const c = list[i]
+          const av = avatar(c.user ? c.user.login : '?')
+          this.comments.push({
+            id: String(c.id),
+            author: c.user ? c.user.login : '未知',
+            time: relTime(c.created_at),
+            text: truncate((c.body || '').replace(/\r/g, ''), 500),
+            avn: av.ch,
+            avc: av.color
+          })
+        }
+        this._cPage = next
+        this.hasMoreComments = list.length >= 10
+      } catch (e) {
+        // 评论加载失败不打断页面
+      }
+      this.loadingComments = false
+    },
+    onDestroy() {
+      this.bodyBlocks = []
+      this.comments = []
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

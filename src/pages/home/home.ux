@@ -1,0 +1,147 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-logo" src="/common/icons/logo.png" />
+      <text class="hd-title">GitHub</text>
+      <image class="hd-act" src="/common/icons/gear.png" onclick="goSettings" />
+    </div>
+
+    <list class="body">
+      <!-- 账户状态卡 -->
+      <list-item type="status" class="li">
+        <div class="card">
+          <div class="ava" style="background-color: {{avColor}}">
+            <text class="ava-t">{{avCh}}</text>
+          </div>
+          <div class="card-main">
+            <text class="row1">{{hasTk ? loginName : '游客模式'}}</text>
+            <text class="row2">{{hasTk ? '已登录 · ' + tokenMask : '登录后可看通知 / 私有仓库'}}</text>
+            <text class="row3">API 余量 {{rateText}}</text>
+          </div>
+        </div>
+      </list-item>
+
+      <!-- 功能菜单 -->
+      <list-item type="menu" class="li" for="{{menu}}" tid="id">
+        <div class="cell" onclick="goMenu($item)">
+          <image class="cell-icon" src="{{it.icon}}" />
+          <div class="cell-main">
+            <text class="cell-label">{{it.label}}</text>
+            <text class="cell-sub" show="{{!!it.sub}}">{{it.sub}}</text>
+          </div>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+      </list-item>
+
+      <list-item type="foot" class="li">
+        <text class="foot">Vela JS 应用 · AGPL-3.0 · Redmi Watch 5 适配</text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 42px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-logo { width: 26px; height: 26px; border-radius: 6px; }
+  .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; margin-left: 8px; flex: 1; }
+  .hd-act { width: 22px; height: 22px; }
+  .body { flex: 1; }
+  .li { padding: 3px 10px; }
+  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 10px; }
+  .ava { width: 42px; height: 42px; border-radius: 21px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 18px; color: #ffffff; font-weight: bold; }
+  .card-main { flex-direction: column; margin-left: 10px; flex: 1; }
+  .row1 { font-size: 16px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .row2 { font-size: 11px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .row3 { font-size: 10px; color: #3fb950; margin-top: 2px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 11px 10px; }
+  .cell-icon { width: 22px; height: 22px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
+  .cell-label { font-size: 15px; color: #e6edf3; }
+  .cell-sub { font-size: 10px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 16px; height: 16px; }
+  .foot { font-size: 9px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { avatar, maskToken } from '../../utils/fmt'
+
+  export default {
+    private: {
+      menu: [],
+      hasTk: false,
+      loginName: '',
+      tokenMask: '',
+      rateText: '…',
+      avCh: 'G',
+      avColor: '#21262d'
+    },
+    onInit() {
+      this.menu = [
+        { id: 'notifications', icon: '/common/icons/bell.png', label: '通知中心', sub: '' },
+        { id: 'repos', icon: '/common/icons/repo.png', label: '我的仓库', sub: '' },
+        { id: 'search', icon: '/common/icons/search.png', label: '搜索', sub: '' },
+        { id: 'trending', icon: '/common/icons/trend.png', label: '趋势', sub: '' },
+        { id: 'profile', icon: '/common/icons/person.png', label: '个人主页', sub: '' }
+      ]
+    },
+    async onShow() {
+      await api.loadToken()
+      this.hasTk = api.hasToken()
+      this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
+      if (this.hasTk) {
+        try {
+          const me = await api.self()
+          this.loginName = me.login || ''
+          const av = avatar(this.loginName)
+          this.avCh = av.ch
+          this.avColor = av.color
+        } catch (e) {
+          this.loginName = 'Token 异常'
+          this.avCh = '!'
+          this.avColor = '#8b1f1f'
+        }
+      } else {
+        this.loginName = ''
+        this.avCh = 'G'
+        this.avColor = '#21262d'
+      }
+      this.refreshRate()
+    },
+    async refreshRate() {
+      try {
+        const r = await api.getRateLimit()
+        const core = r && r.resources && r.resources.core
+        if (core) {
+          this.rateText = core.remaining + '/' + core.limit
+          return
+        }
+      } catch (e) {
+        // 限流接口失败不打断页面
+      }
+      this.rateText = '未知'
+    },
+    goMenu(item) {
+      if (!item) return
+      if (item.id === 'notifications' && !this.hasTk) {
+        this.toast('通知需登录：请先到设置填入 Token')
+        return
+      }
+      if (item.id === 'repos' && !this.hasTk) {
+        this.toast('仓库列表需登录；游客可使用搜索/趋势')
+        return
+      }
+      router.push({ uri: '/pages/' + item.id })
+    },
+    goSettings() {
+      router.push({ uri: '/pages/settings' })
+    },
+    toast(msg) {
+      prompt.showToast({ message: msg, duration: 2000 })
+    }
+  }
+</script>

@@ -1,0 +1,203 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <text class="hd-title">趋势</text>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="doRefresh" />
+    </div>
+
+    <div class="tabs">
+      <text class="tab {{mode === 'new' ? 'on' : ''}}" onclick="switchMode('new')">新星</text>
+      <text class="tab {{mode === 'rising' ? 'on' : ''}}" onclick="switchMode('rising')">黑马</text>
+      <text class="tab {{mode === 'classic' ? 'on' : ''}}" onclick="switchMode('classic')">经典</text>
+    </div>
+
+    <div class="pull" style="height: {{pullY}}px">
+      <image class="pull-icon" src="/common/icons/refresh.png" />
+      <text class="pull-text">{{pullText}}</text>
+    </div>
+
+    <list class="body" onscrollbottom="loadMore" onscroll="onListScroll"
+          ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
+      <list-item type="repo" class="li" for="{{items}}" tid="id">
+        <div class="cell" onclick="openRepo($item)">
+          <text class="rank" show="{{it.rank <= 3}}">{{it.rank}}</text>
+          <div class="ava" style="background-color: {{it.avc}}">
+            <text class="ava-t">{{it.avn}}</text>
+          </div>
+          <div class="cell-main">
+            <text class="cell-title">{{it.full}}</text>
+            <text class="cell-desc" show="{{!!it.desc}}">{{it.desc}}</text>
+            <div class="meta">
+              <div class="dot" show="{{!!it.lang}}" style="background-color: {{it.langc}}"></div>
+              <text class="meta-t" show="{{!!it.lang}}">{{it.lang}}</text>
+              <image class="meta-ic" src="/common/icons/star.png" />
+              <text class="meta-t">{{it.stars}}</text>
+            </div>
+          </div>
+        </div>
+      </list-item>
+      <list-item type="foot" class="li" if="{{state === 'ok' && loadingMore}}">
+        <text class="foot">加载中…</text>
+      </list-item>
+      <list-item type="foot" class="li" if="{{state === 'ok' && !hasMore && items.length > 0}}">
+        <text class="foot">— 到底了 —</text>
+      </list-item>
+    </list>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{state === 'empty'}}">
+      <text class="state-t">暂无数据</text>
+      <text class="state-btn" onclick="doRefresh">重新加载</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="doRefresh">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
+  .tabs { flex-direction: row; padding: 2px 10px 6px; }
+  .tab { font-size: 12px; color: #8b949e; padding: 4px 12px; background-color: #161b22; border-radius: 12px; margin-right: 8px; }
+  .on { color: #ffffff; background-color: #1f6feb; }
+  .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
+  .pull-icon { width: 14px; height: 14px; }
+  .pull-text { font-size: 10px; color: #8b949e; margin-left: 6px; }
+  .body { flex: 1; }
+  .li { padding: 3px 10px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
+  .rank { width: 18px; font-size: 13px; color: #f0883e; font-weight: bold; text-align: center; }
+  .ava { width: 30px; height: 30px; border-radius: 15px; justify-content: center; align-items: center; margin-left: 4px; }
+  .ava-t { font-size: 13px; color: #ffffff; font-weight: bold; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
+  .cell-title { font-size: 14px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .cell-desc { font-size: 11px; color: #8b949e; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
+  .meta { flex-direction: row; align-items: center; margin-top: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 3px; }
+  .meta-ic { width: 11px; height: 11px; margin-left: 8px; margin-right: 2px; }
+  .meta-t { font-size: 10px; color: #8b949e; }
+  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .state { position: absolute; left: 0; top: 66px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { mapRepo } from '../../utils/view'
+
+  export default {
+    private: {
+      mode: 'new',
+      items: [],
+      state: 'loading',
+      errMsg: '',
+      page: 1,
+      hasMore: true,
+      loadingMore: false,
+      refreshing: false,
+      scY: 0,
+      tY: 0,
+      pullY: 0,
+      pullText: '下拉刷新'
+    },
+    onInit() {},
+    onShow() {
+      if (this.items.length === 0) this.reload()
+    },
+    async reload() {
+      this.state = 'loading'
+      try {
+        const r = await api.getTrending(this.mode, 1)
+        const list = (r && r.items) || []
+        this.items = list.map((it, i) => {
+          const m = mapRepo(it)
+          m.rank = i + 1
+          return m
+        })
+        this.page = 1
+        this.hasMore = list.length >= 10
+        this.state = this.items.length === 0 ? 'empty' : 'ok'
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async loadMore() {
+      if (!this.hasMore || this.loadingMore || this.state !== 'ok') return
+      this.loadingMore = true
+      try {
+        const next = this.page + 1
+        const r = await api.getTrending(this.mode, next)
+        const list = (r && r.items) || []
+        for (let i = 0; i < list.length; i++) {
+          const m = mapRepo(list[i])
+          m.rank = this.items.length + 1
+          this.items.push(m)
+        }
+        this.page = next
+        this.hasMore = list.length >= 10
+      } catch (e) {
+        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
+      }
+      this.loadingMore = false
+    },
+    switchMode(m) {
+      if (this.mode === m) return
+      this.mode = m
+      this.items = []
+      this.reload()
+    },
+    openRepo(item) {
+      if (!item) return
+      router.push({ uri: '/pages/repo', params: { full: item.full } })
+    },
+    doRefresh() {
+      if (this.refreshing) return
+      this.refreshing = true
+      this.pullY = 30
+      this.pullText = '刷新中…'
+      this.reload().then(() => {
+        this.refreshing = false
+        this.pullY = 0
+      })
+    },
+    onListScroll(e) {
+      this.scY = (e && e.scrollY) || 0
+    },
+    onTouchStart(e) {
+      if (this.scY <= 0 && !this.refreshing) {
+        const t = e && e.touches && e.touches[0]
+        this.tY = (t && (t.pageY || t.clientY)) || 0
+      }
+    },
+    onTouchMove(e) {
+      if (this.refreshing || this.tY <= 0 || this.scY > 0) return
+      const t = e && e.touches && e.touches[0]
+      const y = (t && (t.pageY || t.clientY)) || 0
+      const delta = y - this.tY
+      if (delta > 0) {
+        this.pullY = Math.min(56, Math.floor(delta * 0.45))
+        this.pullText = this.pullY > 40 ? '松开刷新' : '下拉刷新'
+      }
+    },
+    onTouchEnd() {
+      if (this.refreshing) return
+      if (this.pullY > 40) this.doRefresh()
+      else this.pullY = 0
+      this.tY = 0
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

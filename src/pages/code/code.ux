@@ -1,0 +1,256 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-main">
+        <text class="hd-title">{{hdTitle}}</text>
+        <text class="hd-sub" show="{{mode === 'dir' && pathText}}">{{pathText}}</text>
+      </div>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
+    </div>
+
+    <list class="body" onscrollbottom="loadMoreLines">
+      <!-- 目录项 -->
+      <block for="{{items}}" tid="id">
+        <list-item type="dir" class="li" if="{{mode === 'dir' && it.kind === 'up'}}">
+          <div class="cell" onclick="goUp">
+            <image class="cell-icon" src="/common/icons/back.png" />
+            <text class="cell-name muted">返回上级</text>
+          </div>
+        </list-item>
+        <list-item type="entry" class="li" if="{{mode === 'dir' && it.kind !== 'up'}}">
+          <div class="cell" onclick="openEntry($item)">
+            <image class="cell-icon" src="{{it.icon}}" />
+            <text class="cell-name">{{it.name}}</text>
+            <text class="cell-size" show="{{it.size}}">{{it.size}}</text>
+            <image class="cell-arrow" src="/common/icons/chevron.png" show="{{it.isDir}}" />
+          </div>
+        </list-item>
+        <list-item type="chunk" class="li-code" if="{{mode === 'file'}}">
+          <text class="code-line" for="{{it.lines}}">{{ln.n}}  {{ln.s}}</text>
+        </list-item>
+      </block>
+
+      <list-item type="foot" class="li" if="{{mode === 'file' && renderedLines < totalLines}}">
+        <text class="foot">上滑加载更多…</text>
+      </list-item>
+      <list-item type="foot" class="li" if="{{mode === 'file' && renderedLines >= totalLines}}">
+        <text class="foot">— 文件结尾 —</text>
+      </list-item>
+    </list>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{state === 'empty'}}">
+      <text class="state-t">空目录</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
+  .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; lines: 1; text-overflow: ellipsis; }
+  .body { flex: 1; }
+  .li { padding: 3px 10px; }
+  .li-code { padding: 1px 8px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 8px; padding: 9px 10px; }
+  .cell-icon { width: 16px; height: 16px; }
+  .cell-name { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; }
+  .muted { color: #8b949e; }
+  .cell-size { font-size: 9px; color: #484f58; }
+  .cell-arrow { width: 12px; height: 12px; margin-left: 4px; }
+  .code-line { font-size: 10px; color: #c9d1d9; line-height: 15px; }
+  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { compact } from '../../utils/fmt'
+
+  const LINE_CHUNK = 40
+  const MAX_LINES = 3000
+  const MAX_SIZE = 200 * 1024
+  const BIN_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'dylib', 'pdf', 'mp3', 'mp4', 'wav', 'woff', 'woff2', 'ttf', 'eot', 'otf', 'jar', 'class', 'pyc', 'bin', 'apk', 'rpk']
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      mode: 'dir',
+      hdTitle: '',
+      pathText: '',
+      items: [],
+      state: 'loading',
+      errMsg: '',
+      renderedLines: 0,
+      totalLines: 0
+    },
+    onInit(params) {
+      if (params && params.full) this.full = params.full
+      this._segments = []      // 当前目录段
+      this._filePath = ''      // 当前文件路径
+      this._fileName = ''
+      this.hdTitle = this.full
+      this.loadDir()
+    },
+    currentPath() {
+      return this._segments.join('/')
+    },
+    async loadDir() {
+      this.state = 'loading'
+      try {
+        const list = await api.getContents(this.full, this.currentPath(), this._branch)
+        if (!Array.isArray(list)) {
+          // 内容接口对单文件返回对象：直接按文件查看
+          this._filePath = this.currentPath()
+          await this.openFileText(this._filePath)
+          return
+        }
+        const dirs = []
+        const files = []
+        for (let i = 0; i < list.length; i++) {
+          const e = list[i]
+          if (e.type === 'dir') dirs.push(e)
+          else files.push(e)
+        }
+        dirs.sort((a, b) => (a.name < b.name ? -1 : 1))
+        files.sort((a, b) => (a.name < b.name ? -1 : 1))
+        const out = []
+        if (this._segments.length > 0) out.push({ id: 'up', kind: 'up' })
+        for (let i = 0; i < dirs.length; i++) {
+          out.push({
+            id: 'd' + i,
+            kind: 'e',
+            name: dirs[i].name,
+            path: dirs[i].path,
+            isDir: true,
+            icon: '/common/icons/folder.png',
+            size: ''
+          })
+        }
+        for (let i = 0; i < files.length; i++) {
+          out.push({
+            id: 'f' + i,
+            kind: 'e',
+            name: files[i].name,
+            path: files[i].path,
+            isDir: false,
+            icon: '/common/icons/code.png',
+            size: compact(files[i].size || 0) + 'B',
+            rawSize: files[i].size || 0
+          })
+        }
+        this.items = out
+        this.pathText = this.currentPath()
+        this.state = this.items.length === 0 ? 'empty' : 'ok'
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async openEntry(item) {
+      if (!item) return
+      if (item.isDir) {
+        this._segments = item.path.split('/')
+        this.hdTitle = item.name
+        this.loadDir()
+      } else {
+        const ext = (item.name.split('.').pop() || '').toLowerCase()
+        if (BIN_EXT.indexOf(ext) >= 0) {
+          prompt.showToast({ message: '二进制文件，暂不支持查看', duration: 2000 })
+          return
+        }
+        if (item.rawSize && item.rawSize > MAX_SIZE) {
+          prompt.showToast({ message: '文件过大（>200KB），暂不支持查看', duration: 2000 })
+          return
+        }
+        this._filePath = item.path
+        this._fileName = item.name
+        this.state = 'loading'
+        await this.openFileText(item.path, item.name)
+      }
+    },
+    async openFileText(path, name) {
+      try {
+        let text = await api.getFileRaw(this.full, path, this._branch)
+        if (typeof text !== 'string') text = JSON.stringify(text, null, 2)
+        this._fileName = name || path.split('/').pop()
+        this.hdTitle = this._fileName
+        const lines = text.replace(/\r/g, '').split('\n')
+        if (lines.length > MAX_LINES) lines.length = MAX_LINES
+        this._lines = lines
+        this.totalLines = lines.length
+        this.renderedLines = 0
+        this.items = []
+        this.mode = 'file'
+        this.appendLines()
+        this.state = 'ok'
+      } catch (e) {
+        this.mode = 'dir'
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '文件加载失败'
+      }
+    },
+    appendLines() {
+      if (!this._lines) return
+      const end = Math.min(this.totalLines, this.renderedLines + LINE_CHUNK)
+      const lines = []
+      for (let i = this.renderedLines; i < end; i++) {
+        lines.push({ n: i + 1, s: this._lines[i].length > 160 ? this._lines[i].slice(0, 160) + '…' : this._lines[i] })
+      }
+      this.items.push({ id: 'c' + this.renderedLines, lines: lines })
+      this.renderedLines = end
+    },
+    loadMoreLines() {
+      if (this.mode !== 'file' || this.renderedLines >= this.totalLines) return
+      this.appendLines()
+    },
+    goUp() {
+      if (this._segments.length > 0) {
+        this._segments.pop()
+        this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1]
+        this.mode = 'dir'
+        this.loadDir()
+      }
+    },
+    reload() {
+      if (this.mode === 'file') {
+        this.openFileText(this._filePath, this._fileName)
+      } else {
+        this.loadDir()
+      }
+    },
+    goBack() {
+      if (this.mode === 'file') {
+        this.mode = 'dir'
+        this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1]
+        this.loadDir()
+        return
+      }
+      if (this._segments.length > 0) {
+        this.goUp()
+        return
+      }
+      router.back()
+    },
+    onDestroy() {
+      this._lines = null
+      this.items = []
+    }
+  }
+</script>

@@ -1,0 +1,43 @@
+{
+  "package": "io.github.gsjsjzhznsz.github",
+  "name": "GitHub",
+  "icon": "/common/icons/logo.png",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "minAPILevel": 1,
+  "deviceTypeList": [
+    "watch"
+  ],
+  "config": {
+    "designWidth": 216,
+    "logLevel": "log"
+  },
+  "features": [
+    { "name": "system.fetch" },
+    { "name": "system.storage" },
+    { "name": "system.router" },
+    { "name": "system.prompt" },
+    { "name": "system.device" },
+    { "name": "system.vibrator" }
+  ],
+  "display": {
+    "backgroundColor": "#0d1117"
+  },
+  "router": {
+    "entry": "pages/home",
+    "pages": {
+      "pages/home": { "component": "home", "path": "/home" },
+      "pages/notifications": { "component": "notifications", "path": "/notifications" },
+      "pages/repos": { "component": "repos", "path": "/repos" },
+      "pages/trending": { "component": "trending", "path": "/trending" },
+      "pages/search": { "component": "search", "path": "/search" },
+      "pages/repo": { "component": "repo", "path": "/repo" },
+      "pages/readme": { "component": "readme", "path": "/readme" },
+      "pages/issues": { "component": "issues", "path": "/issues" },
+      "pages/issue": { "component": "issue", "path": "/issue" },
+      "pages/code": { "component": "code", "path": "/code" },
+      "pages/profile": { "component": "profile", "path": "/profile" },
+      "pages/settings": { "component": "settings", "path": "/settings" }
+    }
+  }
+}

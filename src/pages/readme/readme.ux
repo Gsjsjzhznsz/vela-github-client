@@ -1,0 +1,124 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-main">
+        <text class="hd-title">{{full}}</text>
+        <text class="hd-sub">README · 共 {{totalBlocks}} 段</text>
+      </div>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
+    </div>
+
+    <list class="body" onscrollbottom="loadMoreBlocks">
+      <list-item type="blk" class="li" for="{{items}}" tid="id">
+        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
+        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
+        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
+        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
+        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
+        <div class="br" elif="{{it.t === 'r'}}"></div>
+        <text class="bp" else>{{it.s}}</text>
+      </list-item>
+      <list-item type="foot" class="li" if="{{state === 'ok' && rendered < totalBlocks}}">
+        <text class="foot">上滑加载更多…</text>
+      </list-item>
+      <list-item type="foot" class="li" if="{{state === 'ok' && rendered >= totalBlocks}}">
+        <text class="foot">— 全文完 —</text>
+      </list-item>
+    </list>
+
+    <div class="state" if="{{state === 'loading'}}">
+      <text class="state-t">加载 README…</text>
+    </div>
+    <div class="state" if="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
+  .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; }
+  .body { flex: 1; }
+  .li { padding: 2px 12px; }
+  .bh { font-size: 16px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
+  .bp { font-size: 13px; color: #e6edf3; line-height: 20px; }
+  .bc { font-size: 11px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 6px 8px; margin: 2px 0; }
+  .bq { font-size: 12px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 8px; }
+  .bl { font-size: 13px; color: #e6edf3; line-height: 20px; }
+  .br { height: 1px; background-color: #30363d; width: 100%; margin: 6px 0; }
+  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import api from '../../utils/api'
+  import b64 from '../../utils/b64'
+  import { mdToBlocks } from '../../utils/md'
+
+  const PAGE_CHUNK = 40
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      items: [],
+      totalBlocks: 0,
+      rendered: 0,
+      state: 'loading',
+      errMsg: ''
+    },
+    onInit(params) {
+      if (params && params.full) this.full = params.full
+    },
+    onShow() {
+      if (this.full && this.state !== 'ok') this.reload()
+    },
+    async reload() {
+      this.state = 'loading'
+      try {
+        const r = await api.getReadme(this.full)
+        const md = b64.decode(r.content || '')
+        // 非响应式大数组挂在 this._ 前缀，遵循官方内存规范
+        this._allBlocks = mdToBlocks(md)
+        this.totalBlocks = this._allBlocks.length
+        this.rendered = 0
+        this.items = []
+        this.appendMore()
+        this.state = 'ok'
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = (e && e.message) || 'README 加载失败'
+      }
+    },
+    appendMore() {
+      if (!this._allBlocks) return
+      const end = Math.min(this.totalBlocks, this.rendered + PAGE_CHUNK)
+      for (let i = this.rendered; i < end; i++) {
+        const b = this._allBlocks[i]
+        this.items.push({ id: 'b' + i, t: b.t, s: b.s })
+      }
+      this.rendered = end
+    },
+    loadMoreBlocks() {
+      if (this.state !== 'ok' || this.rendered >= this.totalBlocks) return
+      this.appendMore()
+    },
+    onDestroy() {
+      this._allBlocks = null
+      this.items = []
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

@@ -1,0 +1,58 @@
+/**
+ * view.js — API 数据 → 列表视图模型（瘦字段，控制内存与渲染节点数）
+ */
+import { compact, relTime, langColor, avatar, truncate } from './fmt'
+
+export function typeIcon(type) {
+  if (type === 'Issue') return '/common/icons/issue.png'
+  if (type === 'PullRequest') return '/common/icons/pull.png'
+  if (type === 'Release') return '/common/icons/book.png'
+  if (type === 'Commit') return '/common/icons/code.png'
+  return '/common/icons/repo.png'
+}
+
+export function mapRepo(r) {
+  const owner = r && r.owner ? r.owner.login : '?'
+  const av = avatar(owner)
+  return {
+    id: String(r.id),
+    full: r.full_name,
+    desc: truncate(r.description || '', 72),
+    stars: compact(r.stargazers_count),
+    lang: r.language || '',
+    langc: langColor(r.language),
+    updated: relTime(r.updated_at),
+    avn: av.ch,
+    avc: av.color
+  }
+}
+
+export function mapNotif(n) {
+  const repoFullName = n && n.repository ? n.repository.full_name : ''
+  const av = avatar(repoFullName.split('/')[0] || '?')
+  return {
+    id: String(n.id),
+    icon: typeIcon(n.subject && n.subject.type),
+    repo: repoFullName,
+    title: truncate(n.subject && n.subject.title, 60),
+    unread: !!n.unread,
+    time: relTime(n.updated_at),
+    url: (n.subject && n.subject.url) || '',
+    threadUrl: n.url || '',
+    avn: av.ch,
+    avc: av.color
+  }
+}
+
+export function mapIssue(i) {
+  return {
+    id: String(i.id),
+    num: i.number,
+    title: truncate(i.title, 64),
+    open: i.state === 'open',
+    author: i.user ? i.user.login : '',
+    comments: i.comments || 0,
+    labels: (i.labels || []).slice(0, 3).map((l) => ({ name: truncate(l.name, 10), color: '#' + (l.color || '8b949e') })),
+    time: relTime(i.created_at)
+  }
+}

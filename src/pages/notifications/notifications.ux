@@ -111,6 +111,9 @@
       this.state = 'loading'
       try {
         const list = await api.getNotifications(1, this.all)
+        if (!Array.isArray(list)) {
+          throw { message: '通知响应不完整，请重试' }
+        }
         const mapped = list.map(mapNotif)
         this.items = mapped
         this.page = 1

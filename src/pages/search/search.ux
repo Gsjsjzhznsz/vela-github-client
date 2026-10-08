@@ -159,7 +159,7 @@
       this.searched = true
       try {
         const r = await api.searchRepos(kw, 1, 'best match')
-        const list = (r && r.items) || []
+        const list = (r && Array.isArray(r.items)) ? r.items : []
         this.total = (r && r.total_count) || list.length
         this.items = list.map(mapRepo)
         this.page = 1
@@ -186,7 +186,7 @@
       try {
         const next = this.page + 1
         const r = await api.searchRepos(this.query.trim(), next, 'best match')
-        const list = (r && r.items) || []
+        const list = (r && Array.isArray(r.items)) ? r.items : []
         for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
         this.page = next
         this.hasMore = list.length >= 10

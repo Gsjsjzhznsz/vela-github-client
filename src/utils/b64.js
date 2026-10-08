@@ -22,8 +22,9 @@ function b64ToBytes(input) {
   while (i < len) {
     const c1 = LOOKUP[clean.charAt(i)] || 0
     const c2 = LOOKUP[clean.charAt(i + 1)] || 0
-    const c3 = clean.charAt(i + 2) === '=' ? -1 : (LOOKUP[clean.charAt(i + 2)] || 0)
-    const c4 = clean.charAt(i + 3) === '=' ? -1 : (LOOKUP[clean.charAt(i + 3)] || 0)
+    // 越界字符按 padding（-1）处理：兼容无填充 base64（避免尾随 \u0000）
+    const c3 = (i + 2 >= len || clean.charAt(i + 2) === '=') ? -1 : (LOOKUP[clean.charAt(i + 2)] || 0)
+    const c4 = (i + 3 >= len || clean.charAt(i + 3) === '=') ? -1 : (LOOKUP[clean.charAt(i + 3)] || 0)
     const n = (c1 << 18) | (c2 << 12) | ((c3 < 0 ? 0 : c3) << 6) | (c4 < 0 ? 0 : c4)
     out.push((n >> 16) & 0xff)
     if (c3 >= 0) out.push((n >> 8) & 0xff)
@@ -33,7 +34,7 @@ function b64ToBytes(input) {
   return out
 }
 
-/** Base64 → UTF-8 字符串 */
+/** Base64 → UTF-8 字符串（命名导出 + 默认导出双形态，防止默认导入得到 undefined） */
 export function decode(input) {
   const bytes = b64ToBytes(input)
   let out = ''
@@ -59,3 +60,6 @@ export function decode(input) {
   }
   return out
 }
+
+/** 默认导出（兼容 default import 形态） */
+export default { decode: decode }

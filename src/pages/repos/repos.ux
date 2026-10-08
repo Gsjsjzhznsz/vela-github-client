@@ -89,6 +89,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import api from '../../utils/api'
+  import { navParams } from '../../utils/nav'
   import { mapRepo } from '../../utils/view'
 
   export default {
@@ -111,8 +112,9 @@
       pullText: '下拉刷新'
     },
     async onInit(params) {
-      if (params && params.user) {
-        this.user = params.user
+      const p = navParams(params, ['user'])
+      if (p.user) {
+        this.user = p.user
         this.title = this.user + ' 的仓库'
       } else {
         await api.loadToken()
@@ -132,6 +134,9 @@
       this.state = 'loading'
       try {
         const list = await this.fetchPage(1)
+        if (!Array.isArray(list)) {
+          throw { message: '仓库列表响应不完整，请重试' }
+        }
         this.items = list.map(mapRepo)
         this.page = 1
         this.hasMore = list.length >= 10
@@ -148,9 +153,11 @@
       try {
         const next = this.page + 1
         const list = await this.fetchPage(next)
-        for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
-        this.page = next
-        this.hasMore = list.length >= 10
+        if (Array.isArray(list)) {
+          for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
+          this.page = next
+          this.hasMore = list.length >= 10
+        }
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
       }

@@ -85,6 +85,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import api from '../../utils/api'
+  import { navParams } from '../../utils/nav'
   import { mapIssue } from '../../utils/view'
 
   export default {
@@ -106,7 +107,8 @@
       pullText: '下拉刷新'
     },
     onInit(params) {
-      if (params && params.full) this.full = params.full
+      const p = navParams(params, ['full'])
+      if (p.full) this.full = p.full
     },
     onShow() {
       if (this.full && this.items.length === 0) this.reload()

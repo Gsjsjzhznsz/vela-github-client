@@ -147,6 +147,7 @@
   import { mdToBlocks } from '../../utils/md'
   import { relTime, truncate, avatar } from '../../utils/fmt'
   import { mapIssue } from '../../utils/view'
+  import { navParams } from '../../utils/nav'
 
   export default {
     protected: {
@@ -175,8 +176,9 @@
       canCmt: false
     },
     onInit(params) {
-      if (params && params.full) this.full = params.full
-      if (params && params.n) this.n = String(params.n)
+      const p = navParams(params, ['full', 'n'])
+      if (p.full) this.full = p.full
+      if (p.n) this.n = p.n
     },
     onShow() {
       this.canCmt = api.hasToken()
@@ -186,6 +188,9 @@
       this.state = 'loading'
       try {
         const iss = await api.getIssue(this.full, this.n)
+        if (!iss || typeof iss !== 'object') {
+          throw { message: 'Issue 响应不完整，请重试' }
+        }
         const m = mapIssue(iss)
         this.title = m.title
         this.open = m.open

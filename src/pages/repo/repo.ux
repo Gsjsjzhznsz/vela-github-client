@@ -90,6 +90,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import api from '../../utils/api'
+  import { navParams } from '../../utils/nav'
   import { compact, relTime, langColor } from '../../utils/fmt'
 
   export default {
@@ -112,7 +113,8 @@
       errMsg: ''
     },
     onInit(params) {
-      if (params && params.full) this.full = params.full
+      const p = navParams(params, ['full'])
+      if (p.full) this.full = p.full
     },
     onShow() {
       if (this.full && this.state !== 'ok') this.reload()
@@ -121,6 +123,9 @@
       this.state = 'loading'
       try {
         const r = await api.getRepo(this.full)
+        if (!r || typeof r !== 'object') {
+          throw { message: '仓库响应不完整，请重试' }
+        }
         this.desc = r.description || ''
         this.lang = r.language || ''
         this.langc = langColor(r.language)

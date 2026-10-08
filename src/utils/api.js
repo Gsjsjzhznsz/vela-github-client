@@ -65,6 +65,8 @@ export async function saveToken(token) {
   } else {
     await stRemove(TOKEN_KEY)
   }
+  // 同步进程内缓存（否则本 context 后续 loadToken 仍返回旧值）
+  _tokenReady = Promise.resolve(_token)
   _self = null
   return _token
 }
@@ -121,6 +123,10 @@ function friendlyMessage(status, ghMessage) {
  * @reject {status, message}
  */
 export async function request(path, options) {
+  // ★ 每页 JS context 独立持有本模块实例（_token 不共享），
+  //   页面若未先调 loadToken() 会以匿名身份发请求——匿名限流 60/h 且
+  //   实测被无效请求耗尽后全 403。统一在请求入口确保 Token 已加载。
+  await loadToken()
   const opt = options || {}
   let url = path.indexOf('https://') === 0 ? path : API_BASE + path
   const header = {

@@ -124,7 +124,7 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 代码查看上限 3000 行 / 200KB，二进制文件不支持
 - 圆屏机型的安全边距为估算值，欢迎真机反馈
 - settings 状态卡文字在模拟器 swiftshader 下偶发不渲染（功能不受影响，待真机确认）
-- 模拟器 slirp 网络下 `/repos/{full}` 详情请求持续失败（/search 正常）；真机蓝牙代理/eSIM 栈不同，待真机验证，应用层已加两级退避重试
+- 模拟器 slirp 网络下 `/repos/{full}` 详情与 `/repos/{full}/readme` 请求易挂起（/search、/issues 正常）；真机蓝牙代理/eSIM 栈不同，待真机验证，应用层已加两级退避重试；README 渲染管线已用真实 GitHub 数据在 Node 端全链路验证（91 块正确解析、无乱码）
 - Token 含大小写/数字/下划线混合，QWERTY 键盘需借助 `123` 符号盘与大小写切换输入（长串输入稍繁琐）；建议电脑生成后对照逐键输入，仅需一次
 - 本固件 `onInit(params)` 不下发起跳参数（引擎级实测 argc:0），页面间传参走应用级 hook 中转（见 `src/utils/view.js`）；`router.push` 的 uri 不可携带 `?query`（会使 `router.back()` 静默失效）
 

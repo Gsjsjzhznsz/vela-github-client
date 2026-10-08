@@ -74,3 +74,37 @@ export function mapRelease(r) {
     avc: av.color
   }
 }
+
+/**
+ * Vela 固件路由参数解析。
+ * ⚠️ 模拟器实测（20250716 固件）：页面 onInit(params) 的 params 是 undefined，
+ * uri 上的 query string 引擎既不解析也不透传（BandQQ compose.ux 用
+ * this.$app.$def.store 兜底取参，同一证据链）。
+ * 因此跨页传参统一走「App 级 hook 中转」：
+ *   跳转前：this.$app.$def.hook = { full: 'o/r' }
+ *   接收页：const p = query(params, this)
+ * hook 为本次跳转刚写入的值，优先级最高；params 通道（uri 串/命名键）保留，
+ * 以兼容未来真机固件可能的标准传参行为。
+ */
+export function query(params, vm) {
+  const out = {}
+  const appDef = vm && vm.$app && vm.$app.$def
+  if (appDef && appDef.hook) {
+    const h = appDef.hook
+    for (const k in h) out[k] = h[k]
+  }
+  if (!params) return out
+  if (params.uri) {
+    const q = (params.uri.split('?')[1] || '')
+    if (q) {
+      q.split('&').forEach((kv) => {
+        const i = kv.indexOf('=')
+        if (i > 0) out[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1))
+      })
+    }
+  }
+  for (const k of ['full', 'n', 'user', 'type', 'initial']) {
+    if (params[k] !== undefined && out[k] === undefined) out[k] = params[k]
+  }
+  return out
+}

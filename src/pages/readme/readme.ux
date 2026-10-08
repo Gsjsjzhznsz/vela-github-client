@@ -6,7 +6,6 @@
         <text class="hd-title">{{full}}</text>
         <text class="hd-sub">README · 共 {{totalBlocks}} 段</text>
       </div>
-      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
     <div class="body-wrap">
@@ -41,26 +40,26 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
-  .hd-title { font-size: 14px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 9px; color: #484f58; margin-top: 1px; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 13px; color: #484f58; margin-top: 1px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
-  .li { padding: 2px 12px; }
-  .bh { font-size: 16px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
-  .bp { font-size: 13px; color: #e6edf3; line-height: 20px; }
-  .bc { font-size: 11px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 6px 8px; margin: 2px 0; }
-  .bq { font-size: 12px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 8px; }
-  .bl { font-size: 13px; color: #e6edf3; line-height: 20px; }
-  .br { height: 1px; background-color: #30363d; width: 100%; margin: 6px 0; }
-  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
-  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 2px 14px; }
+  .bh { font-size: 23px; color: #58a6ff; font-weight: bold; margin-top: 7px; }
+  .bp { font-size: 17px; color: #e6edf3; line-height: 24px; }
+  .bc { font-size: 16px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 2px 0; }
+  .bq { font-size: 17px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
+  .bl { font-size: 17px; color: #e6edf3; line-height: 24px; }
+  .br { height: 1px; background-color: #30363d; width: 100%; margin: 7px 0; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>
@@ -68,6 +67,7 @@
   import api from '../../utils/api'
   import b64 from '../../utils/b64'
   import { mdToBlocks } from '../../utils/md'
+  import { query } from '../../utils/view'
 
   const PAGE_CHUNK = 40
 
@@ -83,7 +83,8 @@
       errMsg: ''
     },
     onInit(params) {
-      if (params && params.full) this.full = params.full
+      const p = query(params, this)
+      if (p.full) this.full = p.full
     },
     onShow() {
       if (this.full && this.state !== 'ok') this.reload()

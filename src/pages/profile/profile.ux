@@ -1,13 +1,13 @@
-<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
 
 <template>
   <div class="page">
     <div class="hd">
       <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
       <text class="hd-title">个人主页</text>
-      <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
+    <!-- BandQQ v2.9.6 同构：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
     <scroll class="body" scroll-y="true">
       <div class="wrap">
         <div class="card head-card">
@@ -40,7 +40,7 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
-        <div class="cell" show="{{!isSelf}}" onclick="showKb">
+        <div class="cell" show="{{!isSelf}}" onclick="goInput">
           <image class="cell-icon" src="/common/icons/search.png" />
           <text class="cell-label">游客模式：输入用户名查询</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
@@ -52,6 +52,7 @@
         </div>
       </div>
     </scroll>
+    </div>
 
     <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
@@ -61,47 +62,35 @@
       <text class="state-btn" onclick="reload">点此重试</text>
     </div>
 
-    <!-- Vela_input_method 组件键盘（NEORUAA，MIT）：用户名 ASCII 输入用 QWERTY -->
-    <input-method hide="{{!kbShow}}" screentype="rect" keyboardtype="QWERTY" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
-
-    <!-- 键盘操作条：草稿预览 + 查询 + 收起 -->
-    <div class="kb-bar" show="{{kbShow}}">
-      <text class="kb-bar-t">{{kbQuery ? kbQuery : '输入用户名…'}}</text>
-      <text class="kb-bar-ok" onclick="onKbOk">查询</text>
-      <text class="kb-bar-x" onclick="hideKb">收起</text>
-    </div>
   </div>
 </template>
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
-  .body { flex: 1; }
-  .wrap { flex-direction: column; padding: 4px 10px 16px; }
-  .card { background-color: #161b22; border-radius: 10px; padding: 12px; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .wrap { flex-direction: column; padding: 5px 12px 50px; }
+  .card { background-color: #161b22; border-radius: 12px; padding: 14px; }
   .head-card { align-items: center; }
-  .ava-big { width: 56px; height: 56px; border-radius: 28px; justify-content: center; align-items: center; }
-  .ava-big-t { font-size: 24px; color: #ffffff; font-weight: bold; }
-  .p-login { font-size: 17px; color: #e6edf3; font-weight: bold; margin-top: 6px; }
-  .p-name { font-size: 12px; color: #c9d1d9; margin-top: 2px; }
-  .p-bio { font-size: 11px; color: #8b949e; margin-top: 4px; text-align: center; lines: 2; text-overflow: ellipsis; }
-  .stats { flex-direction: row; margin-top: 10px; }
-  .stat { flex: 1; background-color: #161b22; border-radius: 10px; padding: 10px 0; align-items: center; margin-right: 8px; }
-  .stat-n { font-size: 17px; color: #e6edf3; font-weight: bold; }
-  .stat-l { font-size: 10px; color: #8b949e; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 10px; padding: 11px 10px; margin-top: 8px; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-label { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; }
-  .cell-arrow { width: 14px; height: 14px; }
-  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
-  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
-  .kb-bar { position: absolute; left: 0; top: 0; width: 100%; height: 30px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 8px; }
-  .kb-bar-t { font-size: 12px; color: #58a6ff; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .kb-bar-ok { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 12px; padding: 4px 10px; margin-left: 6px; }
-  .kb-bar-x { font-size: 12px; color: #8b949e; margin-left: 8px; }
+  .ava-big { width: 67px; height: 67px; border-radius: 34px; justify-content: center; align-items: center; }
+  .ava-big-t { font-size: 35px; color: #ffffff; font-weight: bold; }
+  .p-login { font-size: 24px; color: #e6edf3; font-weight: bold; margin-top: 7px; }
+  .p-name { font-size: 17px; color: #c9d1d9; margin-top: 2px; }
+  .p-bio { font-size: 16px; color: #8b949e; margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
+  .stats { flex-direction: row; margin-top: 12px; }
+  .stat { flex: 1; background-color: #161b22; border-radius: 12px; padding: 12px 0; align-items: center; margin-right: 10px; }
+  .stat-n { font-size: 24px; color: #e6edf3; font-weight: bold; }
+  .stat-l { font-size: 14px; color: #8b949e; margin-top: 2px; }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-top: 10px; }
+  .cell-icon { width: 22px; height: 22px; }
+  .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 17px; height: 17px; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>
@@ -121,9 +110,8 @@
       avCh: 'G',
       avColor: '#21262d',
       state: 'loading',
+      query: '',
       errMsg: '',
-      kbShow: false,
-      kbQuery: ''
     },
     async onInit() {
       await api.loadToken()
@@ -132,6 +120,16 @@
       } else {
         this.state = 'error'
         this.errMsg = '游客模式：点击下方输入用户名查询，或登录 Token'
+      }
+    },
+    onShow() {
+      // 消费独立输入页回传的用户名（BandQQ store 同构）
+      const app = this.$app.$def
+      const r = app && app.inputResult
+      if (r && r.type === 'user' && r.text) {
+        app.inputResult = null
+        this.query = r.text
+        this.loadUser(r.text)
       }
     },
     async loadUser(login) {
@@ -158,36 +156,22 @@
       this.avColor = av.color
     },
     reload() {
-      if (this.isSelf || (!api.hasToken() && !this.kbQuery)) {
+      if (this.isSelf || (!api.hasToken() && !this.query)) {
         this.loadUser(null)
       } else {
-        this.loadUser(this.kbQuery || this.login)
+        this.loadUser(this.query || this.login)
       }
     },
-    showKb() {
-      this.kbShow = true
-    },
-    hideKb() {
-      this.kbShow = false
-    },
-    onKbChar(e) {
-      const c = (e && e.detail && e.detail.content) || ''
-      if (c && this.kbQuery.length < 64) {
-        this.kbQuery = (this.kbQuery + c).slice(0, 64)
-      }
-    },
-    onKbDel() {
-      this.kbQuery = this.kbQuery.slice(0, -1)
-    },
-    onKbOk() {
-      this.kbShow = false
-      const q = this.kbQuery.trim()
-      if (!q) return
-      this.loadUser(q)
+    /* 用户名输入：跳 BandQQ compose 同构输入页；onShow 消费回传草稿 */
+    goInput() {
+      const pre = this.login && !this.isSelf ? this.login : ''
+      this.$app.$def.hook = { type: 'user', initial: pre || '' }
+      router.push({ uri: 'pages/input' })
     },
     goUserRepos() {
       if (!this.login) return
-      router.push({ uri: 'pages/repos', params: { user: this.login } })
+      this.$app.$def.hook = { user: this.login }
+      router.push({ uri: 'pages/repos' })
     },
     doLogin() {
       router.push({ uri: 'pages/settings' })

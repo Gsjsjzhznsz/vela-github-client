@@ -3,7 +3,6 @@
     <div class="hd">
       <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
       <text class="hd-title">{{full}}</text>
-      <image class="hd-act" src="/common/icons/refresh.png" onclick="doRefresh" />
     </div>
 
     <div class="tabs">
@@ -54,31 +53,31 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-title { font-size: 15px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .tabs { flex-direction: row; padding: 2px 10px 6px; }
-  .tab { font-size: 12px; color: #8b949e; padding: 4px 12px; background-color: #161b22; border-radius: 12px; margin-right: 8px; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .tabs { flex-direction: row; padding: 2px 12px 7px; }
+  .tab { font-size: 17px; color: #8b949e; padding: 5px 14px; background-color: #161b22; border-radius: 14px; margin-right: 10px; }
   .on { color: #ffffff; background-color: #1f6feb; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
-  .pull-icon { width: 14px; height: 14px; }
-  .pull-text { font-size: 10px; color: #8b949e; margin-left: 6px; }
+  .pull-icon { width: 17px; height: 17px; }
+  .pull-text { font-size: 14px; color: #8b949e; margin-left: 7px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
-  .li { padding: 3px 10px; }
-  .cell { flex-direction: row; align-items: flex-start; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
-  .cell-icon { width: 15px; height: 15px; margin-top: 2px; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 13px; color: #e6edf3; font-weight: bold; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 10px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; }
-  .labels { flex-direction: row; margin-top: 4px; }
-  .lb { font-size: 9px; margin-right: 6px; border: 1px solid #30363d; border-radius: 8px; padding: 1px 6px; }
-  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
-  .state { position: absolute; left: 0; top: 66px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 4px 12px; }
+  .cell { flex-direction: row; align-items: flex-start; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
+  .cell-icon { width: 18px; height: 18px; margin-top: 2px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
+  .cell-title { font-size: 20px; color: #e6edf3; font-weight: bold; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
+  .labels { flex-direction: row; margin-top: 5px; }
+  .lb { font-size: 13px; margin-right: 7px; border: 1px solid #30363d; border-radius: 10px; padding: 1px 7px; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>
@@ -86,6 +85,7 @@
   import prompt from '@system.prompt'
   import api from '../../utils/api'
   import { mapIssue } from '../../utils/view'
+  import { query } from '../../utils/view'
 
   export default {
     protected: {
@@ -106,7 +106,8 @@
       pullText: '下拉刷新'
     },
     onInit(params) {
-      if (params && params.full) this.full = params.full
+      const p = query(params, this)
+      if (p.full) this.full = p.full
     },
     onShow() {
       if (this.full && this.items.length === 0) this.reload()
@@ -146,12 +147,13 @@
     },
     openIssue(item) {
       if (!item) return
-      router.push({ uri: 'pages/issue', params: { full: this.full, n: String(item.num) } })
+      this.$app.$def.hook = { full: this.full, n: String(item.num) }
+      router.push({ uri: 'pages/issue' })
     },
     doRefresh() {
       if (this.refreshing) return
       this.refreshing = true
-      this.pullY = 30
+      this.pullY = 60
       this.pullText = '刷新中…'
       this.reload().then(() => {
         this.refreshing = false
@@ -162,7 +164,7 @@
       this.scY = (e && e.scrollY) || 0
       // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
       if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 78 - 340
+        const near = this.items.length * 110 - 420
         if (near > 0 && this.scY >= near) this.loadMore()
       }
     },
@@ -178,13 +180,13 @@
       const y = (t && (t.pageY || t.clientY)) || 0
       const delta = y - this.tY
       if (delta > 0) {
-        this.pullY = Math.min(56, Math.floor(delta * 0.45))
-        this.pullText = this.pullY > 40 ? '松开刷新' : '下拉刷新'
+        this.pullY = Math.min(112, Math.floor(delta * 0.45))
+        this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新'
       }
     },
     onTouchEnd() {
       if (this.refreshing) return
-      if (this.pullY > 40) this.doRefresh()
+      if (this.pullY > 80) this.doRefresh()
       else this.pullY = 0
       this.tY = 0
     },

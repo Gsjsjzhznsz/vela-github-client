@@ -1,23 +1,20 @@
-<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
-
 <template>
   <div class="page">
     <div class="hd">
       <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
       <text class="hd-title">搜索仓库</text>
-      <image class="hd-act" src="/common/icons/refresh.png" onclick="doRefresh" />
     </div>
 
     <div class="srow">
-      <div class="sbox" onclick="showKb">
-        <text class="stext {{query ? '' : 'ph'}}">{{query ? kbTail : '输入关键词…'}}</text>
+      <div class="sbox" onclick="goInput">
+        <text class="stext {{query ? '' : 'ph'}}">{{query ? query : '输入关键词…'}}</text>
       </div>
       <text class="sbtn" onclick="doSearch">搜索</text>
     </div>
 
     <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满 -->
     <div class="body-wrap">
-      <scroll class="body {{kbShow ? 'shrink' : ''}}" scroll-y="true" onscroll="onListScroll">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll">
       <div class="li" for="{{it in items}}" tid="id">
         <div class="cell" onclick="openRepo(it)">
           <div class="ava" style="background-color: {{it.avc}}">
@@ -52,51 +49,41 @@
       <text class="state-btn" onclick="doSearch">重试</text>
     </div>
 
-    <!-- Vela_input_method 组件键盘（NEORUAA，MIT）：T9 大键适配 216 宽方屏，支持拼音/英文 -->
-    <input-method hide="{{!kbShow}}" screentype="rect" keyboardtype="T9" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
-
-    <!-- 键盘操作条（画在键盘之上）：草稿预览 + 搜索 + 收起 -->
-    <div class="kb-bar" show="{{kbShow}}">
-      <text class="kb-bar-t">{{query ? kbTail : '输入…'}}</text>
-      <text class="kb-bar-ok" onclick="onKbOk">搜索</text>
-      <text class="kb-bar-x" onclick="hideKb">收起</text>
-    </div>
+    <!-- 输入走 BandQQ compose 同构独立输入页（键盘常驻，见 pages/input） -->
   </div>
 </template>
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
-  .srow { flex-direction: row; align-items: center; padding: 2px 10px 6px; }
-  .sbox { flex: 1; height: 30px; background-color: #161b22; border: 1px solid #30363d; border-radius: 15px; justify-content: center; padding: 0 10px; }
-  .stext { font-size: 12px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .srow { flex-direction: row; align-items: center; padding: 2px 12px 7px; }
+  /* 定宽防溢出：flex:1 + 无 max-width 的文本行在引擎里不收缩，会把 sbtn 挤出屏（实测 432 下按钮被裁） */
+  .sbox { width: 296px; height: 36px; background-color: #161b22; border: 1px solid #30363d; border-radius: 18px; justify-content: center; padding: 0 12px; }
+  .stext { font-size: 17px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .ph { color: #484f58; }
-  .sbtn { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 15px; padding: 7px 12px; margin-left: 8px; }
+  .sbtn { font-size: 17px; color: #ffffff; background-color: #238636; border-radius: 18px; padding: 8px 14px; margin-left: 10px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
-  .li { padding: 3px 10px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
-  .ava { width: 30px; height: 30px; border-radius: 15px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 13px; color: #ffffff; font-weight: bold; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 14px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .cell-desc { font-size: 11px; color: #8b949e; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
-  .meta { flex-direction: row; align-items: center; margin-top: 4px; }
-  .dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 3px; }
-  .meta-ic { width: 11px; height: 11px; margin-left: 8px; margin-right: 2px; }
-  .meta-t { font-size: 10px; color: #8b949e; }
-  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
-  .state { position: absolute; left: 0; top: 78px; right: 0; bottom: 40px; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
-  .kb-bar { position: absolute; left: 0; top: 0; width: 100%; height: 30px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 8px; }
-  .kb-bar-t { font-size: 12px; color: #e6edf3; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .kb-bar-ok { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 12px; padding: 4px 10px; margin-left: 6px; }
-  .kb-bar-x { font-size: 12px; color: #8b949e; margin-left: 8px; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 4px 12px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
+  .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 19px; color: #ffffff; font-weight: bold; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
+  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .cell-desc { font-size: 16px; color: #8b949e; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
+  .meta { flex-direction: row; align-items: center; margin-top: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 5px; margin-right: 4px; }
+  .meta-ic { width: 13px; height: 13px; margin-left: 10px; margin-right: 2px; }
+  .meta-t { font-size: 14px; color: #8b949e; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  /* top 142：必须让出 srow（94~136），否则遮罩盖住搜索框吞点击 */
+  .state { position: absolute; left: 0; top: 142px; right: 0; bottom: 48px; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>
@@ -109,8 +96,6 @@
   export default {
     private: {
       query: '',
-      kbTail: '',
-      kbShow: false,
       items: [],
       state: 'empty',   // empty | loading | ok | error
       errMsg: '',
@@ -123,30 +108,19 @@
     },
     onInit() {
     },
-    showKb() {
-      this.kbShow = true
-    },
-    hideKb() {
-      this.kbShow = false
-    },
-    onKbChar(e) {
-      const c = (e && e.detail && e.detail.content) || ''
-      if (c && this.query.length < 64) {
-        this.query = (this.query + c).slice(0, 64)
-        this.syncTail()
+    async onShow() {
+      // 消费独立输入页回传的草稿（BandQQ store 同构：应用级共享态）
+      const app = this.$app.$def
+      const r = app && app.inputResult
+      if (r && r.type === 'search' && r.text) {
+        app.inputResult = null
+        this.query = r.text
+        this.doSearch()
       }
     },
-    onKbDel() {
-      this.query = this.query.slice(0, -1)
-      this.syncTail()
-    },
-    onKbOk() {
-      this.kbShow = false
-      if (this.query.trim()) this.doSearch()
-    },
-    syncTail() {
-      const q = this.query
-      this.kbTail = q.length > 20 ? '…' + q.slice(-19) : q
+    goInput() {
+      this.$app.$def.hook = { type: 'search', initial: this.query || '' }
+      router.push({ uri: 'pages/input' })
     },
     async doSearch() {
       const kw = this.query.trim()
@@ -154,7 +128,6 @@
         prompt.showToast({ message: '请先输入关键词', duration: 1500 })
         return
       }
-      this.kbShow = false
       this.state = 'loading'
       this.searched = true
       try {
@@ -175,7 +148,7 @@
       const y = (e && e.scrollY) || 0
       // 触底自动加载（scrollY 估算：单项约 84px）
       if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 84 - 340
+        const near = this.items.length * 118 - 420
         if (near > 0 && y >= near) this.loadMore()
       }
     },
@@ -197,7 +170,8 @@
     },
     openRepo(item) {
       if (!item) return
-      router.push({ uri: 'pages/repo', params: { full: item.full } })
+      this.$app.$def.hook = { full: item.full }
+      router.push({ uri: 'pages/repo' })
     },
     doRefresh() {
       if (this.query.trim()) this.doSearch()

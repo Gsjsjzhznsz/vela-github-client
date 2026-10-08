@@ -1,0 +1,114 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <!-- BandQQ compose.ux 同构输入页（v2.16 去 flex 化 + v2.19 键盘 bottom:0 锚定）：
+       键盘 hide 恒为 false——本固件 $watch 不触发（BandQQ v2.18.0 注释实证），
+       动态 hide 切换永不渲染；独立输入页 + 键盘常驻是 BandQQ 在 RW5 的唯一可靠用法。
+       预览区与键盘全部绝对锚定：top-bar 流内固定高，preview-box absolute 铺剩余，
+       kb-dock absolute 贴底锚（显式高 264 = KB_H_RECT）。 -->
+  <div class="page">
+    <div class="top-bar">
+      <image class="btn-back" src="/common/icons/back.png" onclick="goBack"></image>
+      <text class="bar-title">{{title}}</text>
+      <text class="done-btn" onclick="confirmDraft">确认</text>
+    </div>
+    <div class="preview-box">
+      <text class="preview-text">{{draft || placeholder}}</text>
+      <text class="preview-hint">{{mode === 'token' ? 'Token 仅存本机 · 输入后点确认' : '键盘支持拼音/英文 · 点确认返回'}}</text>
+    </div>
+    <div class="kb-dock">
+      <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="rect" @complete="onComplete" @delete="onDelete"></input-method>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
+  .top-bar { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .btn-back { width: 44px; height: 44px; }
+  .bar-title { flex: 1; font-size: 22px; color: #e6edf3; font-weight: bold; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
+  .done-btn { width: 96px; height: 48px; text-align: center; line-height: 48px; font-size: 19px; color: #ffffff; background-color: #238636; border-radius: 24px; }
+  /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */
+  .preview-box { position: absolute; left: 0; top: 94px; bottom: 264px; width: 100%; flex-direction: column; padding: 4px 14px; }
+  .preview-text { font-size: 20px; color: #58a6ff; line-height: 28px; text-align: left; word-break: break-all; }
+  .preview-hint { font-size: 14px; color: #484f58; margin-top: 8px; text-align: left; }
+  /* 键盘坞：bottom:0 由引擎按页面可用底解析（避让固件手势保留区），显式高 = 键盘物理高 */
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 264px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { query } from '../../utils/view'
+
+  const MAXLEN = 64
+
+  export default {
+    protected: {
+      mode: 'search',     // search | token | user | comment
+      title: '输入',
+      initial: ''
+    },
+    private: {
+      draft: '',
+      placeholder: '在这里输入…'
+    },
+    onInit(params) {
+      try { console.log('[DBG]input onInit raw=' + JSON.stringify(params)) } catch (e) {}
+      const p = query(params, this)
+      try { console.log('[DBG]input parsed=' + JSON.stringify(p) + ' mode=' + (p.type || 'search')) } catch (e) {}
+      this.mode = p.type || 'search'
+      this.initial = p.initial || ''
+      this.draft = this.initial
+      const conf = {
+        search: { title: '搜索仓库', ph: '输入关键词…' },
+        token: { title: '输入 Token', ph: '粘贴或键入 ghp_ …' },
+        user: { title: '查用户', ph: '输入用户名…' },
+        comment: { title: '写评论', ph: '输入评论…' }
+      }
+      const c = conf[this.mode] || conf.search
+      this.title = c.title
+      this.placeholder = c.ph
+    },
+    onComplete(e) {
+      const c = (e && e.detail && e.detail.content) || (e && e.content) || ''
+      if (c && this.draft.length < MAXLEN) {
+        this.draft = (this.draft + c).slice(0, MAXLEN)
+      }
+    },
+    onDelete() {
+      this.draft = this.draft.slice(0, -1)
+    },
+    goBack() {
+      router.back()
+    },
+    async confirmDraft() {
+      const t = (this.draft || '').trim()
+      if (!t) {
+        prompt.showToast({ message: '还没有输入内容', duration: 1200 })
+        return
+      }
+      const app = this.$app.$def
+      if (this.mode === 'token') {
+        // Token 模式：本页直接验证保存，成功/失败都回来源页（其 onShow 会刷新显示）
+        prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
+        try {
+          await api.loadToken()
+          await api.saveToken(t)
+          await api.self()
+          app.inputResult = null
+          prompt.showToast({ message: '登录成功', duration: 1500 })
+          router.back()
+        } catch (e) {
+          await api.clearToken()
+          prompt.showToast({ message: 'Token 验证失败：' + ((e && e.message) || ''), duration: 2200 })
+        }
+        return
+      }
+      // 其余模式：草稿写入应用级共享态，来源页 onShow 消费
+      app.inputResult = { type: this.mode, text: t }
+      router.back()
+    }
+  }
+</script>

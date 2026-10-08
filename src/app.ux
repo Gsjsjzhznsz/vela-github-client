@@ -16,6 +16,11 @@
    * 避免应用启动期做任何网络请求（官方启动性能规范）。
    */
   export default {
+    /* 跨页传参中转（Vela onInit 不传参，见 utils/view.js query 注释）：
+       跳转前由来源页写入，目标页 query(params, this) 读取 */
+    hook: null,
+    /* 独立输入页回传草稿（input → 来源页 onShow 消费） */
+    inputResult: null,
     onCreate() {
       console.log('[GH] app created')
     },

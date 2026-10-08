@@ -3,10 +3,11 @@
     <div class="hd">
       <image class="hd-logo" src="/common/icons/logo.png" />
       <text class="hd-title">GitHub</text>
-      <image class="hd-act" src="/common/icons/gear.png" onclick="goSettings" />
     </div>
 
-    <div class="body">
+    <!-- BandQQ v2.9.6 同构：wrap flex:1 + scroll absolute 铺满（RW5 固件 flex:1 scroll 高度计算不可靠） -->
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true">
         <!-- 账户状态卡 -->
         <div class="li">
           <div class="card">
@@ -35,34 +36,36 @@
 
         <text class="foot">Vela JS 应用 · AGPL-3.0 · Redmi Watch 5 适配</text>
         <div class="pad-end"></div>
+      </scroll>
     </div>
   </div>
 </template>
 
 <style>
-  /* RW5 根修：根容器确定尺寸（216x257dp = 432x514 物理像素 @DPR2），body absolute 定位，不依赖 flex/percent 继承链 */
-  .page { width: 216px; height: 257px; position: relative; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 42px; flex-direction: row; align-items: center; padding: 0 12px; }
-  .hd-logo { width: 26px; height: 26px; border-radius: 6px; }
-  .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; margin-left: 8px; flex: 1; }
-  .hd-act { width: 22px; height: 22px; }
-  .body { position: absolute; left: 0; top: 42px; width: 216px; height: 215px; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
-  .li { padding: 3px 10px; }
-  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 10px; }
-  .ava { width: 42px; height: 42px; border-radius: 21px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 18px; color: #ffffff; font-weight: bold; }
-  .card-main { flex-direction: column; margin-left: 10px; flex: 1; }
-  .row1 { font-size: 16px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .row2 { font-size: 11px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .row3 { font-size: 10px; color: #3fb950; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 11px 10px; }
-  .cell-icon { width: 22px; height: 22px; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-label { font-size: 15px; color: #e6edf3; }
-  .cell-sub { font-size: 10px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .cell-arrow { width: 16px; height: 16px; }
-  .foot { font-size: 9px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
+  /* BandQQ redmiwatch 分支同构：designWidth 432（1css=1物理px），根容器 100%/100%，页头 94px 避让屏幕圆角 */
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-logo { width: 36px; height: 36px; border-radius: 8px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act { width: 44px; height: 44px; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 4px 12px; }
+  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 12px; }
+  .ava { width: 50px; height: 50px; border-radius: 25px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 26px; color: #ffffff; font-weight: bold; }
+  .card-main { flex-direction: column; margin-left: 12px; flex: 1; }
+  .row1 { font-size: 20px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .row2 { font-size: 16px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .row3 { font-size: 14px; color: #3fb950; margin-top: 2px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 13px 12px; }
+  .cell-icon { width: 26px; height: 26px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
+  .cell-label { font-size: 20px; color: #e6edf3; }
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 19px; height: 19px; }
+  .foot { font-size: 13px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
 </style>
 
 <script>
@@ -87,7 +90,8 @@
         { id: 'repos', icon: '/common/icons/repo.png', label: '我的仓库', sub: '' },
         { id: 'search', icon: '/common/icons/search.png', label: '搜索', sub: '' },
         { id: 'trending', icon: '/common/icons/trend.png', label: '趋势', sub: '' },
-        { id: 'profile', icon: '/common/icons/person.png', label: '个人主页', sub: '' }
+        { id: 'profile', icon: '/common/icons/person.png', label: '个人主页', sub: '' },
+        { id: 'settings', icon: '/common/icons/gear.png', label: '设置 · Token', sub: '' }
       ]
     },
     async onShow() {
@@ -138,9 +142,7 @@
       }
       router.push({ uri: 'pages/' + item.id })
     },
-    goSettings() {
-      router.push({ uri: 'pages/settings' })
-    },
+
     toast(msg) {
       prompt.showToast({ message: msg, duration: 2000 })
     }

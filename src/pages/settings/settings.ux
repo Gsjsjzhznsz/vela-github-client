@@ -1,13 +1,12 @@
-<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
-
 <template>
   <div class="page">
     <div class="hd">
       <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
       <text class="hd-title">设置</text>
-      <image class="hd-act" src="/common/icons/refresh.png" onclick="refreshRate" />
     </div>
 
+    <!-- BandQQ v2.9.6 同构：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
     <scroll class="body" scroll-y="true">
       <div class="wrap">
         <!-- 账户状态 -->
@@ -22,16 +21,6 @@
           <image class="cell-icon" src="/common/icons/gear.png" />
           <text class="cell-label">{{hasTk ? '重新输入 Token' : '输入 Personal Access Token'}}</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
-        </div>
-
-        <div class="input-card" show="{{inputing}}">
-          <text class="c-title">Token 输入</text>
-          <text class="tk-preview">{{kbTail || '使用下方键盘输入…'}}</text>
-          <div class="tk-btns">
-            <text class="tk-btn tk-cancel" onclick="cancelInput">取消</text>
-            <text class="tk-btn tk-del" onclick="clearInput">清空</text>
-            <text class="tk-btn tk-save" onclick="saveInput">保存</text>
-          </div>
         </div>
 
         <div class="cell" show="{{hasTk}}" onclick="logout">
@@ -58,47 +47,29 @@
         </div>
       </div>
     </scroll>
-
-    <!-- Vela_input_method 组件键盘（NEORUAA，MIT）：QWERTY 带数字/符号行，适合 Token 输入 -->
-    <input-method hide="{{!kbShow}}" screentype="rect" keyboardtype="QWERTY" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
-
-    <!-- 键盘操作条：草稿预览 + 保存 + 收起 -->
-    <div class="kb-bar" show="{{kbShow}}">
-      <text class="kb-bar-t">{{kbDraft ? kbTail : '输入 Token…'}}</text>
-      <text class="kb-bar-ok" onclick="saveInput">保存</text>
-      <text class="kb-bar-x" onclick="onKbOk">收起</text>
     </div>
+
   </div>
 </template>
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
-  .body { flex: 1; }
-  .wrap { flex-direction: column; padding: 4px 10px 16px; }
-  .card { background-color: #161b22; border-radius: 10px; padding: 10px; margin-bottom: 8px; flex-direction: column; }
-  .c-title { font-size: 13px; color: #e6edf3; font-weight: bold; margin-bottom: 4px; }
-  .c-row { font-size: 11px; color: #c9d1d9; }
-  .c-row2 { font-size: 10px; color: #3fb950; margin-top: 3px; }
-  .c-body { font-size: 10px; color: #8b949e; line-height: 15px; margin-top: 2px; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .wrap { flex-direction: column; padding: 5px 12px 50px; }
+  .card { background-color: #161b22; border-radius: 12px; padding: 12px; margin-bottom: 10px; flex-direction: column; }
+  .c-title { font-size: 19px; color: #e6edf3; font-weight: bold; margin-bottom: 5px; }
+  .c-row { font-size: 16px; color: #c9d1d9; }
+  .c-row2 { font-size: 14px; color: #3fb950; margin-top: 4px; }
+  .c-body { font-size: 14px; color: #8b949e; line-height: 18px; margin-top: 2px; }
   .warn { color: #d29922; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 10px; padding: 11px 10px; margin-bottom: 8px; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-label { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; }
-  .cell-arrow { width: 14px; height: 14px; }
-  .input-card { background-color: #161b22; border: 1px solid #1f6feb; border-radius: 10px; padding: 10px; margin-bottom: 8px; flex-direction: column; }
-  .tk-preview { font-size: 11px; color: #58a6ff; background-color: #0d1117; border-radius: 6px; padding: 6px 8px; lines: 2; text-overflow: ellipsis; }
-  .tk-btns { flex-direction: row; margin-top: 8px; }
-  .tk-btn { flex: 1; text-align: center; font-size: 12px; padding: 7px 0; border-radius: 14px; margin-right: 8px; }
-  .tk-cancel { color: #8b949e; background-color: #21262d; }
-  .tk-del { color: #f85149; background-color: #21262d; }
-  .tk-save { color: #ffffff; background-color: #238636; margin-right: 0; }
-  .kb-bar { position: absolute; left: 0; top: 0; width: 100%; height: 30px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 8px; }
-  .kb-bar-t { font-size: 12px; color: #58a6ff; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .kb-bar-ok { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 12px; padding: 4px 10px; margin-left: 6px; }
-  .kb-bar-x { font-size: 12px; color: #8b949e; margin-left: 8px; }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-bottom: 10px; }
+  .cell-icon { width: 22px; height: 22px; }
+  .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 17px; height: 17px; }
 </style>
 
 <script>
@@ -112,10 +83,6 @@
       hasTk: false,
       tokenMask: '',
       rateText: '…',
-      inputing: false,
-      kbShow: false,
-      kbDraft: '',
-      kbTail: ''
     },
     onInit() {
     },
@@ -134,70 +101,15 @@
         this.rateText = '未知'
       }
     },
-    /* ---- Token 输入 ---- */
+    /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
     startInput() {
-      this.inputing = true
-      this.kbDraft = ''
-      this.kbTail = ''
-      this.kbShow = true
-    },
-    onKbChar(e) {
-      const c = (e && e.detail && e.detail.content) || ''
-      if (c && this.kbDraft.length < 64) {
-        this.kbDraft = (this.kbDraft + c).slice(0, 64)
-        this.syncTail()
-      }
-    },
-    onKbDel() {
-      this.kbDraft = this.kbDraft.slice(0, -1)
-      this.syncTail()
-    },
-    onKbOk() {
-      // 收起键盘，保存走「保存」按钮，防误触
-      this.kbShow = false
-    },
-    syncTail() {
-      const d = this.kbDraft
-      this.kbTail = d.length > 24 ? '…' + d.slice(-23) : d
-    },
-    cancelInput() {
-      this.inputing = false
-      this.kbShow = false
-      this.kbDraft = ''
-      this.kbTail = ''
-    },
-    clearInput() {
-      this.kbDraft = ''
-      this.kbTail = ''
-    },
-    async saveInput() {
-      const t = this.kbDraft.trim()
-      if (!t) {
-        prompt.showToast({ message: '请先输入 Token', duration: 1500 })
-        return
-      }
-      this.kbShow = false
-      prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
-      try {
-        await api.saveToken(t)
-        const me = await api.self()
-        this.hasTk = true
-        this.tokenMask = maskToken(api.currentToken())
-        this.inputing = false
-        prompt.showToast({ message: '登录成功：' + (me.login || ''), duration: 2000 })
-        this.refreshRate()
-      } catch (e) {
-        await api.clearToken()
-        this.hasTk = api.hasToken()
-        prompt.showToast({ message: 'Token 验证失败：' + ((e && e.message) || ''), duration: 2500 })
-      }
+      this.$app.$def.hook = { type: 'token', initial: '' }
+      router.push({ uri: 'pages/input' })
     },
     async logout() {
       await api.clearToken()
       this.hasTk = false
       this.tokenMask = ''
-      this.inputing = false
-      this.kbShow = false
       prompt.showToast({ message: '已退出登录', duration: 1500 })
     },
     goBack() {

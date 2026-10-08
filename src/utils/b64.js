@@ -33,7 +33,7 @@ function b64ToBytes(input) {
   return out
 }
 
-/** Base64 → UTF-8 字符串 */
+/** Base64 → UTF-8 字符串（命名导出，供单测与内部使用） */
 export function decode(input) {
   const bytes = b64ToBytes(input)
   let out = ''
@@ -59,3 +59,11 @@ export function decode(input) {
   }
   return out
 }
+
+/**
+ * 默认导出：readme.ux 以 `import b64 from '../../utils/b64'` 方式默认导入。
+ * ⚠️ Vela quickapp 运行时无 Babel interop —— 模块没有 export default 时
+ * 默认导入得到 undefined，会报 "Cannot read property 'decode' of undefined"。
+ * 新增工具模块时必须同步提供 export default（见 tests 静态一致性检查）。
+ */
+export default { decode }

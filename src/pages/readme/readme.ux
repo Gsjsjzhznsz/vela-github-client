@@ -11,11 +11,11 @@
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" onscroll="onListScroll">
       <div class="li" for="{{it in items}}" tid="id">
-        <text class="bh" if="{{it.t === 'h'}}">{{it.s}}</text>
-        <text class="bp" elif="{{it.t === 'p'}}">{{it.s}}</text>
-        <text class="bc" elif="{{it.t === 'c'}}">{{it.s}}</text>
-        <text class="bq" elif="{{it.t === 'q'}}">{{it.s}}</text>
-        <text class="bl" elif="{{it.t === 'l'}}">{{it.s}}</text>
+        <text class="bh" style="height: {{it.h}}px" if="{{it.t === 'h'}}">{{it.s}}</text>
+        <text class="bp" style="height: {{it.h}}px" elif="{{it.t === 'p'}}">{{it.s}}</text>
+        <text class="bc" style="height: {{it.h}}px" elif="{{it.t === 'c'}}">{{it.s}}</text>
+        <text class="bq" style="height: {{it.h}}px" elif="{{it.t === 'q'}}">{{it.s}}</text>
+        <text class="bl" style="height: {{it.h}}px" elif="{{it.t === 'l'}}">{{it.s}}</text>
         <div class="br" elif="{{it.t === 'r'}}"></div>
         <text class="bp" else>{{it.s}}</text>
       </div>

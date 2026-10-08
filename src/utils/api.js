@@ -151,6 +151,13 @@ export async function request(path, options) {
       break
     } catch (e) {
       lastErr = e
+      // Vela fetch_impl 把 HTTP 403/429 也当传输层错误抛出（upload err, error code: 403）：
+      // 限流类失败重试无意义，直接给出友好文案（VM 实测：游客 60 次/时耗尽即此形态）
+      const es = JSON.stringify(e && e.message !== undefined ? e.message : (e || ''))
+      const ec = Number(e && (e.code || e.errorCode || e.status)) || (/403|rate limit/i.test(es) ? 403 : 0)
+      if (ec === 403 || ec === 429) {
+        throw { status: ec, message: 'GitHub 接口限流：游客每小时 60 次，建议在设置中填入 Token（5000 次/小时）' }
+      }
       if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1200 : 2400))
     }
   }

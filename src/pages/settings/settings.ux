@@ -11,9 +11,11 @@
       <div class="wrap">
         <!-- 账户状态 -->
         <div class="card">
-          <text class="c-title">GitHub 账户</text>
+          <div class="card-col">
+            <text class="c-title">GitHub 账户</text>
           <text class="c-row">{{hasTk ? '已登录 · ' + tokenMask : '游客模式（公开数据，限流 60 次/小时）'}}</text>
           <text class="c-row2">API 余量 {{rateText}}</text>
+          </div>
         </div>
 
         <!-- Token 操作 -->
@@ -31,11 +33,13 @@
 
         <!-- 说明 -->
         <div class="card">
-          <text class="c-title">如何获取 Token？</text>
-          <text class="c-body">1. 电脑打开 github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</text>
-          <text class="c-body">2. Generate new token，勾选 repo 与 notifications 权限即可</text>
-          <text class="c-body">3. 把生成的 ghp_ 开头字符串用键盘输入到本机（仅需一次）</text>
+          <div class="card-col">
+            <text class="c-title">如何获取 Token？</text>
+          <text class="c-body">1. 电脑打开 github.com → Settings → Developer settings</text>
+          <text class="c-body">2. Personal access tokens → Generate new token（勾选 repo）</text>
+          <text class="c-body">3. 生成的 ghp_ 串用键盘输入本机，仅需一次</text>
           <text class="c-body warn">Token 仅保存在手表本地存储，不会上传到任何服务器</text>
+          </div>
         </div>
 
         <div class="card">
@@ -44,6 +48,7 @@
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
+          </div>
         </div>
       </div>
     </scroll>

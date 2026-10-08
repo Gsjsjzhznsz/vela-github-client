@@ -1,0 +1,179 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <text class="hd-title">{{full}} · Releases</text>
+      <image class="hd-act" src="/common/icons/refresh.png" onclick="doRefresh" />
+    </div>
+
+    <div class="pull" style="height: {{pullY}}px">
+      <image class="pull-icon" src="/common/icons/refresh.png" />
+      <text class="pull-text">{{pullText}}</text>
+    </div>
+
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll"
+          ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
+      <div class="li" for="{{it in items}}" tid="id">
+        <div class="cell">
+          <div class="cell-hd">
+            <image class="cell-icon" src="/common/icons/book.png" />
+            <text class="cell-tag">{{it.tag}}</text>
+            <text class="pre-badge" if="{{it.pre}}">预发布</text>
+          </div>
+          <text class="cell-title" if="{{it.name}}">{{it.name}}</text>
+          <text class="cell-sub">{{it.time}} · {{it.author}}{{it.assets > 0 ? ' · ' + it.assets + ' 个附件' : ''}}</text>
+          <text class="cell-body" if="{{it.body}}">{{it.body}}</text>
+        </div>
+      </div>
+      <div class="li" if="{{loadState === 'ok' && loadingMore}}">
+        <text class="foot" onclick="loadMore">加载更多</text>
+      </div>
+      <div class="li" if="{{loadState === 'ok' && !hasMore && items.length > 0}}">
+        <text class="foot">— 到底了 —</text>
+      </div>
+    </scroll>
+    </div>
+
+    <div class="state" if="{{loadState === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" if="{{loadState === 'empty'}}">
+      <text class="state-t">还没有发布任何 Release</text>
+      <text class="state-btn" onclick="doRefresh">重新加载</text>
+    </div>
+    <div class="state" if="{{loadState === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="doRefresh">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 20px; height: 20px; }
+  .hd-title { font-size: 15px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
+  .pull-icon { width: 14px; height: 14px; }
+  .pull-text { font-size: 10px; color: #8b949e; margin-left: 6px; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 14px; }
+  .li { padding: 3px 10px; }
+  .cell { flex-direction: column; width: 100%; background-color: #161b22; border-radius: 10px; padding: 9px 10px; }
+  .cell-hd { flex-direction: row; align-items: center; }
+  .cell-icon { width: 15px; height: 15px; }
+  .cell-tag { font-size: 13px; color: #3fb950; font-weight: bold; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .pre-badge { font-size: 9px; color: #d29922; border: 1px solid #d29922; border-radius: 8px; padding: 1px 6px; }
+  .cell-title { font-size: 12px; color: #e6edf3; margin-top: 5px; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 10px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; }
+  .cell-body { font-size: 11px; color: #8b949e; margin-top: 5px; lines: 5; text-overflow: ellipsis; }
+  .foot { font-size: 10px; color: #484f58; text-align: center; width: 100%; padding: 6px 0; }
+  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { mapRelease } from '../../utils/view'
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      loadState: 'loading',
+      items: [],
+      errMsg: '',
+      page: 1,
+      hasMore: true,
+      loadingMore: false,
+      refreshing: false,
+      scY: 0,
+      tY: 0,
+      pullY: 0,
+      pullText: '下拉刷新'
+    },
+    onInit(params) {
+      if (params && params.full) this.full = params.full
+    },
+    onShow() {
+      if (this.full && this.items.length === 0) this.reload()
+    },
+    async reload() {
+      this.loadState = 'loading'
+      try {
+        const list = await api.getReleases(this.full, 1)
+        this.items = list.map(mapRelease)
+        this.page = 1
+        this.hasMore = list.length >= 10
+        this.loadState = this.items.length === 0 ? 'empty' : 'ok'
+      } catch (e) {
+        this.loadState = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async loadMore() {
+      if (!this.hasMore || this.loadingMore || this.loadState !== 'ok') return
+      this.loadingMore = true
+      try {
+        const next = this.page + 1
+        const list = await api.getReleases(this.full, next)
+        for (let i = 0; i < list.length; i++) this.items.push(mapRelease(list[i]))
+        this.page = next
+        this.hasMore = list.length >= 10
+      } catch (e) {
+        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
+      }
+      this.loadingMore = false
+    },
+    doRefresh() {
+      if (this.refreshing) return
+      this.refreshing = true
+      this.pullY = 30
+      this.pullText = '刷新中…'
+      this.reload().then(() => {
+        this.refreshing = false
+        this.pullY = 0
+      })
+    },
+    onListScroll(e) {
+      this.scY = (e && e.scrollY) || 0
+      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 130px）
+      if (this.loadState === 'ok' && this.hasMore && !this.loadingMore) {
+        const near = this.items.length * 130 - 340
+        if (near > 0 && this.scY >= near) this.loadMore()
+      }
+    },
+    onTouchStart(e) {
+      if (this.scY <= 0 && !this.refreshing) {
+        const t = e && e.touches && e.touches[0]
+        this.tY = (t && (t.pageY || t.clientY)) || 0
+      }
+    },
+    onTouchMove(e) {
+      if (this.refreshing || this.tY <= 0 || this.scY > 0) return
+      const t = e && e.touches && e.touches[0]
+      const y = (t && (t.pageY || t.clientY)) || 0
+      const delta = y - this.tY
+      if (delta > 0) {
+        this.pullY = Math.min(56, Math.floor(delta * 0.45))
+        this.pullText = this.pullY > 40 ? '松开刷新' : '下拉刷新'
+      }
+    },
+    onTouchEnd() {
+      if (this.refreshing) return
+      if (this.pullY > 40) this.doRefresh()
+      else this.pullY = 0
+      this.tY = 0
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

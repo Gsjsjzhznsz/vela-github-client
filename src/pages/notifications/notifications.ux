@@ -17,13 +17,13 @@
       <scroll class="body" scroll-y="true" onscroll="onListScroll"
               ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
         <div class="li" for="{{it in items}}" tid="id">
-          <div class="cell" onclick="openNotif(it)">
+          <div class="cell" onclick="openNotif(it)" onlongpress="markOne(it)">
             <div class="unread" show="{{it.unread}}"></div>
             <image class="cell-icon" src="{{it.icon}}" />
             <div class="cell-main">
               <text class="cell-repo">{{it.repo}}</text>
               <text class="cell-title">{{it.title}}</text>
-              <text class="cell-time">{{it.time}}</text>
+              <text class="cell-time">{{it.time}}{{it.unread ? ' · 长按标已读' : ''}}</text>
             </div>
           </div>
         </div>
@@ -171,6 +171,18 @@
         router.push({ uri: 'pages/issue', params: { full: item.repo, n: n } })
       } else {
         router.push({ uri: 'pages/repo', params: { full: item.repo } })
+      }
+    },
+    /** 长按：不打开，仅标记已读 */
+    async markOne(item) {
+      if (!item || !item.unread) return
+      item.unread = false
+      this.countUnread()
+      try {
+        await api.markThreadRead(item.threadUrl)
+        prompt.showToast({ message: '已标记已读', duration: 1200 })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 1500 })
       }
     },
     /* ---- 下拉刷新（list 自定义手势） ---- */

@@ -38,6 +38,10 @@
             <image class="gicon" src="/common/icons/code.png" />
             <text class="glabel">代码</text>
           </div>
+          <div class="gcell" onclick="goReleases">
+            <image class="gicon" src="/common/icons/book.png" />
+            <text class="glabel">Releases</text>
+          </div>
           <div class="gcell" onclick="toggleStar">
             <image class="gicon" src="{{starred ? '/common/icons/star-fill.png' : '/common/icons/star.png'}}" />
             <text class="glabel">{{starred ? '已 Star' : 'Star'}}</text>
@@ -166,6 +170,9 @@
     },
     goCode() {
       router.push({ uri: 'pages/code', params: { full: this.full } })
+    },
+    goReleases() {
+      router.push({ uri: 'pages/releases', params: { full: this.full } })
     },
     goBack() {
       router.back()

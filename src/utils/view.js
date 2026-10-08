@@ -58,3 +58,19 @@ export function mapIssue(i) {
     time: relTime(i.created_at)
   }
 }
+
+export function mapRelease(r) {
+  const av = avatar(r.author ? r.author.login : '?')
+  return {
+    id: String(r.id),
+    tag: r.tag_name || '',
+    name: truncate(r.name || r.tag_name || 'Release', 48),
+    time: relTime(r.published_at || r.created_at),
+    author: r.author ? r.author.login : '',
+    pre: !!r.prerelease,
+    body: truncate((r.body || '').replace(/\r/g, ''), 400),
+    assets: (r.assets || []).length,
+    avn: av.ch,
+    avc: av.color
+  }
+}

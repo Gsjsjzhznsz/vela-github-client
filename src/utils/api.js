@@ -131,15 +131,24 @@ export async function request(path, options) {
   if (_token) header['Authorization'] = 'Bearer ' + _token
   if (opt.method && opt.body) header['Content-Type'] = 'application/json'
 
-  let res
-  try {
-    res = await rawFetch({
-      url: url,
-      method: opt.method || 'GET',
-      header: header,
-      data: opt.body ? JSON.stringify(opt.body) : undefined
-    })
-  } catch (e) {
+  let res = null
+  let lastErr = null
+  // 防御性重试（模拟器实测连续请求偶发 fail；真机弱网同样受益）：1.2s / 2.4s 两次退避
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await rawFetch({
+        url: url,
+        method: opt.method || 'GET',
+        header: header,
+        data: opt.body ? JSON.stringify(opt.body) : undefined
+      })
+      break
+    } catch (e) {
+      lastErr = e
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1200 : 2400))
+    }
+  }
+  if (!res) {
     throw { status: 0, message: '网络连接失败，请检查手表网络（运动健康蓝牙代理 / eSIM）' }
   }
 
@@ -311,6 +320,16 @@ export function getComments(commentsUrl, page) {
   return request(commentsUrl + qs({ page: page || 1, per_page: PER_PAGE }))
 }
 
+/** 发表 Issue 评论（需 Token，传 comments_url） */
+export function addComment(commentsUrl, body) {
+  return request(commentsUrl, { method: 'POST', body: { body: body } })
+}
+
+/** Release 列表 */
+export function getReleases(fullName, page) {
+  return request('/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: PER_PAGE }))
+}
+
 /** 是否已 Star */
 export function isStarred(fullName) {
   if (!_token) return Promise.resolve(false)
@@ -338,6 +357,6 @@ export default {
   getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
   getRepo, getReadme, getContents, getFileRaw,
-  getIssues, getIssue, getComments,
+  getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser
 }

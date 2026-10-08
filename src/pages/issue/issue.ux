@@ -1,3 +1,5 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
 <template>
   <div class="page">
     <div class="hd">
@@ -35,8 +37,16 @@
       </div>
 
       <!-- 评论分隔 -->
-      <div class="li" if="{{comments.length > 0}}">
+      <div class="li">
         <text class="sepa-t">—— 评论 ——</text>
+      </div>
+
+      <!-- 写评论入口 -->
+      <div class="li">
+        <div class="cmt-card" onclick="openComposer">
+          <text class="compose-label">写评论{{sending ? ' · 发送中…' : ''}}</text>
+          <text class="compose-hint">{{canCmt ? '点击用拼音键盘发表评论' : '需登录 Token 后使用'}}</text>
+        </div>
       </div>
 
       <!-- 评论项 -->
@@ -69,6 +79,16 @@
     <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+
+    <!-- Vela_input_method 组件键盘（T9 拼音，写中文评论） -->
+    <input-method hide="{{!kbShow}}" screentype="rect" keyboardtype="T9" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
+
+    <!-- 键盘操作条：草稿预览 + 发送 + 收起 -->
+    <div class="kb-bar" show="{{kbShow}}">
+      <text class="kb-bar-t">{{cmtDraft ? cmtTail : '输入评论…'}}</text>
+      <text class="kb-bar-ok" onclick="sendComment">发送</text>
+      <text class="kb-bar-x" onclick="hideKb">收起</text>
     </div>
   </div>
 </template>
@@ -113,6 +133,12 @@
   .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
   .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
+  .compose-label { font-size: 13px; color: #58a6ff; font-weight: bold; }
+  .compose-hint { font-size: 10px; color: #484f58; margin-top: 3px; }
+  .kb-bar { position: absolute; left: 0; top: 0; width: 100%; height: 30px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 8px; }
+  .kb-bar-t { font-size: 12px; color: #e6edf3; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .kb-bar-ok { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 12px; padding: 4px 10px; margin-left: 6px; }
+  .kb-bar-x { font-size: 12px; color: #8b949e; margin-left: 8px; }
 </style>
 
 <script>
@@ -141,13 +167,19 @@
       state: 'loading',
       errMsg: '',
       loadingComments: false,
-      hasMoreComments: false
+      hasMoreComments: false,
+      kbShow: false,
+      cmtDraft: '',
+      cmtTail: '',
+      sending: false,
+      canCmt: false
     },
     onInit(params) {
       if (params && params.full) this.full = params.full
       if (params && params.n) this.n = String(params.n)
     },
     onShow() {
+      this.canCmt = api.hasToken()
       if (this.full && this.n && this.state !== 'ok') this.reload()
     },
     async reload() {
@@ -163,6 +195,7 @@
         this.labelsText = (iss.labels || []).map((l) => l.name).join(' · ')
         this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : '#8b949e'
         this.commentN = iss.comments || 0
+        this.canCmt = api.hasToken()
         const body = mdToBlocks(iss.body || '')
         const blocks = []
         for (let i = 0; i < body.length && i < 80; i++) {
@@ -217,6 +250,61 @@
     onDestroy() {
       this.bodyBlocks = []
       this.comments = []
+    },
+    /* ---- 评论发表（T9 拼音键盘） ---- */
+    openComposer() {
+      if (!api.hasToken()) {
+        prompt.showToast({ message: '发表评论需登录 Token（设置页）', duration: 2000 })
+        return
+      }
+      this.kbShow = true
+    },
+    hideKb() {
+      this.kbShow = false
+    },
+    onKbChar(e) {
+      const c = (e && e.detail && e.detail.content) || ''
+      if (c && this.cmtDraft.length < 500) {
+        this.cmtDraft = (this.cmtDraft + c).slice(0, 500)
+        this.syncTail()
+      }
+    },
+    onKbDel() {
+      this.cmtDraft = this.cmtDraft.slice(0, -1)
+      this.syncTail()
+    },
+    syncTail() {
+      const d = this.cmtDraft
+      this.cmtTail = d.length > 20 ? '…' + d.slice(-19) : d
+    },
+    async sendComment() {
+      const body = this.cmtDraft.trim()
+      if (!body) {
+        prompt.showToast({ message: '评论内容不能为空', duration: 1500 })
+        return
+      }
+      if (!this._cmtsUrl || this.sending) return
+      this.sending = true
+      try {
+        const c = await api.addComment(this._cmtsUrl, body)
+        const av = avatar(c.user ? c.user.login : '?')
+        this.comments.push({
+          id: String(c.id),
+          author: c.user ? c.user.login : '我',
+          time: '刚刚',
+          text: truncate((c.body || '').replace(/\r/g, ''), 500),
+          avn: av.ch,
+          avc: av.color
+        })
+        this.commentN += 1
+        this.cmtDraft = ''
+        this.cmtTail = ''
+        this.kbShow = false
+        prompt.showToast({ message: '评论已发表', duration: 1500 })
+      } catch (e) {
+        prompt.showToast({ message: '发表失败：' + ((e && e.message) || ''), duration: 2000 })
+      }
+      this.sending = false
     },
     goBack() {
       router.back()

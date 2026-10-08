@@ -8,11 +8,12 @@
 
 | 模块 | 说明 |
 |------|------|
-| 🔔 通知中心 | 未读列表、未读数角标、单条已读直达、一键全部已读、未读/全部切换 |
+| 🔔 通知中心 | 未读列表、未读数角标、单条已读直达、**长按标记已读**、一键全部已读、未读/全部切换 |
 | 📦 仓库 | 我的仓库（按最近 push 排序）、指定用户公开仓库、Star 数 / 语言 / 更新时间 |
 | 📖 README | Base64 解码 + 轻量 Markdown 转换，分块懒加载阅读 |
-| 🐛 Issues | 开放/已关闭切换、标签展示、正文与评论流式阅读（支持 PR 会话） |
-| 🔍 搜索 | 关键词搜仓库，显示结果总数 |
+| 🐛 Issues | 开放/已关闭切换、标签展示、正文与评论流式阅读（支持 PR 会话）、**T9 拼音键盘发评论** |
+| 🚢 Releases | 版本列表、预发布标记、附件数、发布说明预览 |
+| 🔍 搜索 | 关键词搜仓库（支持拼音输入中文关键词），显示结果总数 |
 | 📈 趋势 | 新星（周）/ 黑马（季）/ 经典 三档榜单（GitHub 无官方 Trending API，用 stars 排序模拟） |
 | 🌲 代码浏览 | 目录树逐级进入、源码等宽分行查看、二进制与大文件守卫 |
 | 👤 个人主页 | 登录自动加载 / 游客输入用户名查询，仓库/粉丝/关注统计 |
@@ -87,17 +88,19 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 ## 🗂 使用指南
 
 - **首页**：账户状态 + API 余量 + 六大功能入口
-- **通知**：点按进入对应 Issue/PR/仓库并自动标记已读；右上 ✓ 一键全部已读
+- **通知**：点按进入对应 Issue/PR/仓库并自动标记已读；**长按不打开仅标记已读**；右上 ✓ 一键全部已读
 - **列表页**：下拉刷新 + 滚到底自动加载下一页（每页 10 条）
-- **仓库页**：README / Issues / 代码 / Star 四宫格操作
-- **键盘**：输入框点击弹出内置键盘，`↑` 切大写，`123` 切符号，`完成` 收起
+- **仓库页**：README / Issues / Releases / 代码 / Star 五宫格操作
+- **键盘**：集成 [Vela_input_method](https://github.com/NEORUAA/Vela_input_method) 组件（MIT）——T9 拼音/英文九键（搜索、写评论）+ QWERTY 全键（Token/用户名），顶部操作条提供 搜索/保存/发送/收起
+- **评论**：Issue 详情页 →「写评论」→ T9 拼音键盘输入中文/英文 → 发送（需登录）
 
 ## ⚡ 性能设计
 
 - 纯文字头像（首字母 + 稳定色相哈希），全程零网络图片
 - `scroll` 组件（`scroll-y`）+ 触底自动分页，每页 10 条瘦字段
 - README/源码分块渲染（40 块/片），非响应式大对象挂 `this._` 前缀，页面销毁即释放
-- 键盘为页面内联模板（数据由 `utils/kb.js` 构建），`onInit` 一次性建行 + `show` 显隐保活
+- 键盘组件懒建保活：首次弹出才建子树，之后 `hide` 切换只走显隐（InputMethod 原生优化）
+- 网络请求带 1.2s/2.4s 两级退避重试（弱网/蓝牙代理下更稳）
 - 应用启动零网络请求，onShow 智能去重
 
 ## 🔧 固件兼容性备忘（RW5 实测，20250716 镜像）
@@ -109,17 +112,19 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 | `router.push` uri 带前导斜杠 | `route info error!`，所有页面跳转失效 | uri 用 manifest pages key（`pages/xxx`，无斜杠） |
 | `for` 默认 `$item` / 带括号 `(i, it) in list` 形态 | 循环子树静默不渲染 | 用 `{{it in list}}` 具名形式 |
 | for 数据在事件回调内首次赋值 | for 不渲染（onInit 同步赋值则正常） | 列表数据在 `onInit` 同步初始化 |
-| 自定义组件子树 | `js_dom_create_component` 正常但 UI 全灭 | 关键 UI 内联到页面 |
+| 自定义组件子树 | ~~`js_dom_create_component` 正常但 UI 全灭~~ **已推翻**：问题出在自研组件自身；换用 Vela_input_method 组件后正常渲染 | 组件化可行，优先用成熟组件 |
 | `if` false→true 动态创建子树 | 容器背景在、内容全灭 | 交互元素改 `show` 显隐预渲染 |
 | 覆盖安装不刷新代码 | 改了代码行为依旧 | 先 `pm uninstall` 再 install |
+| `pm install` 卡 "rpk install ongoing" | 解压到 staging 不落地、packages.list 不更新 | 删 `/data/app/rpk_install_*` + 重启 + 单次 install |
+| launcher 启动卡内核探测/声卡 | `Can't get kernel version` / `PCI bus not available for hda` | 必须 `-vela` 模式启动（见 scripts/boot_vela.sh） |
 
 ## ⚠️ 已知限制
 
-- 只读为主：写操作仅支持 Star 与通知已读（发 Issue/评论等待后续版本）
-- PR 仅显示会话正文与评论，不含 code review diffs
+- PR 仅显示会话正文与评论，不含 code review diffs；发 Issue 待后续版本
 - 代码查看上限 3000 行 / 200KB，二进制文件不支持
 - 圆屏机型的安全边距为估算值，欢迎真机反馈
 - settings 状态卡文字在模拟器 swiftshader 下偶发不渲染（功能不受影响，待真机确认）
+- 模拟器 slirp 网络下 `/repos/{full}` 详情请求持续失败（/search 正常）；真机蓝牙代理/eSIM 栈不同，待真机验证，应用层已加两级退避重试
 
 ## 📄 许可证
 
@@ -127,5 +132,6 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 
 ## 🙏 致谢
 
+- [NEORUAA/Vela_input_method](https://github.com/NEORUAA/Vela_input_method)（MIT）—— T9 拼音/QWERTY 键盘组件，RW5 布局适配补丁见 `src/components/InputMethod/README.md`
 - [BandQQ](https://github.com/Gsjsjzhznsz/BandQQ) 的 InputMethod 键盘架构与 RW5 固件兼容经验（`{{it in list}}` 具名循环、wrap+absolute 铺满布局）
 - [Xiaomi Vela JS 应用官方文档](https://iot.mi.com/vela/quickapp)与 aiot-toolkit

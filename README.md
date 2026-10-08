@@ -24,7 +24,7 @@
 
 | 设备 | 屏幕 | 适配状态 |
 |------|------|----------|
-| Redmi Watch 5 | 432×514 方形 | ✅ 主力适配（designWidth 216，1 设计 px = 1 dp） |
+| Redmi Watch 5 | 432×514 方形 | ✅ 主力适配（designWidth 432，1 设计 px = 1 物理 px，BandQQ redmiwatch 分支同策略） |
 | Xiaomi Watch S 系列 | 466×466 圆形 | ⚠️ 兼容（圆屏安全边距待真机微调） |
 | 其他 Vela OS 手表/手环 | — | 理论兼容，欢迎反馈 |
 
@@ -117,6 +117,11 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 | 覆盖安装不刷新代码 | 改了代码行为依旧 | 先 `pm uninstall` 再 install |
 | `pm install` 卡 "rpk install ongoing" | 解压到 staging 不落地、packages.list 不更新 | 删 `/data/app/rpk_install_*` + 重启 + 单次 install |
 | launcher 启动卡内核探测/声卡 | `Can't get kernel version` / `PCI bus not available for hda` | 必须 `-vela` 模式启动（见 scripts/boot_vela.sh） |
+| designWidth 216 在 432 宽屏上整体放大 2 倍 | 字巨大、一屏内容极少（BandQQ 同款问题） | designWidth 对齐物理宽 432 + 样式值 ×k 密度系数（BandQQ branch-release.js 同方案） |
+| text 节点无显式 height 时布局高度 ≈ font-size | CJK 字形更高 → 兄弟节点叠印/裁切（VM 结构对照实验实证，5 种容器形态仅"显式高度"正确） | 堆叠文本全部显式 height + `lines:1`；多行内容用块高度估算（md.js estBlockH） |
+| scroll 直接 `position:absolute` 或裸 `flex:1` | 滚动内容宽度塌陷（~175px） | 成熟模式：`body-wrap{flex:1}` + `scroll{absolute 铺满}` |
+| `$watch` 属性监听不触发 | 键盘 hide 切换后高度不更新 → 键盘不渲染 | BandQQ compose 模式：组件 `hide` 恒 false，显隐交给宿主 dock 的 `show` |
+| Vela fetch 把 HTTP 403/429 当传输层错误抛出 | 限流被误报为"网络连接失败"且无谓重试 | 错误对象识别 403/429 → 限流文案 + 快速失败 |
 
 ## ⚠️ 已知限制
 

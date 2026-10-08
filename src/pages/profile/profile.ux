@@ -8,7 +8,9 @@
       <image class="hd-act" src="/common/icons/refresh.png" onclick="reload" />
     </div>
 
-    <scroll class="body" scroll-y="true">
+    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true">
       <div class="wrap">
         <div class="card head-card">
           <div class="ava-big" style="background-color: {{avColor}}">
@@ -51,7 +53,8 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
       </div>
-    </scroll>
+      </scroll>
+    </div>
 
     <div class="state" show="{{state === 'loading'}}">
       <text class="state-t">加载中…</text>
@@ -62,7 +65,11 @@
     </div>
 
     <!-- Vela_input_method 组件键盘（NEORUAA，MIT）：用户名 ASCII 输入用 QWERTY -->
-    <input-method hide="{{!kbShow}}" screentype="rect" keyboardtype="QWERTY" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
+    <!-- BandQQ v2.23.0 实战版键盘（NEORUAA 上游 + 20+ 轮真机修复）：
+         三层显式定高根治首帧坍缩/按键漂移；rect=横向滚动 QWERTY+拼音 IME -->
+    <div class="kb-dock" show="{{kbShow}}">
+      <input-method hide="{{false}}" screentype="rect" keyboardtype="QWERTY" maxlength="5" vibratemode="short" @complete="onKbChar" @delete="onKbDel"></input-method>
+    </div>
 
     <!-- 键盘操作条：草稿预览 + 查询 + 收起 -->
     <div class="kb-bar" show="{{kbShow}}">
@@ -74,34 +81,39 @@
 </template>
 
 <style>
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 40px; flex-direction: row; align-items: center; padding: 0 10px; }
-  .hd-act { width: 20px; height: 20px; }
-  .hd-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; }
-  .body { flex: 1; }
-  .wrap { flex-direction: column; padding: 4px 10px 16px; }
-  .card { background-color: #161b22; border-radius: 10px; padding: 12px; }
+  .page { position: relative; width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 50px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 25px; height: 25px; }
+  .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; margin-left: 8px; flex: 1; lines: 1; text-overflow: ellipsis }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .wrap { flex-direction: column; padding: 5px 12px 20px; }
+  .card { background-color: #161b22; border-radius: 12px; padding: 15px; }
   .head-card { align-items: center; }
-  .ava-big { width: 56px; height: 56px; border-radius: 28px; justify-content: center; align-items: center; }
-  .ava-big-t { font-size: 24px; color: #ffffff; font-weight: bold; }
-  .p-login { font-size: 17px; color: #e6edf3; font-weight: bold; margin-top: 6px; }
-  .p-name { font-size: 12px; color: #c9d1d9; margin-top: 2px; }
-  .p-bio { font-size: 11px; color: #8b949e; margin-top: 4px; text-align: center; lines: 2; text-overflow: ellipsis; }
-  .stats { flex-direction: row; margin-top: 10px; }
-  .stat { flex: 1; background-color: #161b22; border-radius: 10px; padding: 10px 0; align-items: center; margin-right: 8px; }
-  .stat-n { font-size: 17px; color: #e6edf3; font-weight: bold; }
-  .stat-l { font-size: 10px; color: #8b949e; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 10px; padding: 11px 10px; margin-top: 8px; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-label { flex: 1; font-size: 13px; color: #e6edf3; margin-left: 8px; }
-  .cell-arrow { width: 14px; height: 14px; }
-  .state { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
-  .state-t { font-size: 13px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 12px; color: #58a6ff; margin-top: 10px; }
-  .kb-bar { position: absolute; left: 0; top: 0; width: 100%; height: 30px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 8px; }
-  .kb-bar-t { font-size: 12px; color: #58a6ff; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .kb-bar-ok { font-size: 12px; color: #ffffff; background-color: #238636; border-radius: 12px; padding: 4px 10px; margin-left: 6px; }
-  .kb-bar-x { font-size: 12px; color: #8b949e; margin-left: 8px; }
+  .ava-big { width: 70px; height: 70px; border-radius: 35px; justify-content: center; align-items: center; }
+  .ava-big-t { font-size: 30px; color: #ffffff; font-weight: bold; lines: 1; text-overflow: ellipsis }
+  .p-login { font-size: 21px; color: #e6edf3; font-weight: bold; margin-top: 8px; lines: 1; text-overflow: ellipsis }
+  .p-name { font-size: 15px; color: #c9d1d9; margin-top: 2px; lines: 1; text-overflow: ellipsis }
+  .p-bio { font-size: 14px; color: #8b949e; margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
+  .stats { flex-direction: row; margin-top: 12px; }
+  .stat { flex: 1; background-color: #161b22; border-radius: 12px; padding: 12px 0; align-items: center; margin-right: 10px; }
+  .stat-n { font-size: 21px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis }
+  .stat-l { font-size: 12px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 14px 12px; margin-top: 10px; }
+  .cell-icon { width: 22px; height: 22px; }
+  .cell-label { flex: 1; font-size: 16px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis }
+  .cell-arrow { width: 18px; height: 18px; }
+  .state { position: absolute; left: 0; top: 50px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 16px; color: #8b949e; text-align: center; padding: 0 30px; lines: 1; text-overflow: ellipsis }
+  .state-btn { font-size: 15px; color: #58a6ff; margin-top: 12px; lines: 1; text-overflow: ellipsis }
+  /* BandQQ v2.23.0 dock 集成（v2.16 去 flex 化 + v2.18 顶部锚定）：
+    top 125 = 视口 257 - 键盘 132（rect 264 物理px ÷2 @ designWidth216）
+    kb-bar 95 = dock 上沿 125 - 操作条 30，草稿/动作贴键盘 */
+  .kb-dock { position: absolute; left: 0; top: 250px; width: 100%; height: 264px; }
+  .kb-bar { position: absolute; left: 0; top: 212px; width: 100%; height: 38px; background-color: #161b22; border-bottom: 1px solid #30363d; flex-direction: row; align-items: center; padding: 0 10px; }
+  .kb-bar-t { font-size: 15px; color: #58a6ff; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .kb-bar-ok { font-size: 15px; color: #ffffff; background-color: #238636; border-radius: 15px; padding: 5px 12px; margin-left: 8px; lines: 1; text-overflow: ellipsis }
+  .kb-bar-x { font-size: 15px; color: #8b949e; margin-left: 10px; lines: 1; text-overflow: ellipsis }
 </style>
 
 <script>

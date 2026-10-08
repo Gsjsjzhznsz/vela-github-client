@@ -1,21 +1,37 @@
 <template>
-  <div class="page" style="flex-direction: column; height: {{hide ? '0px' : 'auto'}}; overflow: {{hide ? 'hidden' : 'visible'}};">
+  <!-- RW5-BandQQ 集成（vela-github-client）：直接采用 BandQQ v2.23.0 实战版组件。
+       本项目 designWidth=432（1css=1物理px，BandQQ redmiwatch 分支同策略），
+       rect 键盘 264 高零换算原生渲染；circle/pill 分支保留上游原样（不会渲染）。 -->
+  <!-- v2.15.0 高度链全显式化：v2.14 只把根容器显式化了，但内层两级（if 懒建层 + 黑底 show 层）
+       仍是 height:auto —— 部分固件首帧对 auto 层测量坍缩依旧存在（键盘只显示一半），
+       且根高固定后输入触发的重排不再波及中间层，连 v2.13 的"输入一下就恢复"也消失了。
+       现在根/懒建层/黑底层三层全部用 kbHpx 显式定高（三分区内容高恒定：
+       circle 321 / rect 255+28 / pill 305+28），链路上无任何 auto 测量点，首帧即完整渲染。 -->
+  <!-- v2.18.1 根容器锚向修正：.page 由 bottom:0 改 top:0。v2.18 已把宿主 kb-dock 改为
+       顶部锚定（top=视口高-键盘物理高，构建期写入），但本组件根 .page 仍 bottom:0 ——
+       真机固件上该 bottom 解析到页面文档底而非 kb-dock 底（镜像引擎按最近定位祖先解析
+       所以 VM 取证通过，真机依旧半屏），1px nudge 重排修不了定位错，与"输入也不展开"
+       全部症状吻合。dock 高 == 键盘高（构建期同值写入），top:0 与 bottom:0 在正常固件
+       上等价，在异常固件上 top 锚定已被 v2.18 取证证明全固件可靠（top-bar 恒贴顶）。 -->
+  <div class="page" style="flex-direction: column; height: {{kbHpx}}; overflow: {{hide ? 'hidden' : 'visible'}};">
     <!-- 键盘内容懒建：外 if 保证键盘隐藏时整个子树不进 VDOM（chat/search 首进 1s 卡顿根因：
          旧实现 show 只是不可见，200+ 节点/图片在进页瞬间全部创建），首次弹出才创建，
          之后 keyboardCreated 保活、hide 切换只走内层 show 显隐，不重复重建。 -->
-    <div if="{{!hide || keyboardCreated}}">
-      <div show="{{!hide}}" style="background-color:black;flex-direction: column;" >
+    <div if="{{!hide || keyboardCreated}}" style="height: {{kbHpx}};">
+      <div show="{{!hide}}" style="background-color:black;flex-direction: column;height: {{kbHpx}};" >
       <!-- 拼音小字行：键盘框外上方单独一行，黑底覆盖，仅中/日模式且有 cval 时显示，只展示不可点。
            circle 屏彻底不建此节点（键盘固定 480x321，外置 28px 行会挤压键盘且顶部多一条黑条），
            circle 的拼音改在键盘内部绝对定位显示；if 而非 show：show 隐藏时节点仍在 VDOM，
            circle 顶部会残留黑条 -->
-      <div if="{{screentype !== 'circle'}}" class="cvalrow-wrap" show="{{(lang==='cn' || lang==='jp') && downFlag==='' && !numFlag && cval}}">
-        <text class="cvalrow">{{cvalDisplay}}</text>
+      <!-- v2.14.0：show 从 wrap 移到 text —— wrap 恒在流内占 28px，键盘总高不随输入变化；
+           显式根高度 + 常量内容 = 双保险，非手环机型首帧即完整渲染 -->
+      <div if="{{screentype !== 'circle'}}" class="cvalrow-wrap">
+        <text class="cvalrow" show="{{(lang==='cn' || lang==='jp') && downFlag==='' && !numFlag && cval}}">{{cvalDisplay}}</text>
       </div>
       <!-- 圆屏62 -->
       <div if="{{screentype==='circle'}}" style="width: 480px;height: 321px;">
         <!-- 全键盘 -->
-		<!-- 这里是480px圆表屏幕的键盘 -->
+                <!-- 这里是480px圆表屏幕的键盘 -->
         <div id="full-keyboard" if="{{keyboardtype!='T9'}}" style="width: 480px;height: 321px;">
           <img src="./assets/full/back2.png" style="position: absolute;top:38px;left:7px;width:466px;height:52px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
           <img src="./assets/full/123.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
@@ -159,69 +175,26 @@
         </div>
       </div>
       <!-- 方屏67 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 200px;flex-direction: column">
-        <!-- 九键中文 -->
-        <div if="{{keyboardtype=='T9' && !numFlag}}" style="position:absolute;top:0px;width:100%;height:200px;justify-content: center;">
-          <div style="top:50px;height:150px;width:100%;align-items: stretch;justify-content: space-between;flex-direction: column;padding:2px 3px">
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" @click="onSelect('select')">
-                选择
-                <span if="{{waitingList.length != 0}}" class="waiting-keys" style="color:rgb(13,132,255);" @click="onSelectWaiting(waitingIndex)">
-                  {{waitingList[waitingIndex].toUpperCase()}}
-                </span>
-              </text>
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][0]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][1]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][2]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-          </div>
-        </div>
-        <div else style="position:absolute;top:0px;width:100%;height:200px;justify-content: center">
-          <progress percent="{{percent67}}" style="position:absolute;bottom: 12px;width:80px;color:#ffffff;stroke-width:6px;layer-color:#262626;"></progress>
-          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll">
-            <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/horizontal/space.png" style="width: 48px;height: 48px;" @click="onBtnClick('space')" />
-              </div>
-            </div>
-            <div if="{{numFlag && !numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-            <div if="{{numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-          </scroll>
-        </div>
-        <div style="width: 100%; flex-direction: row; justify-content: center; top:6px; padding:0 6px;">
-          <img src="./assets/horizontal/cn.png" style="padding: 4px;width: 48px;height: 48px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/horizontal/jp.png" style="padding:4px;width:48px;height:48px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
+      <!-- v2.21.0 半屏键盘根修（VM 432×514 实测复现→定案）：v2.19 测得的"固件幻影 83~85px 上方偏移"
+           实为 #keyboard67 样式表残留 position:absolute;top:82px（62圆屏时代定位遗产）——幻影是自家 CSS；
+           且本容器 height:274 装不下子元素 261(scroll 预算)+60(动作行)=321，固件把动作行上提 47px
+           叠进第三排字母 = 用户口径"键盘只显示一半/输入不展开"。修=容器 274→321 高度链闭合
+           （28 拼音行+321=KB_H_RECT 349 与 dock 同值）+ 铲除 keyboard67 absolute 定位；
+           v2.23.0：用户实测键盘偏高+底部一块黑色区域——字母区实际内容仅 170px
+           （60+55+55，负 margin 收紧），scroll 261 预算多出 91px 死区（容器无背景
+           露出页面黑底）。修=scroll 261→176（170 内容+6px 兜底），容器 321→236，
+           KB_H_RECT 349→264（28+236），dock/preview 由 branch-release.js 同步写入。
+           v2.22.0：动作行与字母区换序（动作行在顶部）——v2.19 重构将候选选择栏放到字母区
+           下方，用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览
+           （对齐 circle/pill 分支），换序不动高度链。 -->
+      <div if="{{screentype==='rect'}}" style="width: 100%;height: 236px;flex-direction: column">
+        <!-- v2.22.0：动作行（语言/候选选择栏/删除）移回键盘顶部——v2.19 重构时误置字母区下方，
+             用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览，
+             对齐 circle/pill 分支（候选栏恒在键盘上部）。v2.23.0 高度链：
+             60(动作行)+176(字母区)=236，KB_H_RECT=28+236=264，下展层 absolute 覆盖不变。 -->
+        <div style="width: 100%;height: 60px;flex-direction: row; justify-content: center; padding:0 6px;">
+          <img src="./assets/horizontal/cn.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
+          <img src="./assets/horizontal/jp.png" style="padding:6px;width:60px;height:60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
           <div if="{{(lang === 'cn' || lang === 'jp') && !numFlag}}" style="margin-left: 6px;flex: 1;height: 60px;background-color:#262626;border-color: #333333; border-width: 3px; border-radius: 100px;flex-direction: row;align-items:center">
             <!-- 候选横滚行：整词在前、单字随后（拼音已在键盘上方独立小字行显示，这里不放 cval） -->
             <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 42px;">
@@ -233,16 +206,54 @@
           </div>
           <!-- <img src="./assets/t9/123.png" style="margin-left:6px;padding:6px;width:60px;height:60px;" @click="onBtnClick('switchNum_jp')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" /> -->
         
-          <img src="./assets/horizontal/en.png" style="padding: 4px;width: 48px;height: 48px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/bigA.png" style="padding: 4px;margin-left: 6px;width:94px;height:48px;" @click="onBtnClick('switchLow')" if="{{downFlag==='' && upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/a.png" style="padding: 4px;margin-left: 6px;width:94px;height:48px;" @click="onBtnClick('switchUpper')" if="{{downFlag==='' && !upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/horizontal/en.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
+          <img src="./assets/horizontal/bigA.png" style="padding: 6px;margin-left: 6px;width:94px;height:60px;" @click="onBtnClick('switchLow')" if="{{downFlag==='' && upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/horizontal/a.png" style="padding: 6px;margin-left: 6px;width:94px;height:60px;" @click="onBtnClick('switchUpper')" if="{{downFlag==='' && !upperFlag && lang==='en'&& !numFlag}}" />
           <img src="./assets/horizontal/123.png" style="margin-left: 6px;padding: 6px;margin-left: 6px;width: 94px;height: 60px;" @click="onBtnClick('switchNum')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/back2.png" style="margin-left: 6px;padding: 4px;width: 159px;height: 48px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
-          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 6px;padding: 4px;width: 48px;height: 48px;" @click="onBtnClick('D')" />
+          <img src="./assets/horizontal/back2.png" style="margin-left: 6px;padding: 6px;width: 159px;height: 60px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
+          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 6px;padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('D')" />
           <img else src="./assets/horizontal/del2.png" style="margin-left: 6px;padding: 6px;" @click="onBtnClick('D')" />
         </div>
+        <div style="width:100%;height:176px;">
+          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:176px;">
+            <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
+                <img static src="./assets/horizontal/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
+              </div>
+            </div>
+            <div if="{{numFlag && !numFlag_jp}}" style="left: 6px; flex-direction: column;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+            </div>
+            <div if="{{numFlag_jp}}" style="left: 6px; flex-direction: column;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+                <text class="calbtn67" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
+              </div>
+            </div>
+          </scroll>
+        </div>
         <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 200px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
+        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 236px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
           <div static class="list67">
             <scroll class="expanded-scroll" scroll-y="{{true}}" style="width:100%;height:100%;">
               <div class="expanded-candidates">
@@ -257,38 +268,38 @@
       <div if="{{screentype==='pill-shaped'}}" style="width: 100%;height: 305px">
         <div static style="position:absolute;left:0px;top:34px;width:100%;height:276px;">
           <progress percent="{{30+percent66}}" type="arc" style="start-angle:204deg;total-angle:-48deg;width:188px;height:188px;top:82px;left:2px;position:absolute;color:#ffffff;stroke-width:6px;layer-color:#262626;margin-left: {{(screenWidth - 192)/2}}px;"></progress>
-          <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;">
+          <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;height:170px;">
             <div if="{{!numFlag}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/arc/space.png" style="width: 48px;height: 48px;" @click="onBtnClick('space')" />
+                <img static src="./assets/arc/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
               </div>
             </div>
             <div if="{{numFlag && !numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
             <div if="{{numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -4px;height: 48px;">
+              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
@@ -340,6 +351,18 @@ function deleteLast(t) {
   }
   return "";
 }
+
+// v2.15.0 键盘总高常量（与模板/样式分区高度一一对应；branch-release.js 按 kbScale 同步换算）：
+//   circle 321（拼音行在键盘内部，不占外高）/ rect 236+28 / pill 305+28（拼音行恒预留）
+//   根容器 + 懒建层 + 黑底层三层全部以此显式定高（见模板头注释）
+var KB_H_CIRCLE = 321;
+var KB_H_RECT = 264;
+var KB_H_PILL = 333;
+function kbTotalFor(screentype) {
+  if (screentype === "circle") return KB_H_CIRCLE;
+  if (screentype === "rect") return KB_H_RECT;
+  return KB_H_PILL;
+}
 export default {
   props: {
     dictionarypath: {
@@ -363,6 +386,8 @@ export default {
   },
   data: {
     cval: "",
+    // v2.15.0 键盘全链显式高度（onInit 按 screentype 算好；hide 切换时同步归 0）
+    kbHpx: "0px",
     // 拼音分词显示串（如 ni'hao），在 resetResultList 中随 cval 同步更新
     cvalDisplay: "",
     resultList: [],
@@ -445,12 +470,19 @@ export default {
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
     }
-    if (!this.hide) this.keyboardCreated = true;
+    // v2.15.0：根/懒建层/黑底层三层显式高度（首帧即完整键盘，不再依赖 auto 测量）
+    this.kbHpx = this.hide ? "0px" : kbTotalFor(this.screentype) + "px";
+    if (!this.hide) {
+      this.keyboardCreated = true;
+      // v2.18.0：compose 宿主 hide 恒为 false（$watch 不触发），挂载路径同样自动重排自愈
+      this.nudgeRelayout();
+    }
     this.$watch("hide", "watchHidePropsChange");
     this.$watch("maxlength", "watchMaxLengthPropsChange");
     this.$watch("keyboardtype", "watchKeyboardTypePropsChange");
   },
   onDestroy() {
+    this.clearNudgeTimers();
     this._dictionary.destroy();
   },
   addAllTxt(txt) {
@@ -729,12 +761,40 @@ export default {
   },
   watchHidePropsChange(newV, oldV) {
     this.$emit("visibilityChange", { visible: newV });
+    // v2.15.0：显隐切换同步三层高度（与 kbHpx 全链显式化配套）
+    this.kbHpx = newV ? "0px" : kbTotalFor(this.screentype) + "px";
     if (newV === false) {
       this.keyboardCreated = true;
       this.resetResultList();
+      // v2.18.0：弹出后自动重排自愈（部分固件首帧对 absolute 子树测量坍缩：
+      // 键盘只显示一半，历史版“输入一下就恢复”即重排自愈；现在无需用户输入）
+      this.nudgeRelayout();
     } else {
       this._dictionary.release();
       this.clearCandidates();
+    }
+  },
+  /** v2.18.0：1px 收缩→还原两次（肉眼不可见），强制固件重测键盘子树。
+   *  首次弹出 120ms/650ms 两拍；rebound 期间若 hide 已切走则中止（kbHpx 归 0 优先）。 */
+  nudgeRelayout() {
+    const full = kbTotalFor(this.screentype);
+    const tick = (delay, fn) => { this._nudgeTimers.push(setTimeout(fn, delay)) };
+    if (!this._nudgeTimers) this._nudgeTimers = [];
+    this.clearNudgeTimers();
+    const pulse = (delay) => {
+      tick(delay, () => {
+        if (this.hide) return;
+        this.kbHpx = (full - 1) + "px";
+        tick(60, () => { if (!this.hide) this.kbHpx = full + "px"; });
+      });
+    };
+    pulse(120);
+    pulse(650);
+  },
+  clearNudgeTimers() {
+    if (this._nudgeTimers) {
+      this._nudgeTimers.forEach((t) => clearTimeout(t));
+      this._nudgeTimers = [];
     }
   },
   watchMaxLengthPropsChange(newV, oldV) {
@@ -785,192 +845,189 @@ export default {
 
 <style>
 .page {
-	width:100%;
-	position:absolute;
-	left:0;
-	bottom:0
+        width:100%;
+        position:absolute;
+        left:0;
+        top:0
 }
 .item {
-	height:52px;
-	flex:1
+        height:52px;
+        flex:1
 }
 .calbtn0 {
-	color:#fff;
-	font-size:28px;
-	background-color:rgba(38,38,38,0);
-	border-radius:0;
-	height:52px;
-	width:52px;
-	text-align:center
+        color:#fff;
+        font-size:28px;
+        background-color:rgba(38,38,38,0);
+        border-radius:0;
+        height:52px;
+        width:52px;
+        text-align:center
 }
 .calbtn02 {
-	color:rgb(255,255,255);
-	background-color:rgba(38,38,38,0);
-	border-radius:0px;
-	font-size:32px;
-	text-align:center;
-	height:42px;
+        color:rgb(255,255,255);
+        background-color:rgba(38,38,38,0);
+        border-radius:0px;
+        font-size:32px;
+        text-align:center;
+        height:42px;
 }
 /* 下展分页候选按钮：宽度按文字自适应，不截断长词；覆盖各屏候选 class 的固定 width */
 .calbtn-down {
-	width:auto;
-	min-width:52px;
-	padding-left:14px;
-	padding-right:14px;
-	text-align:center;
+        width:auto;
+        min-width:52px;
+        padding-left:14px;
+        padding-right:14px;
+        text-align:center;
 }
 .expanded-scroll {
-	flex-direction:column;
-	align-items:flex-start;
+        flex-direction:column;
+        align-items:flex-start;
 }
 /* Keep wrapped content independent of the fixed scroll viewport height. */
 .expanded-candidates {
-	position:absolute;
-	left:0px;
-	top:0px;
-	width:100%;
-	flex-direction:row;
-	flex-wrap:wrap;
-	justify-content:center;
-	align-items:center;
-	align-content:flex-start;
-	flex-shrink:0;
+        position:absolute;
+        left:0px;
+        top:0px;
+        width:100%;
+        flex-direction:row;
+        flex-wrap:wrap;
+        justify-content:center;
+        align-items:center;
+        align-content:flex-start;
+        flex-shrink:0;
 }
 .expanded-candidates66 {
-	padding:10px;
+        padding:10px;
 }
 .calbtn-down-text {
-	color:#ffffff;
-	font-size:28px;
-	padding:8px 10px;
-	min-height:52px;
-	max-width:100%;
-	flex-shrink:0;
-	text-align:center;
+        color:#ffffff;
+        font-size:28px;
+        padding:8px 10px;
+        min-height:52px;
+        max-width:100%;
+        flex-shrink:0;
+        text-align:center;
 }
 .calbtnfull {
-	color:#fff;
-	font-size:24px;
-	font-weight:bold;
-	background-color:#262626;
-	border-radius:12px;
-	margin-right:4px;
-	height:52px;
-	width:40px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06)
+        color:#fff;
+        font-size:24px;
+        font-weight:bold;
+        background-color:#262626;
+        border-radius:12px;
+        margin-right:4px;
+        height:52px;
+        width:40px;
+        text-align:center;
+        border:3px solid rgba(255,255,255,0.06)
 }
 .calbtnt9 {
-	color:#fff;
-	font-size:25px;
-	font-weight:bold;
-	background-color:#262626;
-	border-radius:999px;
-	margin-right:4px;
-	width:94px;
-	height:60px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06)
+        color:#fff;
+        font-size:25px;
+        font-weight:bold;
+        background-color:#262626;
+        border-radius:999px;
+        margin-right:4px;
+        width:94px;
+        height:60px;
+        text-align:center;
+        border:3px solid rgba(255,255,255,0.06)
 }
 .caltext {
-	text-align:left;
-	line-height:38px;
-	lines:1;
-	text-overflow:ellipsis;
-	color:#0d84ff;
-	height:45px;
-	font-size:28px;
-	text-align:left;
-	font-weight:bold;
-	padding-left:8px
+        text-align:left;
+        line-height:38px;
+        lines:1;
+        text-overflow:ellipsis;
+        color:#0d84ff;
+        height:45px;
+        font-size:28px;
+        text-align:left;
+        font-weight:bold;
+        padding-left:8px
 }
 /* 拼音小字行：键盘框外上方单独一行显示 cval，单行裁剪、不可点 */
 .cvalrow-wrap {
-	width:100%;
-	height:20px;
-	background-color:transparent;
+        width:100%;
+        height:28px;
+        background-color:transparent;
 }
 .cvalrow {
-	color:#0d84ff;
-	font-size:22px;
-	font-weight:bold;
-	lines:1;
-	text-overflow:ellipsis;
-	text-align:left;
-	padding-left:14px;
-	width:100%;
+        color:#0d84ff;
+        font-size:22px;
+        font-weight:bold;
+        lines:1;
+        text-overflow:ellipsis;
+        text-align:left;
+        padding-left:14px;
+        width:100%;
 }
 .list3 {
-	position:absolute;
-	top:38px;
-	left:78px;
-	width:324px;
-	height:160px;
-	flex-direction:column;
-	background-color:#262626;
-	border-radius:12px
+        position:absolute;
+        top:38px;
+        left:78px;
+        width:324px;
+        height:160px;
+        flex-direction:column;
+        background-color:#262626;
+        border-radius:12px
 }
 .calbtn67 {
-	color:rgb(255,255,255);
-	font-size:26px;
-	font-weight:bold;
-	background-color:rgb(38,38,38);
-	margin-right:4px;
-	width:60px;
-	height:60px;
-	border-radius:30px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06);
+        color:rgb(255,255,255);
+        font-size:32px;
+        font-weight:bold;
+        background-color:rgb(38,38,38);
+        margin-right:4px;
+        width:60px;
+        height:60px;
+        border-radius:30px;
+        text-align:center;
+        border:3px solid rgba(255,255,255,0.06);
 }
 #keyboard67 {
-	position:absolute;
-	left:0px;
-	top:82px;
-	width:100%;
-	height:170px;
+        width:100%;
+        height:176px;
 }
 #keyboard66 {
-	position:absolute;
-	left:0px;
-	top:82px;
-	width:100%;
-	height:170px;
+        position:absolute;
+        left:0px;
+        top:82px;
+        width:100%;
+        height:170px;
 }
 .list67 {
-	top:0px;
-	width:96.4%;
-	height:170px;
-	border-radius:30px;
-	background-color:#262626;
-	border:3px solid rgba(255,255,255,0.06);
-	padding:0px 10px;
+        top:0px;
+        width:96.4%;
+        height:170px;
+        border-radius:30px;
+        background-color:#262626;
+        border:3px solid rgba(255,255,255,0.06);
+        padding:0px 10px;
 }
 .calbtn66 {
-	color:rgb(255,255,255);
-	font-size:32px;
-	font-weight:bold;
-	background-color:rgb(38,38,38);
-	margin-right:3px;
-	width:60px;
-	height:60px;
-	border-radius:30px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06);
+        color:rgb(255,255,255);
+        font-size:32px;
+        font-weight:bold;
+        background-color:rgb(38,38,38);
+        margin-right:3px;
+        width:60px;
+        height:60px;
+        border-radius:30px;
+        text-align:center;
+        border:3px solid rgba(255,255,255,0.06);
 }
 .list66 {
-	position:absolute;
-	left:3px;
-	top:0px;
-	width:186px;
-	height:186px;
-	border-radius:30px;
-	background-color:#262626;
-	border:3px solid rgba(255,255,255,0.06);
+        position:absolute;
+        left:3px;
+        top:0px;
+        width:186px;
+        height:186px;
+        border-radius:30px;
+        background-color:#262626;
+        border:3px solid rgba(255,255,255,0.06);
 }
 .waiting-keys {
-	width:36px;
-	height:40px;
-	text-align: center;
+        width:36px;
+        height:40px;
+        text-align: center;
 }
 
 .keyboard-rows-rect-t9 {
@@ -984,7 +1041,7 @@ export default {
 
 .calbtnt9-rect {
   flex:1;
-  height:46px;
+  height:55px;
   margin:0 3px;
   width:unset;
 }

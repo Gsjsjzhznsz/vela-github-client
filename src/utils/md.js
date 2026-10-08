@@ -131,7 +131,38 @@ export function mdToBlocks(md) {
   }
   flushCode()
   flushPara()
+  for (let i = 0; i < blocks.length; i++) blocks[i].h = estBlockH(blocks[i])
   return blocks
+}
+
+/** 块渲染高度估算（px）：本固件对无界换行文本测量坍缩（BandQQ v2.15 同族问题），
+ *  每个块必须显式高度。按字符宽度分类估算行数：CJK≈1.0×fs / 全角≈1.0 / 其他≈0.58×fs */
+const H_TABLE = {
+  h: { fs: 20, lh: 28, pad: 14 },
+  p: { fs: 16, lh: 25, pad: 6 },
+  c: { fs: 14, lh: 21, pad: 22 },
+  q: { fs: 15, lh: 22, pad: 6 },
+  l: { fs: 16, lh: 25, pad: 6 },
+  r: { fs: 12, lh: 20, pad: 14 },
+}
+function estBlockH(b) {
+  const t = H_TABLE[b.t] || H_TABLE.p
+  const s = String(b.s || '')
+  if (!s) return t.lh + t.pad
+  // 代码块按 \n 强制分行
+  const segs = b.t === 'c' ? s.split('\n') : [s]
+  const avail = b.t === 'c' ? 350 : 390
+  let lines = 0
+  for (let si = 0; si < segs.length; si++) {
+    let w = 0
+    const seg = segs[si]
+    for (let i = 0; i < seg.length; i++) {
+      const c = seg.charCodeAt(i)
+      w += c > 0x2e7f ? t.fs : t.fs * 0.58
+    }
+    lines += Math.max(1, Math.ceil(w / avail))
+  }
+  return lines * t.lh + t.pad
 }
 
 /** 块数组 → list-item 渲染用的分片（每片 chunkSize 块），懒加载友好 */

@@ -92,12 +92,24 @@
     async reload() {
       this.state = 'loading'
       try {
-        const r = await api.getReadme(this.full)
-        // 蓝牙代理对长响应可能截断/丢弃：r 非对象或缺 content 一律按失败处理，绝不渲染空文档
-        if (!r || typeof r !== 'object' || typeof r.content !== 'string' || !r.content) {
-          throw { message: 'README 响应不完整，请重试' }
+        let md = ''
+        // v1.2.0 首选：raw.githubusercontent Range 分块（任意大小完整可达）
+        let viaRaw = false
+        try {
+          const rr = await api.getReadmeText(this.full)
+          if (rr && typeof rr.text === 'string' && rr.text) {
+            md = rr.text
+            viaRaw = true
+          }
+        } catch (e1) { /* 分块通道失败 → 回退 base64 通道 */ }
+        if (!viaRaw) {
+          const r = await api.getReadme(this.full)
+          // 蓝牙代理对长响应可能截断/丢弃：r 非对象或缺 content 一律按失败处理，绝不渲染空文档
+          if (!r || typeof r !== 'object' || typeof r.content !== 'string' || !r.content) {
+            throw { message: 'README 响应不完整，请重试' }
+          }
+          md = b64.decode(r.content)
         }
-        const md = b64.decode(r.content)
         // 非响应式大数组挂在 this._ 前缀，遵循官方内存规范
         const blocks = mdToBlocks(md)
         if (!blocks || blocks.length === 0) {

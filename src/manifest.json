@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "1.1.4",
-  "versionCode": 6,
+  "versionName": "1.2.0",
+  "versionCode": 7,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -99,6 +99,10 @@
       "pages/input": {
         "component": "input",
         "path": "/input"
+      },
+      "pages/device": {
+        "component": "device",
+        "path": "/device"
       }
     }
   }

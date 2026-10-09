@@ -184,7 +184,12 @@ async function t_download() {
     let dlUrl = ''
     mocks['@system.request'].download = ({ url, success }) => { dlUrl = url; success({ token: 't1' }) }
     mocks['@system.request'].onDownloadComplete = ({ success }) => success({ uri: 'internal://cache/x' })
-    mocks['@system.file'].readText = ({ uri, success }) => success({ text: good })
+    // v1.2.0 起 file 通道也是 token 兜底读取源：只对下载 URI 返回内容，
+    // 其余（gh_token.txt）必须 miss，否则 token 加载会被测试数据污染
+    mocks['@system.file'].readText = ({ uri, success, fail }) => {
+      if (String(uri).indexOf('cache/x') >= 0) return success({ text: good })
+      fail(null, 301)
+    }
     const d = await api.getReleases('a/b', 1)
     assertEq(d, JSON.parse(good), 'download fallback returns parsed JSON')
     assert(dlUrl.indexOf('/releases') >= 0, 'download used same url')

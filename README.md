@@ -76,14 +76,25 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 
 使用 AIoT-IDE 的「安装 rpk」入口，或按官方真机调试文档的安装通道，把 `dist/*.rpk` 推送到手表。
 
-### 4. 配置 GitHub Token（可选但强烈建议）
+### 4. 登录（v1.2.0 起支持免打字）
+
+**方式一：免打字登录（Device Flow，推荐）**
+
+1. 手表打开本应用 → 设置 → 「免打字登录（推荐）」
+2. 手表屏幕显示一个 8 位代码（如 `5187-6B16`，15 分钟有效）
+3. 用手机/电脑浏览器打开 `github.com/login/device`，输入该代码并点授权
+4. 手表自动轮询拿到 Token，验证后**双通道保存**（storage + 文件），全程无需在手表上打字
+5. Token 由 GitHub 直接下发给手表，不经过任何第三方服务器
+
+**方式二：手动输入 Token**
 
 1. 电脑打开 `github.com` → Settings → Developer settings → Personal access tokens → **Tokens (classic)**
 2. Generate new token (classic)，勾选 `repo`、`notifications` 权限
-3. 手表打开本应用 → 设置 → 「输入 Personal Access Token」，用内置键盘输入一次
+3. 手表 → 设置 → 「手动输入 Token」，用内置键盘输入一次（支持实时格式校验、失败保留原登录态）
 4. Token 经 `/user` 接口验证后保存到**手表本地存储**，不上传任何第三方服务器
 
 > 游客模式可不登录直接使用搜索/趋势/公开仓库（GitHub 匿名限流 60 次/小时）。
+> 升级安装（覆盖安装）不会丢失登录态；卸载重装后用「免打字登录」30 秒即可恢复。
 
 ## 🗂 使用指南
 
@@ -102,6 +113,14 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 键盘组件懒建保活：首次弹出才建子树，之后 `hide` 切换只走显隐（InputMethod 原生优化）
 - 网络请求带 1.2s/2.4s 两级退避重试（弱网/蓝牙代理下更稳）
 - 应用启动零网络请求，onShow 智能去重
+
+### v1.2.0 数据链路（对抗蓝牙代理长响应截断）
+
+真机实测蓝牙代理对长响应存在确定性截断阈值（[14.3, 42)KB），v1.2.0 从三个层面根治：
+
+- **GraphQL 快车道**：议题/发行版/仓库/搜索/趋势五类列表改走 GraphQL，只取渲染所需瘦字段，单页响应从 30-60KB 降到 1-3KB，从源头避开截断；GraphQL 失败自动回退 REST 自适应分页（10→4→1），功能不倒退
+- **raw Range 分块**：README 与源码文件经 `raw.githubusercontent.com` 按 8KB 分块拉取（HTTP 206，实证支持），任意大小完整可达；UTF-8 跨块字节用状态机解码，块边界不产生乱码
+- **Device Flow 免打字登录**：OAuth Device Flow（复用 GitHub CLI 公开 client_id），手表只显示 8 位码，授权在手机/电脑完成
 
 ## 🔧 固件兼容性备忘（RW5 实测，20250716 镜像）
 

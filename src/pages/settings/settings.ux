@@ -20,9 +20,16 @@
         </div>
 
         <!-- Token 操作 -->
+        <!-- v1.2.0：免打字登录（Device Flow），置顶推荐 -->
+        <div class="cell" onclick="startDevice">
+          <image class="cell-icon" src="/common/icons/check.png" />
+          <text class="cell-label hl">免打字登录（推荐）</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
         <div class="cell" onclick="startInput">
           <image class="cell-icon" src="/common/icons/gear.png" />
-          <text class="cell-label">{{hasTk ? '重新输入 Token' : '输入 Personal Access Token'}}</text>
+          <text class="cell-label">手动输入 Token</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
@@ -42,17 +49,17 @@
         <!-- 说明 -->
         <div class="card">
           <div class="card-col">
-            <text class="c-title">如何获取 Token？</text>
-          <text class="c-body">1. 电脑打开 github.com → Settings → Developer settings</text>
-          <text class="c-body">2. Personal access tokens → Generate new token（勾选 repo）</text>
-          <text class="c-body">3. 生成的 ghp_ 串用键盘输入本机，仅需一次</text>
+            <text class="c-title">如何登录？</text>
+          <text class="c-body">推荐：点「免打字登录」，手表显示 8 位码</text>
+          <text class="c-body">手机/电脑浏览器打开 github.com/login/device</text>
+          <text class="c-body">输入该码并授权，Token 自动保存到手表</text>
           <text class="c-body warn">Token 仅保存在手表本地存储，不会上传到任何服务器</text>
           </div>
         </div>
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.1.4</text>
+          <text class="c-body">GitHub for Vela v1.2.0</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -85,6 +92,7 @@
   .cell-icon { width: 22px; height: 22px; }
   .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 17px; height: 17px; }
+  .hl { color: #3fb950; }
 </style>
 
 <script>
@@ -132,6 +140,11 @@
       } catch (e) {
         this.rateText = '未知'
       }
+    },
+    /* ---- v1.2.0：免打字登录（Device Flow） ---- */
+    startDevice() {
+      this.$app.$def.hook = {}
+      router.push({ uri: 'pages/device' })
     },
     /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
     startInput() {

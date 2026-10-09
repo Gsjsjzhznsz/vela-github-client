@@ -231,7 +231,7 @@ function rawFetch(opts) {
       method: opts.method || 'GET',
       header: opts.header || {},
       data: opts.data,
-      responseType: 'json',
+      responseType: opts.rt || 'json',
       success: (res) => resolve(res),
       fail: (err, code) => reject({ err: err, code: code })
     })
@@ -307,6 +307,148 @@ async function dlFetchText(url, header) {
   // 临时文件清理（官方最佳实践：及时清理避免内存过载），失败不影响主流程
   try { file.delete({ uri }) } catch (e) {}
   return text
+}
+
+/* ================= v1.2.0 GraphQL 快车道 =================
+ * 真机根因：蓝牙代理对长响应确定性截断（阈值 [14.3,42)KB）。REST 列表携带
+ * 全量字段（议题带 body、仓库带 license/owner 全家桶），10 条动辄 30-60KB。
+ * GraphQL 只取列表页渲染所需瘦字段，单页响应 1-3KB，从源头避开截断。
+ * 任何失败（游客无 token / POST 通道异常 / 限流 / 游标断链）一律回退
+ * REST 自适应分页（v1.1.3 路径），保证功能不倒退。 */
+
+const GQL_URL = 'https://api.github.com/graphql'
+
+/* 仓库列表瘦字段（repos/search/trending 共用；沙箱实测单页 10 条 < 2KB） */
+const GQL_REPO_NODE = 'id nameWithOwner description stargazerCount forkCount isFork isPrivate pushedAt updatedAt primaryLanguage{name} owner{login}'
+
+function gqlHeaders() {
+  const h = {
+    'User-Agent': 'vela-github-client',
+    Accept: 'application/vnd.github+json',
+    'Content-Type': 'application/json'
+  }
+  if (_token) h['Authorization'] = 'Bearer ' + _token
+  return h
+}
+
+/* res.data 可能是对象（responseType=json）或文本（代理降级），统一归一 */
+function jsonMaybe(res) {
+  let d = res.data
+  if (typeof d === 'string') {
+    const s = d.replace(/^\uFEFF/, '').trim()
+    if (!s) return null
+    try { return JSON.parse(s) } catch (e) { return null }
+  }
+  return d
+}
+
+async function ghql(query, variables) {
+  await loadToken()
+  if (!_token) throw { status: 0, gqlSkip: true, message: '游客模式，GraphQL 不可用' }
+  let res = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 1200 : 2400))
+    try {
+      res = await rawFetch({
+        url: GQL_URL, method: 'POST', header: gqlHeaders(),
+        data: JSON.stringify({ query: query, variables: variables || {} })
+      })
+      break
+    } catch (e) { res = null }
+  }
+  if (!res) throw { status: 0, gqlSkip: true, message: 'GraphQL 网络失败' }
+  const status = Number(res.code) || 0
+  const d = jsonMaybe(res)
+  if (status === 401) throw { status: 401, message: 'Token 无效或已过期，请在「设置」更新' }
+  if (status === 403 || status === 429) throw { status: status, gqlSkip: true, message: 'GraphQL 限流，回退 REST' }
+  if (status < 200 || status >= 300) throw { status: status, gqlSkip: true, message: 'GraphQL HTTP ' + status }
+  if (!d) throw { status: 200, gqlSkip: true, message: 'GraphQL 响应不完整' }
+  if (d.errors && d.errors.length && !d.data) throw { status: 200, gqlSkip: true, message: (d.errors[0] && d.errors[0].message) || 'GraphQL 查询错误' }
+  return d.data
+}
+
+/** 是否回退 REST：网络失败/限流/网关/截断/游标断链 → 回退；
+ *  401（token 坏）/404（仓库不存在）/422（参数错）属确定失败，直接抛给页面。 */
+function gqlShouldFallback(e) {
+  if (!e) return true
+  if (e.gqlSkip || e.cursorMiss || e.incomplete) return true
+  const st = Number(e.status) || 0
+  return st === 0 || st === 200 || st >= 500 || st === 403 || st === 429
+}
+
+/* GraphQL 以游标翻页、页面以页码翻页——模块级缓存把两者串起来。
+ * 断链（进程重启后直接请求第 2 页）→ undefined → 回退 REST。 */
+const _gqlCursors = {}
+
+function cursorFor(key, page) {
+  if (page <= 1) return null
+  const c = _gqlCursors[key]
+  if (!c || !c.cursors || typeof c.cursors[page - 1] !== 'string' || !c.cursors[page - 1]) return undefined
+  return c.cursors[page - 1]
+}
+
+function cursorSave(key, page, pageInfo) {
+  const cur = pageInfo && pageInfo.endCursor ? String(pageInfo.endCursor) : ''
+  const c = _gqlCursors[key] || { cursors: [] }
+  c.cursors[page] = cur
+  _gqlCursors[key] = c
+}
+
+/* -------- GraphQL 节点 → REST 形状（复用 view.js 既有 mapper，页面零改动） -------- */
+
+function gqlRepoToRest(n) {
+  if (!n) return null
+  return {
+    id: n.id,
+    full_name: n.nameWithOwner,
+    owner: { login: (n.owner && n.owner.login) || String(n.nameWithOwner || '').split('/')[0] },
+    description: n.description || '',
+    stargazers_count: n.stargazerCount || 0,
+    forks_count: n.forkCount || 0,
+    language: n.primaryLanguage && n.primaryLanguage.name,
+    updated_at: n.pushedAt || n.updatedAt || '',
+    fork: !!n.isFork,
+    private: !!n.isPrivate
+  }
+}
+
+function gqlIssueToRest(n) {
+  if (!n) return null
+  return {
+    id: n.id,
+    number: n.number,
+    title: n.title,
+    state: String(n.state || '').toLowerCase(),
+    created_at: n.createdAt || '',
+    user: { login: (n.author && n.author.login) || '' },
+    comments: (n.comments && n.comments.totalCount) || 0,
+    labels: (n.labels && n.labels.nodes ? n.labels.nodes : []).map((l) => ({ name: l.name, color: l.color || '' }))
+  }
+}
+
+function gqlReleaseToRest(n) {
+  if (!n) return null
+  const ac = (n.releaseAssets && n.releaseAssets.totalCount) || 0
+  return {
+    id: n.id,
+    tag_name: n.tagName || '',
+    name: n.name || '',
+    body: n.description || '',
+    prerelease: !!n.isPrerelease,
+    published_at: n.publishedAt || '',
+    created_at: n.createdAt || '',
+    author: { login: (n.author && n.author.login) || '' },
+    assets: new Array(ac)
+  }
+}
+
+function dig(obj, path) {
+  let cur = obj
+  for (let i = 0; i < path.length; i++) {
+    if (!cur || typeof cur !== 'object') return null
+    cur = cur[path[i]]
+  }
+  return cur || null
 }
 
 function friendlyMessage(status, ghMessage) {
@@ -475,6 +617,266 @@ async function requestAdaptive(build) {
   throw lastErr
 }
 
+/* ================= v1.2.0 raw Range 分块拉取 =================
+ * raw.githubusercontent.com 实证支持 HTTP Range（206 + accept-ranges: bytes），
+ * api.github.com git/blobs 实证不支持（Range 被忽略返回 200 全量）。
+ * 8KB 一块（低于蓝牙代理 14.3KB 截断阈值），任意大小文件都能完整取回。
+ * UTF-8 多字节字符可能被块边界切开：字节模式用跨块状态机解码（pending 字节
+ * 留到下一块）；平台不支持 arraybuffer 时退化为文本模式（边界字符损坏概率
+ * 极低，且比「整个响应截断」好一个数量级）。 */
+
+const RAW_BASE = 'https://raw.githubusercontent.com'
+const RAW_CHUNK = 8192
+const RAW_MAX_BLOCKS = 64 /* 8KB × 64 = 512KB 上限 */
+
+function rawFileUrl(fullName, ref, path) {
+  const encPath = String(path || '').split('/').map(encodeURIComponent).join('/')
+  return RAW_BASE + '/' + fullName + '/' + encodeURIComponent(ref || 'HEAD') + '/' + encPath
+}
+
+function utf8Len(s) {
+  let b = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d2 = s.charCodeAt(i + 1)
+      if (d2 >= 0xdc00 && d2 <= 0xdfff) { b += 4; i++; continue }
+    }
+    b += c < 0x80 ? 1 : (c < 0x800 ? 2 : 3)
+  }
+  return b
+}
+
+function toU8(d) {
+  if (d instanceof Uint8Array) return d
+  if (typeof ArrayBuffer !== 'undefined' && d instanceof ArrayBuffer) return new Uint8Array(d)
+  if (d && typeof d === 'object' && d.buffer instanceof ArrayBuffer) {
+    return new Uint8Array(d.buffer, d.byteOffset || 0, d.byteLength || d.buffer.byteLength)
+  }
+  return null
+}
+
+/** 跨块 UTF-8 解码：prevPending 是上一块留下的不完整序列字节（0-3 个），
+ *  与本块字节拼接后逐序列解码，末尾不完整序列留作下一块的 prevPending。 */
+export function utf8DecodeChunk(prevPending, u8) {
+  const all = []
+  for (let i = 0; i < prevPending.length; i++) all.push(prevPending[i])
+  for (let i = 0; i < u8.length; i++) all.push(u8[i])
+  let text = ''
+  let i = 0
+  const n = all.length
+  while (i < n) {
+    const b = all[i]
+    let len = 0
+    if (b < 0x80) len = 1
+    else if ((b & 0xe0) === 0xc0) len = 2
+    else if ((b & 0xf0) === 0xe0) len = 3
+    else if ((b & 0xf8) === 0xf0) len = 4
+    else len = 1 /* 非法首字节按 latin1 输出，避免死循环 */
+    if (i + len > n) break /* 序列不完整 → 留到下一块 */
+    let cp
+    if (len === 1) cp = b
+    else if (len === 2) cp = ((b & 0x1f) << 6) | (all[i + 1] & 0x3f)
+    else if (len === 3) cp = ((b & 0x0f) << 12) | ((all[i + 1] & 0x3f) << 6) | (all[i + 2] & 0x3f)
+    else cp = ((b & 0x07) << 18) | ((all[i + 1] & 0x3f) << 12) | ((all[i + 2] & 0x3f) << 6) | (all[i + 3] & 0x3f)
+    if (cp > 0xffff) {
+      cp -= 0x10000
+      text += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff))
+    } else {
+      text += String.fromCharCode(cp)
+    }
+    i += len
+  }
+  const pending = all.slice(i)
+  return { text: text, pending: pending }
+}
+
+async function rawRangeOnce(url, start, end, mode) {
+  const header = {
+    'User-Agent': 'vela-github-client',
+    Accept: 'application/octet-stream',
+    Range: 'bytes=' + start + '-' + end
+  }
+  if (_token) header['Authorization'] = 'Bearer ' + _token
+  let res = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await rawFetch({ url: url, method: 'GET', header: header, rt: mode })
+      break
+    } catch (e) {
+      if (attempt > 0) throw { status: 0, message: '网络连接失败，请检查手表网络' }
+    }
+  }
+  if (!res) throw { status: 0, message: '网络连接失败，请检查手表网络' }
+  return { code: Number(res.code) || 0, data: res.data, headers: res.headers }
+}
+
+/** Range 分块取回全文。返回 {text, full}：
+ *  full=true 表示服务器不支持 Range（首块即全文，走降级路径）。 */
+async function fetchRawChunked(url) {
+  let mode = 'arraybuffer'
+  let out = ''
+  let pending = []
+  let offset = 0
+  for (let bi = 0; bi < RAW_MAX_BLOCKS; bi++) {
+    let r = await rawRangeOnce(url, offset, offset + RAW_CHUNK - 1, mode)
+    /* 首块探测：平台不支持 arraybuffer（回调给字符串）→ 全程换文本模式重取本块 */
+    if (bi === 0 && mode === 'arraybuffer' && typeof r.data === 'string' && !(r.data instanceof Uint8Array)) {
+      mode = 'text'
+      r = await rawRangeOnce(url, offset, offset + RAW_CHUNK - 1, mode)
+    }
+    if (r.code === 416) break /* 整块对齐时末尾越界 → 已取完 */
+    if (r.code === 200) {
+      /* Range 被忽略：首块即全文（可能超阈值），只能整体返回（降级）；
+       * 但 200 全文同样可能被蓝牙代理截断——content-length 对照检测与
+       * request() raw 模式同口径，绝不静默渲染残缺内容 */
+      if (offset > 0) break
+      if (typeof r.data === 'string') {
+        const s = r.data
+        if (!s) throw { status: 200, incomplete: true, message: 'raw 全文响应不完整' }
+        const clen = parseInt(pickHeader(r.headers, 'content-length'))
+        if (!isNaN(clen) && clen > 0 && utf8Len(s) + 8 < clen) {
+          throw { status: 200, incomplete: true, message: 'raw 全文响应不完整（疑似截断）' }
+        }
+        return { text: s, full: true }
+      }
+      const u8full = toU8(r.data)
+      if (u8full) {
+        const dec = utf8DecodeChunk([], u8full)
+        return { text: dec.text, full: true }
+      }
+      throw { status: 200, incomplete: true, message: 'raw 全文响应异常' }
+    }
+    if (r.code !== 206) throw { status: r.code, message: 'raw 拉取失败（HTTP ' + r.code + '）' }
+    let got = 0
+    if (mode === 'arraybuffer') {
+      const u8 = toU8(r.data)
+      if (!u8) throw { status: 206, message: '分块响应异常' }
+      const dec = utf8DecodeChunk(pending, u8)
+      out += dec.text
+      pending = dec.pending
+      got = u8.length
+    } else {
+      const s = String(r.data == null ? '' : r.data)
+      const clen = parseInt(pickHeader(r.headers, 'content-length'))
+      got = !isNaN(clen) && clen > 0 ? clen : utf8Len(s)
+      out += s
+    }
+    if (got <= 0 || got < RAW_CHUNK) break /* 短块 = 末块 */
+    offset += got
+  }
+  return { text: out, full: false }
+}
+
+const README_RE = /^readme(\.(md|markdown|rst|txt|html|adoc|org|mdown|mkd))?$/i
+
+/** README 全文（v1.2.0 分块通道）：根树找 readme 文件名 → raw Range 分块。
+ *  任何失败抛 {fallback:true}，readme 页回退 REST base64 通道（现行为）。 */
+export async function getReadmeText(fullName, ref) {
+  await loadToken()
+  let name = ''
+  try {
+    const t = await getTree(fullName, 'HEAD')
+    const arr = t && Array.isArray(t.tree) ? t.tree : []
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].type === 'blob' && README_RE.test(arr[i].path || '')) {
+        name = arr[i].path
+        break
+      }
+    }
+  } catch (e) { /* trees 失败不致命，走下方缺省判断 */ }
+  if (!name) throw { fallback: true, message: '未在仓库根目录找到 README' }
+  let r
+  try {
+    r = await fetchRawChunked(rawFileUrl(fullName, ref || 'HEAD', name))
+  } catch (e) {
+    throw { fallback: true, status: e && e.status, message: (e && e.message) || 'README 分块拉取失败' }
+  }
+  if (!r.text || !r.text.length) throw { fallback: true, message: 'README 内容为空' }
+  return { text: r.text, name: name, raw: true }
+}
+
+/* ================= v1.2.0 Device Flow 免打字登录 =================
+ * 手表显示 8 位用户码，用户在手机/电脑浏览器打开 github.com/login/device
+ * 输入该码并授权，手表轮询拿到 OAuth Token——全程无需在手表上打字。
+ * client_id 复用 GitHub CLI 的公开 OAuth App（第三方工具通行做法），
+ * 仅作 device flow 发起方，Token 由 GitHub 直接发给本机，不经过任何第三方。 */
+
+const DEVICE_CLIENT_ID = '178c6fc778ccc68e1d6a'
+const DEVICE_SCOPE = 'repo read:user notifications'
+const DEVICE_URL_CODE = 'https://github.com/login/device/code'
+const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token'
+
+function formPost(url, params) {
+  const parts = []
+  for (const k in params) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
+  return new Promise((resolve, reject) => {
+    try {
+      fetch.fetch({
+        url: url,
+        method: 'POST',
+        header: {
+          'User-Agent': 'vela-github-client',
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        data: parts.join('&'),
+        responseType: 'json',
+        success: (res) => resolve(res),
+        fail: (err, code) => reject({ err: err, code: code })
+      })
+    } catch (e) { reject(e) }
+  })
+}
+
+/** 第一步：发起 Device Flow，返回 {deviceCode,userCode,verifyUri,expiresIn,interval} */
+export async function deviceFlowStart() {
+  let res = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 1200 : 2400))
+    try {
+      res = await formPost(DEVICE_URL_CODE, { client_id: DEVICE_CLIENT_ID, scope: DEVICE_SCOPE })
+      break
+    } catch (e) { res = null }
+  }
+  if (!res) throw { status: 0, message: '网络连接失败，请检查手表网络' }
+  const code = Number(res.code) || 0
+  const d = jsonMaybe(res)
+  if (code < 200 || code >= 300 || !d || !d.device_code || !d.user_code) {
+    throw { status: code, message: '发起登录失败（HTTP ' + code + '），请重试' }
+  }
+  return {
+    deviceCode: String(d.device_code),
+    userCode: String(d.user_code),
+    verifyUri: String(d.verification_uri || 'https://github.com/login/device'),
+    expiresIn: Number(d.expires_in) || 900,
+    interval: Number(d.interval) || 5
+  }
+}
+
+/** 第二步：轮询一次授权状态。永不抛错（轮询失败是常态），状态机返回：
+ *  ok{token} / pending / slow{interval} / expired / denied / netfail / error */
+export async function deviceFlowPoll(deviceCode, intervalSec) {
+  let res
+  try {
+    res = await formPost(DEVICE_URL_TOKEN, {
+      client_id: DEVICE_CLIENT_ID,
+      device_code: deviceCode,
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+    })
+  } catch (e) {
+    return { state: 'netfail' }
+  }
+  const d = jsonMaybe(res)
+  if (d && d.access_token) return { state: 'ok', token: String(d.access_token) }
+  const err = d && d.error
+  if (err === 'authorization_pending') return { state: 'pending' }
+  if (err === 'slow_down') return { state: 'slow', interval: (intervalSec || 5) + 5 }
+  if (err === 'expired_token') return { state: 'expired' }
+  if (err === 'access_denied') return { state: 'denied' }
+  return { state: 'error', status: Number(res.code) || 0 }
+}
+
 /* ---------------- URL 工具 ---------------- */
 
 export function qs(params) {
@@ -530,8 +932,18 @@ export function getSubject(url) {
   return request(url)
 }
 
-/** 登录用户仓库 */
-export function getMyRepos(page, sort) {
+const GQL_MYREPOS_Q = 'query($first:Int!,$after:String,$order:RepositoryOrder){viewer{repositories(first:$first,after:$after,affiliations:[OWNER,COLLABORATOR,ORGANIZATION_MEMBER],orderBy:$order){pageInfo{hasNextPage endCursor}totalCount nodes{' + GQL_REPO_NODE + '}}}}'
+
+const GQL_USERREPOS_Q = 'query($login:String!,$first:Int!,$after:String){repositoryOwner(login:$login){repositories(first:$first,after:$after,orderBy:{field:PUSHED_AT,direction:DESC}){pageInfo{hasNextPage endCursor}totalCount nodes{' + GQL_REPO_NODE + '}}}}'
+
+function repoOrderField(sort) {
+  if (sort === 'created') return 'CREATED_AT'
+  if (sort === 'updated') return 'UPDATED_AT'
+  if (sort === 'full_name') return 'NAME'
+  return 'PUSHED_AT' /* REST 默认 sort=pushed */
+}
+
+function restMyRepos(page, sort) {
   return requestAdaptive((per) => '/user/repos' + qs({
     page: page, per_page: per,
     sort: sort || 'pushed', type: 'owner',
@@ -539,34 +951,116 @@ export function getMyRepos(page, sort) {
   }))
 }
 
-/** 指定用户的公开仓库 */
-export function getUserRepos(login, page) {
+/** 登录用户仓库（GraphQL 瘦字段，REST 兜底） */
+export async function getMyRepos(page, sort) {
+  try {
+    const key = 'myrepos|' + (sort || 'pushed')
+    const cursor = cursorFor(key, page)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const data = await ghql(GQL_MYREPOS_Q, { first: PER_PAGE, after: cursor, order: { field: repoOrderField(sort), direction: 'DESC' } })
+    const conn = dig(data, ['viewer', 'repositories'])
+    if (!conn) throw { status: 0, gqlSkip: true, message: 'GraphQL 响应缺 viewer.repositories' }
+    cursorSave(key, page, conn.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return (conn.nodes || []).map(gqlRepoToRest).filter((x) => !!x && !!x.full_name)
+  } catch (e) {
+    if (gqlShouldFallback(e)) return restMyRepos(page, sort)
+    throw e
+  }
+}
+
+function restUserRepos(login, page) {
   return requestAdaptive((per) => '/users/' + encodeURIComponent(login) + '/repos' + qs({ page: page, per_page: per, sort: 'pushed' }))
 }
 
-/** 仓库搜索 */
-export function searchRepos(keyword, page, sort) {
+/** 指定用户的公开仓库（GraphQL 瘦字段，REST 兜底） */
+export async function getUserRepos(login, page) {
+  try {
+    const key = 'userrepos|' + login
+    const cursor = cursorFor(key, page)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const data = await ghql(GQL_USERREPOS_Q, { login: login, first: PER_PAGE, after: cursor })
+    const conn = dig(data, ['repositoryOwner', 'repositories'])
+    if (!conn) throw { status: 404, message: '内容不存在（404）' }
+    cursorSave(key, page, conn.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return (conn.nodes || []).map(gqlRepoToRest).filter((x) => !!x && !!x.full_name)
+  } catch (e) {
+    if (gqlShouldFallback(e)) return restUserRepos(login, page)
+    throw e
+  }
+}
+
+const GQL_SEARCH_Q = 'query($q:String!,$first:Int!,$after:String){search(query:$q,type:REPOSITORY,first:$first,after:$after){repositoryCount pageInfo{hasNextPage endCursor} nodes{...on Repository{' + GQL_REPO_NODE + '}}}}'
+
+/* GraphQL search 无 sort 参数，用查询限定符实现（沙箱实证 sort:stars 生效） */
+function searchSortQ(sort) {
+  if (sort === 'stars') return ' sort:stars'
+  if (sort === 'forks') return ' sort:forks'
+  if (sort === 'updated') return ' sort:updated'
+  return '' /* best match */
+}
+
+function restSearch(keyword, page, sort) {
   return requestAdaptive((per) => '/search/repositories' + qs({
     q: keyword, page: page, per_page: per,
     sort: sort || 'best match', order: 'desc'
   }))
 }
 
+/** 仓库搜索（GraphQL 瘦字段，REST 兜底；返回 {items,total_count} 契约不变） */
+export async function searchRepos(keyword, page, sort) {
+  try {
+    const key = 'search|' + keyword + '|' + (sort || '')
+    const cursor = cursorFor(key, page)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const data = await ghql(GQL_SEARCH_Q, { q: keyword + searchSortQ(sort), first: PER_PAGE, after: cursor })
+    const s = dig(data, ['search'])
+    if (!s) throw { status: 0, gqlSkip: true, message: 'GraphQL 响应缺 search' }
+    cursorSave(key, page, s.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return { items: (s.nodes || []).map(gqlRepoToRest).filter((x) => !!x && !!x.full_name), total_count: s.repositoryCount || 0 }
+  } catch (e) {
+    if (gqlShouldFallback(e)) return restSearch(keyword, page, sort)
+    throw e
+  }
+}
+
 /**
  * 趋势模拟（GitHub 无官方 Trending API）
  * mode: new=本周新星 / rising=季度黑马 / classic=经典名库
  */
-export function getTrending(mode, page) {
+function trendingQuery(mode) {
   const DAY = 86400000
   const d = (n) => {
     const t = new Date(Date.now() - n * DAY)
     return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2)
   }
-  let q
-  if (mode === 'new') q = 'stars:>50 created:>' + d(7)
-  else if (mode === 'rising') q = 'stars:>2000 created:>' + d(90)
-  else q = 'stars:>50000'
-  return requestAdaptive((per) => '/search/repositories' + qs({ q: q, page: page, per_page: per, sort: 'stars', order: 'desc' }))
+  if (mode === 'new') return 'stars:>50 created:>' + d(7)
+  if (mode === 'rising') return 'stars:>2000 created:>' + d(90)
+  return 'stars:>50000'
+}
+
+function restTrending(mode, page) {
+  return requestAdaptive((per) => '/search/repositories' + qs({ q: trendingQuery(mode), page: page, per_page: per, sort: 'stars', order: 'desc' }))
+}
+
+/** 趋势模拟（GraphQL 瘦字段，REST 兜底；返回 {items,total_count} 契约不变） */
+export async function getTrending(mode, page) {
+  try {
+    const key = 'trending|' + (mode || 'classic')
+    const cursor = cursorFor(key, page)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const data = await ghql(GQL_SEARCH_Q, { q: trendingQuery(mode) + ' sort:stars', first: PER_PAGE, after: cursor })
+    const s = dig(data, ['search'])
+    if (!s) throw { status: 0, gqlSkip: true, message: 'GraphQL 响应缺 search' }
+    cursorSave(key, page, s.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return { items: (s.nodes || []).map(gqlRepoToRest).filter((x) => !!x && !!x.full_name), total_count: s.repositoryCount || 0 }
+  } catch (e) {
+    if (gqlShouldFallback(e)) return restTrending(mode, page)
+    throw e
+  }
 }
 
 /** 仓库详情 */
@@ -591,23 +1085,54 @@ export function getTree(fullName, sha) {
   return request('/repos/' + fullName + '/git/trees/' + (sha || 'HEAD'))
 }
 
-/** 文件原始文本（建议 < 200KB） */
-export function getFileRaw(fullName, path, ref) {
+/** 文件原始文本（v1.2.0：raw.githubusercontent Range 分块，任意大小完整可达；
+ *  私有仓库 raw 404 → 回退 REST contents raw（受阈值限制）） */
+export async function getFileRaw(fullName, path, ref) {
+  try {
+    const r = await fetchRawChunked(rawFileUrl(fullName, ref, path))
+    if (typeof r.text === 'string' && r.text.length) return r.text
+  } catch (e) { /* 落到 REST raw */ }
   const p = path ? '/' + path : ''
   return request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
 }
 
-/** Issue 列表（自动过滤 PR；自适应 per_page 对抗蓝牙代理截断） */
-export async function getIssues(fullName, page, state) {
-  const data = await requestAdaptive((per) => '/repos/' + fullName + '/issues' + qs({
+const GQL_ISSUES_Q = 'query($o:String!,$n:String!,$first:Int!,$after:String,$states:[IssueState!]){repository(owner:$o,name:$n){issues(first:$first,after:$after,states:$states,orderBy:{field:CREATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor} nodes{id number title state createdAt author{login} comments{totalCount} labels(first:4){nodes{name color}}}}}}'
+
+function restIssues(fullName, page, state) {
+  return requestAdaptive((per) => '/repos/' + fullName + '/issues' + qs({
     page: page, per_page: per, state: state || 'open', sort: 'created'
-  }))
-  const list = Array.isArray(data) ? data : []
-  const out = []
-  for (let i = 0; i < list.length && out.length < PER_PAGE; i++) {
-    if (!list[i].pull_request) out.push(list[i])
+  })).then((data) => {
+    const list = Array.isArray(data) ? data : []
+    const out = []
+    for (let i = 0; i < list.length && out.length < PER_PAGE; i++) {
+      if (!list[i].pull_request) out.push(list[i])
+    }
+    return out
+  })
+}
+
+/** Issue 列表（GraphQL 无 body 瘦字段，天然免截断；issues 连接不含 PR，
+ *  无需过滤；REST 兜底保留 PR 过滤逻辑） */
+export async function getIssues(fullName, page, state) {
+  try {
+    const parts = String(fullName || '').split('/')
+    const key = 'issues|' + fullName + '|' + (state || 'open')
+    const cursor = cursorFor(key, page)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const v = { o: parts[0], n: parts[1], first: PER_PAGE, after: cursor }
+    if (!state || state === 'open') v.states = ['OPEN']
+    else if (state === 'closed') v.states = ['CLOSED']
+    /* state=all → 不传 states（OPEN+CLOSED 全量） */
+    const data = await ghql(GQL_ISSUES_Q, v)
+    const conn = dig(data, ['repository', 'issues'])
+    if (!conn) throw { status: 404, message: '内容不存在（404）' }
+    cursorSave(key, page, conn.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return (conn.nodes || []).map(gqlIssueToRest).filter((x) => !!x && x.title != null)
+  } catch (e) {
+    if (gqlShouldFallback(e)) return restIssues(fullName, page, state)
+    throw e
   }
-  return out
 }
 
 /** Issue 详情 */
@@ -625,9 +1150,25 @@ export function addComment(commentsUrl, body) {
   return request(commentsUrl, { method: 'POST', body: { body: body } })
 }
 
-/** Release 列表（本仓库 5 个发行版就 42KB，是截断重灾区，必走自适应） */
-export function getReleases(fullName, page) {
-  return requestAdaptive((per) => '/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: per }))
+const GQL_RELEASES_Q = 'query($o:String!,$n:String!,$first:Int!,$after:String){repository(owner:$o,name:$n){releases(first:$first,after:$after,orderBy:{field:CREATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor} nodes{id tagName name description isPrerelease publishedAt createdAt author{login} releaseAssets(first:1){totalCount}}}}}'
+
+/** Release 列表（GraphQL 无 assets 数组/上传 URL 全家桶，体积降 3-5 倍；REST 兜底） */
+export async function getReleases(fullName, page) {
+  try {
+    const parts = String(fullName || '').split('/')
+    const key = 'rel|' + fullName
+    const cursor = cursorFor(key, page || 1)
+    if (cursor === undefined) throw { cursorMiss: true }
+    const data = await ghql(GQL_RELEASES_Q, { o: parts[0], n: parts[1], first: PER_PAGE, after: cursor })
+    const conn = dig(data, ['repository', 'releases'])
+    if (!conn) throw { status: 404, message: '内容不存在（404）' }
+    cursorSave(key, page || 1, conn.pageInfo)
+    _lastListPerPage = PER_PAGE
+    return (conn.nodes || []).map(gqlReleaseToRest).filter((x) => !!x && !!x.tag_name)
+  } catch (e) {
+    if (gqlShouldFallback(e)) return requestAdaptive((per) => '/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: per }))
+    throw e
+  }
 }
 
 /** 是否已 Star */
@@ -656,7 +1197,8 @@ export default {
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted,
   getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
-  getRepo, getReadme, getContents, getFileRaw, getTree,
+  getRepo, getReadme, getReadmeText, getContents, getFileRaw, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,
-  isStarred, setStarred, getUser
+  isStarred, setStarred, getUser,
+  deviceFlowStart, deviceFlowPoll, utf8DecodeChunk
 }

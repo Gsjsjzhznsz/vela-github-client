@@ -1,0 +1,193 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
+      <text class="hd-title">扫码登录</text>
+    </div>
+
+    <!-- BandQQ v2.9.6 同构：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true">
+        <!-- 阶段一：发起中 -->
+        <div class="center" show="{{state === 'starting'}}">
+          <text class="hint">正在生成登录码…</text>
+        </div>
+
+        <!-- 阶段二：展示用户码 + 轮询 -->
+        <div class="center" show="{{state === 'code' || state === 'saving'}}">
+          <text class="hint">在手机或电脑浏览器打开</text>
+          <text class="uri">{{verifyUri}}</text>
+          <text class="hint2">输入以下代码并授权</text>
+          <div class="codebox">
+            <text class="code">{{userCode}}</text>
+          </div>
+          <text class="status" show="{{state === 'code'}}">{{statusText}}</text>
+          <text class="status ok" show="{{state === 'saving'}}">授权成功，正在保存登录…</text>
+          <text class="cancel" onclick="cancel">取消</text>
+        </div>
+
+        <!-- 阶段三：失败/过期/拒绝 -->
+        <div class="center" show="{{state === 'error'}}">
+          <text class="err-t">{{errMsg}}</text>
+          <text class="cancel retry" onclick="start">重新开始</text>
+          <text class="cancel" onclick="goBack">返回设置</text>
+        </div>
+      </scroll>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .center { flex-direction: column; align-items: center; padding: 14px 24px 60px; }
+  .hint { font-size: 17px; color: #8b949e; text-align: center; }
+  .uri { font-size: 21px; color: #58a6ff; font-weight: bold; margin-top: 6px; text-align: center; }
+  .hint2 { font-size: 17px; color: #8b949e; margin-top: 12px; text-align: center; }
+  .codebox { margin-top: 10px; background-color: #161b22; border-radius: 14px; padding: 14px 22px; }
+  .code { font-size: 44px; color: #3fb950; font-weight: bold; letter-spacing: 3px; }
+  .status { font-size: 15px; color: #8b949e; margin-top: 12px; text-align: center; }
+  .status.ok { color: #3fb950; }
+  .cancel { font-size: 17px; color: #58a6ff; margin-top: 16px; padding: 8px 20px; }
+  .retry { color: #3fb950; }
+  .err-t { font-size: 19px; color: #f85149; text-align: center; padding: 0 10px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+
+  export default {
+    private: {
+      state: 'starting', /* starting / code / saving / error */
+      userCode: '',
+      verifyUri: 'github.com/login/device',
+      statusText: '等待授权…',
+      errMsg: ''
+    },
+    onInit() {
+      this._dc = ''
+      this._interval = 5
+      this._deadline = 0
+      this._timer = null
+      this._destroyed = false
+      this._netFails = 0
+      this._started = false
+    },
+    onShow() {
+      if (this.state === 'starting' && !this._dc && !this._started) {
+        this._started = true
+        this.start()
+      }
+    },
+    start() {
+      if (this._destroyed) return
+      this.state = 'starting'
+      this._startOnce()
+    },
+    async _startOnce() {
+      try {
+        const r = await api.deviceFlowStart()
+        if (this._destroyed) return
+        this._dc = r.deviceCode
+        this._interval = r.interval
+        this._deadline = Date.now() + r.expiresIn * 1000
+        this._netFails = 0
+        this.userCode = r.userCode
+        this.verifyUri = String(r.verifyUri || 'https://github.com/login/device').replace(/^https?:\/\//, '')
+        this.statusText = '等待授权 · 有效期 ' + Math.floor(r.expiresIn / 60) + ' 分钟'
+        this.state = 'code'
+        this.schedule()
+      } catch (e) {
+        if (this._destroyed) return
+        this.state = 'error'
+        this.errMsg = (e && e.message) || '发起登录失败'
+      }
+    },
+    schedule() {
+      if (this._destroyed || this._timer) return
+      const iv = Math.max(3, this._interval) * 1000
+      this._timer = setTimeout(() => {
+        this._timer = null
+        this.pollOnce()
+      }, iv)
+    },
+    async pollOnce() {
+      if (this._destroyed || this.state !== 'code') return
+      if (Date.now() > this._deadline) {
+        this.state = 'error'
+        this.errMsg = '登录码已过期，请重新开始'
+        return
+      }
+      const r = await api.deviceFlowPoll(this._dc, this._interval)
+      if (this._destroyed || this.state !== 'code') return
+      if (r.state === 'ok') {
+        await this.finish(r.token)
+        return
+      }
+      if (r.state === 'slow') {
+        this._interval = r.interval
+      } else if (r.state === 'netfail') {
+        this._netFails++
+        if (this._netFails >= 6) {
+          this.state = 'error'
+          this.errMsg = '网络不稳定，请重新开始'
+          return
+        }
+      } else if (r.state === 'pending') {
+        this._netFails = 0
+      } else if (r.state === 'expired') {
+        this.state = 'error'
+        this.errMsg = '登录码已过期，请重新开始'
+        return
+      } else if (r.state === 'denied') {
+        this.state = 'error'
+        this.errMsg = '你已在网页拒绝了授权'
+        return
+      } else {
+        this.state = 'error'
+        this.errMsg = '登录异常（HTTP ' + (r.status || '?') + '），请重新开始'
+        return
+      }
+      const leftMs = this._deadline - Date.now()
+      if (leftMs > 0) {
+        const m = Math.ceil(leftMs / 60000)
+        this.statusText = '等待授权 · 剩余约 ' + m + ' 分钟'
+      }
+      this.schedule()
+    },
+    async finish(token) {
+      this.state = 'saving'
+      try {
+        await api.saveToken(token)
+        await api.verifyPersisted()
+        prompt.showToast({ message: '登录成功，已保存本机', duration: 2000 })
+        setTimeout(() => {
+          if (!this._destroyed) router.back()
+        }, 900)
+      } catch (e) {
+        this.state = 'error'
+        this.errMsg = '登录成功但保存失败：' + ((e && e.message) || '')
+      }
+    },
+    cancel() {
+      this._destroyed = true
+      if (this._timer) { clearTimeout(this._timer); this._timer = null }
+      router.back()
+    },
+    onDestroy() {
+      this._destroyed = true
+      if (this._timer) { clearTimeout(this._timer); this._timer = null }
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

@@ -142,8 +142,14 @@
           await api.loadToken(true)
           const user = await api.validateToken(t)
           await api.saveToken(t)
+          // v1.1.4：读回验证双通道落盘状态，持久化全败时明确告知用户（
+          // 真机 storage 曾静默失败，用户必知会话内有效/重启即丢的区别）
+          const pv = await api.verifyPersisted()
           app.inputResult = null
-          prompt.showToast({ message: '登录成功 · ' + ((user && user.login) || ''), duration: 1800 })
+          let msg = '登录成功 · ' + ((user && user.login) || '')
+          if (!pv.storage && !pv.file) msg += '（本机持久化失败，仅本次运行有效）'
+          else if (!pv.storage || !pv.file) msg += '（' + (pv.storage ? 'file' : 'storage') + '通道兜底）'
+          prompt.showToast({ message: msg, duration: 2400 })
           router.back()
         } catch (e) {
           const st = e && e.status !== undefined ? e.status : '?'

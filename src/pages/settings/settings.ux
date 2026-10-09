@@ -15,6 +15,7 @@
             <text class="c-title">GitHub 账户</text>
           <text class="c-row">{{hasTk ? '已登录 · ' + tokenMask : '游客模式（公开数据，限流 60 次/小时）'}}</text>
           <text class="c-row2">API 余量 {{rateText}}</text>
+          <text class="c-row2" show="{{hasTk && diagText}}">持久化诊断：{{diagText}}</text>
           </div>
         </div>
 
@@ -51,7 +52,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.1.3</text>
+          <text class="c-body">GitHub for Vela v1.1.4</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -97,6 +98,7 @@
       hasTk: false,
       tokenMask: '',
       rateText: '…',
+      diagText: ''
     },
     onInit() {
     },
@@ -106,7 +108,21 @@
       await api.loadToken(true)
       this.hasTk = api.hasToken()
       this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
+      this.refreshDiag()
       this.refreshRate()
+    },
+    refreshDiag() {
+      if (!this.hasTk) {
+        this.diagText = ''
+        return
+      }
+      const d = api.storageDiag()
+      // 用「有/无」而非 √/×（× 字符未经固件字库验证，√ 已实证可用）
+      const ch = (n, v) => n + (v > 0 ? ' 有' + v + '位' : ' 无')
+      let s = ch('storage', d.storage) + ' · ' + ch('file', d.file)
+      if (d.write) s += ' · 写入:' + d.write
+      else if (d.src) s += ' · 读取自:' + d.src
+      this.diagText = s
     },
     async refreshRate() {
       try {

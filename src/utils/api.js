@@ -5,32 +5,74 @@
  */
 import fetch from '@system.fetch'
 import storage from '@system.storage'
+import file from '@system.file'
+import downloader from '@system.request'
 
 const API_BASE = 'https://api.github.com'
 const TOKEN_KEY = 'gh_token'
+const TOKEN_FILE = 'internal://files/gh_token.txt'
 const PER_PAGE = 10
 
-/* ---------------- 存储层（Promise 化） ---------------- */
+/* ---------------- 存储层（Promise 化，v1.1.4 双通道） ----------------
+ * 真机（RW5）实测：storage.set 回调 success 后，另页 context 读不到、大退后丢失
+ * （v1.1.2 模拟器同路径验证是好的，属固件差异）。参考 TG Wear/BandQQ 等成熟
+ * Vela 应用均把关键状态放在手机端，手表端持久化尽量少用——本应用无手机端，
+ * 故采用 storage + file 双通道互为备份，读回验证，settings 页诊断可见。 */
 
 function stGet(key) {
   return new Promise((resolve) => {
-    storage.get({
-      key,
-      success: (d) => resolve(d == null ? '' : d),
-      fail: () => resolve('')
-    })
+    try {
+      storage.get({
+        key,
+        success: (d) => resolve(d == null ? '' : d),
+        fail: () => resolve('')
+      })
+    } catch (e) { resolve('') }
   })
 }
 
 function stSet(key, value) {
   return new Promise((resolve, reject) => {
-    storage.set({ key, value, success: resolve, fail: (d, c) => reject({ d, c }) })
+    try {
+      storage.set({ key, value, success: () => resolve(true), fail: (d, c) => reject({ d, c }) })
+    } catch (e) { reject(e) }
   })
 }
 
 function stRemove(key) {
   return new Promise((resolve) => {
-    storage.delete({ key, success: resolve, fail: resolve })
+    try {
+      storage.delete({ key, success: resolve, fail: resolve })
+    } catch (e) { resolve() }
+  })
+}
+
+/* file 通道：internal://files 常驻分区，writeText 文件不存在会自建 */
+function fileGet(uri) {
+  return new Promise((resolve) => {
+    try {
+      file.readText({
+        uri,
+        success: (d) => resolve(typeof d === 'string' ? d : ((d && d.text) || '')),
+        fail: () => resolve('')
+      })
+    } catch (e) { resolve('') }
+  })
+}
+
+function fileSet(uri, text) {
+  return new Promise((resolve, reject) => {
+    try {
+      file.writeText({ uri, text, success: () => resolve(true), fail: (d, c) => reject({ d, c }) })
+    } catch (e) { reject(e) }
+  })
+}
+
+function fileRemove(uri) {
+  return new Promise((resolve) => {
+    try {
+      file.delete({ uri, success: resolve, fail: resolve })
+    } catch (e) { resolve() }
   })
 }
 
@@ -47,10 +89,21 @@ let _tokenReady = null
 export function loadToken(force) {
   if (force) _tokenReady = null
   if (_tokenReady) return _tokenReady
-  _tokenReady = stGet(TOKEN_KEY).then((v) => {
+  _tokenReady = (async () => {
+    // 双通道读取：storage 优先，空则 file 兜底（真机 storage 通道不可靠）
+    let v = await stGet(TOKEN_KEY)
+    let src = 'storage'
+    if (!v || typeof v !== 'string' || !v.length) {
+      v = await fileGet(TOKEN_FILE)
+      src = 'file'
+    }
     _token = typeof v === 'string' ? v : (v ? String(v) : '')
+    if (!_token) src = ''
+    _persistDiag.storage = src === 'storage' ? _token.length : 0
+    _persistDiag.file = src === 'file' ? _token.length : 0
+    _persistDiag.src = src
     return _token
-  })
+  })()
   return _tokenReady
 }
 
@@ -63,22 +116,56 @@ export function currentToken() {
   return _token
 }
 
+/* 持久化诊断（settings 页展示 + input 页登录后读回验证） */
+let _persistDiag = { storage: 0, file: 0, src: '', write: '' }
+
+export function storageDiag() {
+  return { storage: _persistDiag.storage, file: _persistDiag.file, src: _persistDiag.src, write: _persistDiag.write }
+}
+
+/** 双通道写入：storage 失败不影响 file 兜底，两通道全失败才判定不落盘。
+ *  返回 {storage, file} 两通道是否成功（字符长度记入诊断）。 */
+async function persistToken(t) {
+  const r = { storage: false, file: false }
+  try { await stSet(TOKEN_KEY, t); r.storage = true } catch (e) { r.storage = false }
+  try { await fileSet(TOKEN_FILE, t); r.file = true } catch (e) { r.file = false }
+  return r
+}
+
+async function unpersistToken() {
+  try { await stRemove(TOKEN_KEY) } catch (e) {}
+  try { await fileRemove(TOKEN_FILE) } catch (e) {}
+}
+
 export async function saveToken(token) {
   _token = (token || '').trim()
+  let r = { storage: false, file: false }
   if (_token) {
-    await stSet(TOKEN_KEY, _token)
+    r = await persistToken(_token)
   } else {
-    await stRemove(TOKEN_KEY)
+    await unpersistToken()
   }
   // 同步进程内缓存（否则本 context 后续 loadToken 仍返回旧值）；
   // 同时撤销缓存态：确保后续 loadToken(true/false) 都能拿到最新值
   _tokenReady = Promise.resolve(_token)
   _self = null
+  _persistDiag.storage = r.storage ? _token.length : 0
+  _persistDiag.file = r.file ? _token.length : 0
+  _persistDiag.write = _token ? (r.storage && r.file ? '双通道√' : (r.storage ? '仅storage' : (r.file ? '仅file' : '双通道均失败'))) : '已清除'
   return _token
 }
 
 export async function clearToken() {
   return saveToken('')
+}
+
+/** v1.1.4：读回验证（登录后立即确认两通道是否真的存上了） */
+export async function verifyPersisted() {
+  const s = await stGet(TOKEN_KEY)
+  const f = await fileGet(TOKEN_FILE)
+  _persistDiag.storage = typeof s === 'string' ? s.length : 0
+  _persistDiag.file = typeof f === 'string' ? f.length : 0
+  return { storage: !!s, file: !!f }
 }
 
 /**
@@ -158,6 +245,68 @@ function pickHeader(headers, name) {
     if (String(k).toLowerCase() === n) return headers[k]
   }
   return ''
+}
+
+/* ---------------- 下载通道兜底（v1.1.4） ----------------
+ * fetch 走蓝牙代理流式通道，大响应会被确定性截断（真机阈值 [14.3,42)KB）。
+ * @system.request.download 走原生下载器管线（先落盘再回调），与 fetch 不同路；
+ * 官方支持明细 REDMI Watch 5 支持。仅作 incomplete 时的兜底：
+ * download → onDownloadComplete → file.readText → 解析。 */
+function dlDownload(url, header) {
+  return new Promise((resolve, reject) => {
+    try {
+      downloader.download({
+        url,
+        header,
+        success: (d) => resolve(d && d.token),
+        fail: (d, c) => reject({ d, c })
+      })
+    } catch (e) { reject(e) }
+  })
+}
+
+function dlWait(token) {
+  return new Promise((resolve, reject) => {
+    try {
+      downloader.onDownloadComplete({
+        token,
+        success: (d) => resolve(d && d.uri),
+        fail: (d, c) => reject({ d, c })
+      })
+    } catch (e) { reject(e) }
+  })
+}
+
+function dlRead(uri) {
+  return new Promise((resolve, reject) => {
+    try {
+      file.readText({
+        uri,
+        success: (d) => resolve(typeof d === 'string' ? d : ((d && d.text) || '')),
+        fail: (d, c) => reject({ d, c })
+      })
+    } catch (e) { reject(e) }
+  })
+}
+
+function withTimeout(p, ms, tag) {
+  return Promise.race([
+    p,
+    new Promise((resolve, reject) => setTimeout(() => reject({ dlTimeout: tag }), ms))
+  ])
+}
+
+/** 下载通道取回响应正文（GET JSON/raw 均适用）；任何一步失败都抛错。
+ *  超时收紧（8/15/5s）：兜底通道不能拖死 UI，最坏 ~28s 后仍走 incomplete 报错。 */
+async function dlFetchText(url, header) {
+  const token = await withTimeout(dlDownload(url, header), 8000, 'download')
+  if (!token) throw { dlErr: 'no token' }
+  const uri = await withTimeout(dlWait(token), 15000, 'complete')
+  if (!uri) throw { dlErr: 'no uri' }
+  const text = await withTimeout(dlRead(uri), 5000, 'read')
+  // 临时文件清理（官方最佳实践：及时清理避免内存过载），失败不影响主流程
+  try { file.delete({ uri }) } catch (e) {}
+  return text
 }
 
 function friendlyMessage(status, ghMessage) {
@@ -264,6 +413,18 @@ export async function request(path, options) {
   }
   if (!res) {
     if (lastErr && lastErr.incomplete) {
+      // v1.1.4：incomplete 时先走下载通道兜底（GET 的 JSON/raw；
+      // 原生下载器与 fetch 不同路，可能不受蓝牙代理截断影响）
+      if ((opt.method || 'GET') === 'GET' && !opt.noDl) {
+        try {
+          const text = await dlFetchText(url, header)
+          if (text && text.length) {
+            const cleaned = String(text).replace(/^\uFEFF/, '').trim()
+            if (opt.raw) return cleaned
+            return JSON.parse(cleaned)
+          }
+        } catch (e2) { /* 下载通道也失败 → 走 incomplete 报错 */ }
+      }
       // v1.1.3：incomplete 标志供自适应分页降档重试（确定性截断靠同参重试无解）
       throw { status: lastStatus, incomplete: true, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
     }
@@ -492,7 +653,7 @@ export function getUser(login) {
 
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
-  request, qs, self, lastListPerPage,
+  request, qs, self, lastListPerPage, storageDiag, verifyPersisted,
   getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
   getRepo, getReadme, getContents, getFileRaw, getTree,

@@ -122,6 +122,7 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 | scroll 直接 `position:absolute` 或裸 `flex:1` | 滚动内容宽度塌陷（~175px） | 成熟模式：`body-wrap{flex:1}` + `scroll{absolute 铺满}` |
 | `$watch` 属性监听不触发 | 键盘 hide 切换后高度不更新 → 键盘不渲染 | BandQQ compose 模式：组件 `hide` 恒 false，显隐交给宿主 dock 的 `show` |
 | Vela fetch 把 HTTP 403/429 当传输层错误抛出 | 限流被误报为"网络连接失败"且无谓重试 | 错误对象识别 403/429 → 限流文案 + 快速失败 |
+| `@system.storage` 真机（RW5）set 回调 success 但另页 context 读不到、进程重启后丢失（模拟器同路径正常） | token 登录后设置页仍游客模式，大退即丢 | storage + `@system.file` 双通道写、读回验证、settings 页持久化诊断行；参考 TG Wear/BandQQ 均把关键状态放手机端的取舍 |
 
 ## ⚠️ 已知限制
 
@@ -136,6 +137,21 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 ## 📄 许可证
 
 [AGPL-3.0-or-later](./LICENSE) © 2026 Gsjsjzhznsz (yiqiu4178)
+
+## 🧭 参考项目与生态（Vela 手表开发者可复用）
+
+开发过程中调研的同平台开源项目，按对本项目的参考价值排序：
+
+| 项目 | 平台 | 对本项目的启发 |
+|------|------|----------------|
+| [hrk666666/tgwear-quickapp](https://github.com/hrk666666/tgwear-quickapp)（TG Wear） | 小米 Vela 穿戴设备 | **同平台最成熟的直连型客户端**。网络架构关键决定：全部 Telegram 流量经手机端桥（`@system.interconnect`）转发而非手表直连，规避手表端网络栈限制；手表端 `@system.storage` 仅存轻量 settings，会话主体放手机端。本项目的键盘组件、双通道持久化设计均参考其取舍 |
+| [cciccicu/JSLab](https://github.com/cciccicu/JSLab) | 小米 Vela 手环 | 手环端 JS 运行时 + 创作链路，其 manifest features 声明与工程结构可对照 |
+| [SarmonFish/VelaChat-Backend](https://github.com/SarmonFish/VelaChat-Backend)（VelaChat） | 小米/Redmi 手表 | 微信消息同步：FastAPI HTTP 后端 + 手表端，同样采用「重活放服务器/手机、手表只做展示」的架构 |
+| [mu-zi-lee/Halo-Signal](https://github.com/mu-zi-lee/Halo-Signal) | 小米手环 9 Pro | 手表 RPK + 手机 APK + 电脑服务三端协作范式 |
+| [BandOTP](https://github.com/topics/vela)（腕码） | 小米手表 | TOTP 验证码查看器，配套安卓端接收配置 |
+| [米坛社区 BandBBS](https://www.bandbbs.cn/) | 米环/米表全系 | 中文最大的小米穿戴快应用社区，固件兼容性坑的第一手情报源 |
+
+**平台结论**（本项目实测 + 上述项目交叉印证）：小米 Vela 穿戴设备上成熟应用的通行架构是「重网络/重状态放手机端或服务端，手表端最小化」；本应用因 GitHub API 公开可直连而采用纯手表架构，直连可用但有响应体长度限制（蓝牙代理截断），已用自适应分页 + 下载通道兜底对抗。若需在 Vela 上构建更重的客户端，优先评估 `@system.interconnect` 手机桥方案。
 
 ## 🙏 致谢
 

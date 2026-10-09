@@ -25,6 +25,13 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
+        <!-- v1.1.3：一键重验已存 Token（无需重打 40 位） -->
+        <div class="cell" show="{{hasTk}}" onclick="revalidate">
+          <image class="cell-icon" src="/common/icons/refresh.png" />
+          <text class="cell-label">重新验证当前 Token</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
         <div class="cell" show="{{hasTk}}" onclick="logout">
           <image class="cell-icon" src="/common/icons/back.png" />
           <text class="cell-label warn">退出登录（清除本机 Token）</text>
@@ -44,7 +51,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.1.2</text>
+          <text class="c-body">GitHub for Vela v1.1.3</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -112,9 +119,29 @@
     },
     /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
     startInput() {
-      // 预填已存 Token：重进时无需重新逐字键入 40 位（消除二次输入失败/手误风险）
+      // 预填已存 Token：重进时无需重新逐字键入 40 位（input 页首个键入会整体替换，不会拼接）
       this.$app.$def.hook = { type: 'token', initial: api.currentToken() || '' }
       router.push({ uri: 'pages/input' })
+    },
+    /* v1.1.3：一键重验已存 Token —— 二次输入手误 401 的根治路径：根本不用再输入 */
+    async revalidate() {
+      await api.loadToken(true)
+      const t = api.currentToken()
+      if (!t) {
+        this.hasTk = false
+        return
+      }
+      prompt.showToast({ message: '正在验证已存 Token…', duration: 1500 })
+      try {
+        const user = await api.validateToken(t)
+        this.hasTk = true
+        this.tokenMask = maskToken(t)
+        prompt.showToast({ message: 'Token 有效 · ' + ((user && user.login) || ''), duration: 1800 })
+      } catch (e) {
+        const st = e && e.status !== undefined ? e.status : '?'
+        prompt.showToast({ message: '验证失败[' + st + ']：' + ((e && e.message) || '，可退出登录后重输'), duration: 2800 })
+      }
+      this.refreshRate()
     },
     async logout() {
       await api.clearToken()

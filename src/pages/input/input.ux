@@ -15,12 +15,12 @@
     <div class="preview-box">
       <text class="preview-text">{{draft || placeholder}}</text>
       <div class="preview-tools">
-        <text class="preview-hint">{{mode === 'token' ? 'Token 仅存本机 · 输入后点确认' : '键盘支持拼音/英文 · 点确认返回'}}</text>
+        <text class="preview-hint">{{mode === 'token' ? tokHint : '键盘支持拼音/英文 · 点确认返回'}}</text>
         <text class="clear-btn" show="{{draft}}" onclick="clearDraft">清空</text>
       </div>
     </div>
     <div class="kb-dock">
-      <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="rect" @complete="onComplete" @delete="onDelete"></input-method>
+      <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="rect" initlang="{{mode === 'token' ? 'en' : 'cn'}}" @complete="onComplete" @delete="onDelete"></input-method>
     </div>
   </div>
 </template>
@@ -48,7 +48,7 @@
   import api from '../../utils/api'
   import { query } from '../../utils/view'
 
-  const MAXLEN = 64
+  const MAXLEN = 100
 
   export default {
     protected: {
@@ -58,7 +58,8 @@
     },
     private: {
       draft: '',
-      placeholder: '在这里输入…'
+      placeholder: '在这里输入…',
+      tokHint: 'Token 仅存本机 · 输入后点确认'
     },
     onInit(params) {
       try { console.log('[DBG]input onInit raw=' + JSON.stringify(params)) } catch (e) {}
@@ -67,6 +68,8 @@
       this.mode = p.type || 'search'
       this.initial = p.initial || ''
       this.draft = this.initial
+      // v1.1.3：预填是否已被用户编辑（token 模式防「预填+重打拼接脏 token」）
+      this._dirty = !this.draft
       const conf = {
         search: { title: '搜索仓库', ph: '输入关键词…' },
         token: { title: '输入 Token', ph: '粘贴或键入 ghp_ …' },
@@ -76,50 +79,81 @@
       const c = conf[this.mode] || conf.search
       this.title = c.title
       this.placeholder = c.ph
+      this.refreshTokHint()
+    },
+    refreshTokHint() {
+      // v1.1.3：实时长度/格式反馈 —— 40 位手工键入无法目视校验，
+      // 提前暴露大小写错/漏字，避免白白消耗一次 API 验证
+      if (this.mode !== 'token') return
+      const t = (this.draft || '').replace(/\s+/g, '')
+      if (!t) {
+        this.tokHint = 'Token 仅存本机 · 键入后点确认'
+        return
+      }
+      const bad = api.tokenFormatHint(t)
+      this.tokHint = t.length + ' 位 · ' + (bad || '格式正确，可点确认')
     },
     onComplete(e) {
       const c = (e && e.detail && e.detail.content) || (e && e.content) || ''
-      if (c && this.draft.length < MAXLEN) {
+      if (!c) return
+      // v1.1.3：token 模式预填未被编辑时，首个键入直接替换（绝不拼接在旧 token 尾部）
+      if (this.mode === 'token' && !this._dirty && this.initial && this.draft === this.initial) {
+        this.draft = c.slice(0, MAXLEN)
+      } else if (this.draft.length < MAXLEN) {
         this.draft = (this.draft + c).slice(0, MAXLEN)
       }
+      this._dirty = true
+      this.refreshTokHint()
     },
     onDelete() {
       this.draft = this.draft.slice(0, -1)
+      this._dirty = true
+      this.refreshTokHint()
     },
     clearDraft() {
       this.draft = ''
+      this._dirty = true
+      this.refreshTokHint()
     },
     goBack() {
       router.back()
     },
     async confirmDraft() {
-      const t = (this.draft || '').trim()
-      if (!t) {
+      const raw = (this.draft || '').trim()
+      if (!raw) {
         prompt.showToast({ message: '还没有输入内容', duration: 1200 })
         return
       }
       const app = this.$app.$def
       if (this.mode === 'token') {
-        // Token 模式：本页直接验证保存，成功/失败都回来源页（其 onShow 会刷新显示）。
-        // force 重读：本页 context 的 loadToken 缓存需与存储同步（预填/覆盖场景）
+        // v1.1.3 Token 模式重构：
+        //  ① 先去空白（令牌不含空格，键盘误触空格/换行不再致命）
+        //  ② 格式预检：长度/前缀不对直接提示，不耗 API、不动旧登录
+        //  ③ 先验证后落盘：失败时绝不 clearToken（之前会把已存的 GOOD token 清掉，
+        //     用户被锁死游客模式无限重输，真机实锴）
+        const t = raw.replace(/\s+/g, '')
+        const bad = api.tokenFormatHint(t)
+        if (bad) {
+          prompt.showToast({ message: bad, duration: 2600 })
+          return
+        }
         prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
         try {
           await api.loadToken(true)
+          const user = await api.validateToken(t)
           await api.saveToken(t)
-          await api.self()
           app.inputResult = null
-          prompt.showToast({ message: '登录成功', duration: 1500 })
+          prompt.showToast({ message: '登录成功 · ' + ((user && user.login) || ''), duration: 1800 })
           router.back()
         } catch (e) {
-          await api.clearToken()
-          // 透出状态码：401=Token 无效 / 403=限流 / 0=网络失败，真机排障必需
           const st = e && e.status !== undefined ? e.status : '?'
-          prompt.showToast({ message: 'Token 验证失败[' + st + ']：' + ((e && e.message) || ''), duration: 2600 })
+          const kept = api.hasToken() ? '（已保留原登录）' : ''
+          prompt.showToast({ message: 'Token 验证失败[' + st + ']：' + ((e && e.message) || '') + kept, duration: 2800 })
         }
         return
       }
       // 其余模式：草稿写入应用级共享态，来源页 onShow 消费
-      app.inputResult = { type: this.mode, text: t }
+      app.inputResult = { type: this.mode, text: raw }
       router.back()
     }
   }

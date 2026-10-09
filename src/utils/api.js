@@ -81,6 +81,52 @@ export async function clearToken() {
   return saveToken('')
 }
 
+/**
+ * v1.1.3：验证任意 Token（不落盘、不污染既有登录态）。
+ * 之前「先 saveToken 再验证、失败 clearToken」的顺序有两个致命伤：
+ *  ① 二次输入拼接成脏 token 时 401 → clearToken 把之前存的 GOOD token 也清了 →
+ *    用户被锁死在游客模式，重输又手误 → 无限循环（真机实锤）；
+ *  ② 验证期间存储里已是脏 token，其它页 context 恰好发请求即携带脏值。
+ * 改为：临时替换内存 token 调 /user，finally 恢复原值；验证通过才由调用方 saveToken。
+ */
+export async function validateToken(token) {
+  const t = (token || '').replace(/\s+/g, '')
+  if (!t) throw { status: -1, message: 'Token 为空' }
+  const prevToken = _token
+  const prevReady = _tokenReady
+  _token = t
+  _tokenReady = Promise.resolve(t)
+  _self = null
+  try {
+    const user = await request('/user')
+    if (!user || !user.login) throw { status: 200, message: '响应异常，未取到用户名' }
+    return user
+  } finally {
+    _token = prevToken
+    _tokenReady = prevReady
+    _self = null
+  }
+}
+
+/** Token 格式诊断：返回空串=格式正常，否则给出可读提示（不发请求） */
+export function tokenFormatHint(token) {
+  const t = (token || '').replace(/\s+/g, '')
+  if (!t) return '还没有输入内容'
+  if (t.indexOf('ghp_') === 0) {
+    if (t.length !== 40) return '当前 ' + t.length + ' 位，标准 ghp_ 令牌为 40 位，请检查大小写/漏字'
+    if (!/^[A-Za-z0-9]{36}$/.test(t.slice(4))) return '含非法字符，令牌只含字母数字，请检查'
+    return ''
+  }
+  if (t.indexOf('github_pat_') === 0) {
+    if (t.length < 80) return '当前 ' + t.length + ' 位，github_pat_ 令牌约 93 位，请检查漏字'
+    return ''
+  }
+  if (t.indexOf('gho_') === 0 || t.indexOf('ghu_') === 0 || t.indexOf('ghs_') === 0 || t.indexOf('ghr_') === 0) {
+    return ''
+  }
+  return '令牌应以 ghp_ 或 github_pat_ 开头，当前开头：' + t.slice(0, 4)
+}
+
 /* ---------------- 限流状态（展示用） ---------------- */
 
 let _rate = { remaining: -1, limit: -1 }
@@ -149,6 +195,8 @@ export async function request(path, options) {
   let lastStatus = 0
   // 防御性重试（模拟器实测连续请求偶发 fail；真机弱网同样受益）：1.2s / 2.4s 两次退避
   // v1.1.1：JSON 解析失败 / GET 200 空响应体（蓝牙代理对长响应截断/丢弃）同样纳入可重试失败
+  // v1.1.3：新增 content-length 对照检测——raw 文本被静默截断时 JSON.parse 不会报错，
+  //         页面会渲染残缺内容（比报错更糟）；真机 README 14.3KB 可达，阈值在其之上
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 1200 : 2400))
     try {
@@ -175,6 +223,22 @@ export async function request(path, options) {
     if (typeof d === 'string') {
       const s = d.replace(/^\uFEFF/, '').trim()
       if (opt.raw) {
+        // v1.1.3：raw 文本截断检测（content-length 存在且未压缩时才比对；
+        // 字节估算兼容多字节字符，避免中文内容误判）
+        const clen = parseInt(pickHeader(res.headers, 'content-length'))
+        const enc = pickHeader(res.headers, 'content-encoding')
+        if (!isNaN(clen) && clen > 0 && !enc) {
+          let bytes = 0
+          for (let bi = 0; bi < s.length; bi++) {
+            const c = s.charCodeAt(bi)
+            bytes += c < 0x80 ? 1 : (c < 0x800 ? 2 : 3)
+          }
+          if (bytes + 8 < clen) {
+            lastErr = { incomplete: true }
+            res = null
+            continue
+          }
+        }
         d = s
       } else if (s.length > 0) {
         try {
@@ -200,7 +264,8 @@ export async function request(path, options) {
   }
   if (!res) {
     if (lastErr && lastErr.incomplete) {
-      throw { status: lastStatus, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
+      // v1.1.3：incomplete 标志供自适应分页降档重试（确定性截断靠同参重试无解）
+      throw { status: lastStatus, incomplete: true, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
     }
     throw { status: 0, message: '网络连接失败，请检查手表网络（运动健康蓝牙代理 / eSIM）' }
   }
@@ -216,6 +281,37 @@ export async function request(path, options) {
     throw { status: status, message: friendlyMessage(status, ghMsg) }
   }
   return data
+}
+
+/* ---------------- 自适应分页（v1.1.3） ----------------
+ * 真机实测：README 14.3KB 完整可达，42KB 发行版列表必截断 —— 蓝牙代理对长响应
+ * 存在确定性截断阈值（≥14.3KB，<42KB），同参重试永远失败。唯一解：缩小响应体。
+ * 列表端点逐级降 per_page（10→4→1），单条最大响应可控在阈值之下。
+ * 最后生效的 per_page 由 lastListPerPage() 供页面做 hasMore 判断。
+ */
+let _lastListPerPage = PER_PAGE
+
+export function lastListPerPage() {
+  return _lastListPerPage
+}
+
+const ADAPT_LADDER = [10, 4, 1]
+
+async function requestAdaptive(build) {
+  let lastErr = null
+  for (let i = 0; i < ADAPT_LADDER.length; i++) {
+    const per = ADAPT_LADDER[i]
+    try {
+      const d = await request(build(per))
+      _lastListPerPage = per
+      return d
+    } catch (e) {
+      lastErr = e
+      // 仅对「确定性截断」降档；网络失败/限流/404 降档无意义，直接抛
+      if (!e || !e.incomplete) throw e
+    }
+  }
+  throw lastErr
 }
 
 /* ---------------- URL 工具 ---------------- */
@@ -255,7 +351,7 @@ export function getRateLimit() {
 
 /** 通知列表（需登录） */
 export function getNotifications(page, all) {
-  return request('/notifications' + qs({ page: page, per_page: PER_PAGE, all: !!all }))
+  return requestAdaptive((per) => '/notifications' + qs({ page: page, per_page: per, all: !!all }))
 }
 
 /** 全部标记已读 */
@@ -275,8 +371,8 @@ export function getSubject(url) {
 
 /** 登录用户仓库 */
 export function getMyRepos(page, sort) {
-  return request('/user/repos' + qs({
-    page: page, per_page: PER_PAGE,
+  return requestAdaptive((per) => '/user/repos' + qs({
+    page: page, per_page: per,
     sort: sort || 'pushed', type: 'owner',
     affiliation: 'owner,collaborator,organization_member'
   }))
@@ -284,13 +380,13 @@ export function getMyRepos(page, sort) {
 
 /** 指定用户的公开仓库 */
 export function getUserRepos(login, page) {
-  return request('/users/' + encodeURIComponent(login) + '/repos' + qs({ page: page, per_page: PER_PAGE, sort: 'pushed' }))
+  return requestAdaptive((per) => '/users/' + encodeURIComponent(login) + '/repos' + qs({ page: page, per_page: per, sort: 'pushed' }))
 }
 
 /** 仓库搜索 */
 export function searchRepos(keyword, page, sort) {
-  return request('/search/repositories' + qs({
-    q: keyword, page: page, per_page: PER_PAGE,
+  return requestAdaptive((per) => '/search/repositories' + qs({
+    q: keyword, page: page, per_page: per,
     sort: sort || 'best match', order: 'desc'
   }))
 }
@@ -309,7 +405,7 @@ export function getTrending(mode, page) {
   if (mode === 'new') q = 'stars:>50 created:>' + d(7)
   else if (mode === 'rising') q = 'stars:>2000 created:>' + d(90)
   else q = 'stars:>50000'
-  return request('/search/repositories' + qs({ q: q, page: page, per_page: PER_PAGE, sort: 'stars', order: 'desc' }))
+  return requestAdaptive((per) => '/search/repositories' + qs({ q: q, page: page, per_page: per, sort: 'stars', order: 'desc' }))
 }
 
 /** 仓库详情 */
@@ -328,16 +424,22 @@ export function getContents(fullName, path, ref) {
   return request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }))
 }
 
+/** git 树（v1.1.3）：条目比 contents 接口小 3-4 倍，大目录截断时的回退通道。
+ *  sha 传 'HEAD' 取根树，传目录项自带 sha 取子树。 */
+export function getTree(fullName, sha) {
+  return request('/repos/' + fullName + '/git/trees/' + (sha || 'HEAD'))
+}
+
 /** 文件原始文本（建议 < 200KB） */
 export function getFileRaw(fullName, path, ref) {
   const p = path ? '/' + path : ''
   return request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
 }
 
-/** Issue 列表（自动过滤 PR；per_page 压到 10 降低蓝牙代理长响应截断概率） */
+/** Issue 列表（自动过滤 PR；自适应 per_page 对抗蓝牙代理截断） */
 export async function getIssues(fullName, page, state) {
-  const data = await request('/repos/' + fullName + '/issues' + qs({
-    page: page, per_page: PER_PAGE, state: state || 'open', sort: 'created'
+  const data = await requestAdaptive((per) => '/repos/' + fullName + '/issues' + qs({
+    page: page, per_page: per, state: state || 'open', sort: 'created'
   }))
   const list = Array.isArray(data) ? data : []
   const out = []
@@ -352,9 +454,9 @@ export function getIssue(fullName, number) {
   return request('/repos/' + fullName + '/issues/' + number)
 }
 
-/** Issue 评论列表（传 comments_url） */
+/** Issue 评论列表（传 comments_url；评论正文可能很长，同样自适应） */
 export function getComments(commentsUrl, page) {
-  return request(commentsUrl + qs({ page: page || 1, per_page: PER_PAGE }))
+  return requestAdaptive((per) => commentsUrl + qs({ page: page || 1, per_page: per }))
 }
 
 /** 发表 Issue 评论（需 Token，传 comments_url） */
@@ -362,9 +464,9 @@ export function addComment(commentsUrl, body) {
   return request(commentsUrl, { method: 'POST', body: { body: body } })
 }
 
-/** Release 列表 */
+/** Release 列表（本仓库 5 个发行版就 42KB，是截断重灾区，必走自适应） */
 export function getReleases(fullName, page) {
-  return request('/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: PER_PAGE }))
+  return requestAdaptive((per) => '/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: per }))
 }
 
 /** 是否已 Star */
@@ -389,11 +491,11 @@ export function getUser(login) {
 }
 
 export default {
-  loadToken, hasToken, currentToken, saveToken, clearToken, rateInfo,
-  request, qs, self,
+  loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
+  request, qs, self, lastListPerPage,
   getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
-  getRepo, getReadme, getContents, getFileRaw,
+  getRepo, getReadme, getContents, getFileRaw, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser
 }

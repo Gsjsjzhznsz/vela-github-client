@@ -96,6 +96,7 @@
       const p = query(params, this)
       if (p.full) this.full = p.full
       this._segments = []      // 当前目录段
+      this._shaStack = []      // v1.1.3：各级目录 tree sha（contents 截断时 trees 回退用）
       this._filePath = ''      // 当前文件路径
       this._fileName = ''
       this.hdTitle = this.full
@@ -108,7 +109,33 @@
       this.mode = 'dir'
       this.state = 'loading'
       try {
-        const list = await api.getContents(this.full, this.currentPath(), this._branch)
+        let list = null
+        try {
+          list = await api.getContents(this.full, this.currentPath(), this._branch)
+        } catch (e) {
+          if (e && e.incomplete) {
+            // v1.1.3：目录响应被蓝牙代理截断（contents 接口无 per_page 可降）——
+            // 回退 git trees API：条目瘦 3-4 倍，大目录可完整到达；
+            // 子树定位用上一级缓存的目录 sha（根用 HEAD）
+            const sha = this._shaStack.length ? this._shaStack[this._shaStack.length - 1] : 'HEAD'
+            const t = await api.getTree(this.full, sha)
+            const arr = t && Array.isArray(t.tree) ? t.tree : null
+            if (!arr) throw { message: '目录响应不完整，请重试' }
+            list = []
+            for (let i = 0; i < arr.length; i++) {
+              const x = arr[i]
+              list.push({
+                name: x.path.split('/').pop(),
+                path: x.path,
+                type: x.type === 'tree' ? 'dir' : 'file',
+                size: x.size || 0,
+                sha: x.sha || ''
+              })
+            }
+          } else {
+            throw e
+          }
+        }
         if (!Array.isArray(list)) {
           // 内容接口对单文件返回对象：仅当结构完整才按文件查看，
           // 其余（残缺 JSON / 字符串 / 空对象）一律报错，绝不渲染垃圾数据
@@ -137,6 +164,7 @@
             name: dirs[i].name,
             path: dirs[i].path,
             isDir: true,
+            sha: dirs[i].sha || '',
             icon: '/common/icons/folder.png',
             size: '',
             rawSize: 0
@@ -149,6 +177,7 @@
             name: files[i].name,
             path: files[i].path,
             isDir: false,
+            sha: files[i].sha || '',
             icon: '/common/icons/code.png',
             size: compact(files[i].size || 0) + 'B',
             rawSize: files[i].size || 0
@@ -167,6 +196,9 @@
       if (!item) return
       if (item.isDir) {
         this._segments = item.path.split('/')
+        // v1.1.3：记录目录 tree sha（深层大目录回退 trees API 时定位子树）；
+        // contents/trees 的目录项都自带 sha，栈深始终与层级对齐
+        if (item.sha) this._shaStack.push(item.sha)
         this.hdTitle = item.name
         this.loadDir()
       } else {
@@ -222,6 +254,7 @@
     goUp() {
       if (this._segments.length > 0) {
         this._segments.pop()
+        if (this._shaStack.length > 0) this._shaStack.pop()
         this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1]
         this.loadDir()
       }

@@ -123,7 +123,7 @@
         }
         this.items = list.map(mapIssue)
         this.page = 1
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
         this.loadState = this.items.length === 0 ? 'empty' : 'ok'
       } catch (e) {
         this.loadState = 'error'
@@ -138,7 +138,7 @@
         const list = await api.getIssues(this.full, next, this.state)
         for (let i = 0; i < list.length; i++) this.items.push(mapIssue(list[i]))
         this.page = next
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
       }

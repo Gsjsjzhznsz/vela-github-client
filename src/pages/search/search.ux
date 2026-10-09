@@ -138,7 +138,7 @@
         this.total = (r && r.total_count) || list.length
         this.items = list.map(mapRepo)
         this.page = 1
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
         this.state = this.items.length === 0 ? 'empty' : 'ok'
         this.emptyText = '没有找到相关仓库'
       } catch (e) {
@@ -164,7 +164,7 @@
         const list = (r && Array.isArray(r.items)) ? r.items : []
         for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
         this.page = next
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
       }

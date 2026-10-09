@@ -119,7 +119,7 @@
         const mapped = list.map(mapNotif)
         this.items = mapped
         this.page = 1
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
         this.state = this.items.length === 0 ? 'empty' : 'ok'
         this.emptyText = this.all ? '没有通知' : '没有未读通知'
         this.countUnread()
@@ -143,7 +143,7 @@
         const list = await api.getNotifications(next, this.all)
         for (let i = 0; i < list.length; i++) this.items.push(mapNotif(list[i]))
         this.page = next
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
         this.countUnread()
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })

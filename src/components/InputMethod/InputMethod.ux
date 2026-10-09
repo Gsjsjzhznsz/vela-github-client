@@ -382,6 +382,11 @@ export default {
     screentype: {
       default: "circle",
     },
+    // v1.1.3：初始输入语言（token 等英文场景直接入 EN 模式，
+    // 避免默认拼音模式下字母被吞进 cval 候选缓冲导致隐性错码）
+    initlang: {
+      default: "cn",
+    },
   },
   data: {
     cval: "",
@@ -454,6 +459,10 @@ export default {
     },
   },
   onInit() {
+    // v1.1.3：初始语言（initlang）优先于默认 cn；仅首帧生效，不影响后续手动切换
+    if (this.initlang && (this.initlang === "cn" || this.initlang === "en" || this.initlang === "jp")) {
+      this.lang = this.initlang;
+    }
     // Initialize the loader independently of hide watchers (unreliable on some devices).
     // Dictionary data is loaded on input; failed reads can retry on the next query.
     Object.defineProperty(this, "_dictionary", {

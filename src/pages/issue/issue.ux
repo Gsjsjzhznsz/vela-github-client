@@ -233,7 +233,7 @@
           })
         }
         this._cPage = next
-        this.hasMoreComments = list.length >= 10
+        this.hasMoreComments = list.length >= api.lastListPerPage()
       } catch (e) {
         // 评论加载失败不打断页面
       }

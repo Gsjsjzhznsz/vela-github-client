@@ -131,7 +131,7 @@
           return m
         })
         this.page = 1
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
         this.state = this.items.length === 0 ? 'empty' : 'ok'
       } catch (e) {
         this.state = 'error'
@@ -151,7 +151,7 @@
           this.items.push(m)
         }
         this.page = next
-        this.hasMore = list.length >= 10
+        this.hasMore = list.length >= api.lastListPerPage()
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
       }

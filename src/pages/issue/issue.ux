@@ -177,6 +177,9 @@
       this.state = 'loading'
       try {
         const iss = await api.getIssue(this.full, this.n)
+        if (!iss || typeof iss !== 'object') {
+          throw { message: 'Issue 响应不完整，请重试' }
+        }
         const m = mapIssue(iss)
         this.title = m.title
         this.open = m.open

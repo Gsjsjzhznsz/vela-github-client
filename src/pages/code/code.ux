@@ -107,10 +107,14 @@
       try {
         const list = await api.getContents(this.full, this.currentPath(), this._branch)
         if (!Array.isArray(list)) {
-          // 内容接口对单文件返回对象：直接按文件查看
-          this._filePath = this.currentPath()
-          await this.openFileText(this._filePath)
-          return
+          // 内容接口对单文件返回对象：仅当结构完整才按文件查看，
+          // 其余（残缺 JSON / 字符串 / 空对象）一律报错，绝不渲染垃圾数据
+          if (list && typeof list === 'object' && list.type === 'file' && list.path) {
+            this._filePath = list.path
+            await this.openFileText(list.path, list.name)
+            return
+          }
+          throw { message: '目录响应不完整，请重试' }
         }
         const dirs = []
         const files = []
@@ -181,7 +185,13 @@
     async openFileText(path, name) {
       try {
         let text = await api.getFileRaw(this.full, path, this._branch)
-        if (typeof text !== 'string') text = JSON.stringify(text, null, 2)
+        if (typeof text !== 'string') {
+          // raw 请求返回了对象：代理丢了 Accept 头，拿到的是文件元信息 JSON 而非内容
+          throw { message: '文件响应异常，请重试' }
+        }
+        if (!text) {
+          throw { message: '文件内容为空' }
+        }
         this._fileName = name || path.split('/').pop()
         this.hdTitle = this._fileName
         const lines = text.replace(/\r/g, '').split('\n')

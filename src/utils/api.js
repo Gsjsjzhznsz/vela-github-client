@@ -138,9 +138,13 @@ export async function request(path, options) {
   if (opt.method && opt.body) header['Content-Type'] = 'application/json'
 
   let res = null
+  let data = null
   let lastErr = null
+  let lastStatus = 0
   // 防御性重试（模拟器实测连续请求偶发 fail；真机弱网同样受益）：1.2s / 2.4s 两次退避
+  // v1.1.1：JSON 解析失败 / GET 200 空响应体（蓝牙代理对长响应截断/丢弃）同样纳入可重试失败
   for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 1200 : 2400))
     try {
       res = await rawFetch({
         url: url,
@@ -148,9 +152,9 @@ export async function request(path, options) {
         header: header,
         data: opt.body ? JSON.stringify(opt.body) : undefined
       })
-      break
     } catch (e) {
       lastErr = e
+      res = null
       // Vela fetch_impl 把 HTTP 403/429 也当传输层错误抛出（upload err, error code: 403）：
       // 限流类失败重试无意义，直接给出友好文案（VM 实测：游客 60 次/时耗尽即此形态）
       const es = JSON.stringify(e && e.message !== undefined ? e.message : (e || ''))
@@ -158,10 +162,40 @@ export async function request(path, options) {
       if (ec === 403 || ec === 429) {
         throw { status: ec, message: 'GitHub 接口限流：游客每小时 60 次，建议在设置中填入 Token（5000 次/小时）' }
       }
-      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1200 : 2400))
+      continue
     }
+    lastStatus = Number(res.code) || 0
+    let d = res.data
+    if (typeof d === 'string') {
+      const s = d.replace(/^\uFEFF/, '').trim()
+      if (opt.raw) {
+        d = s
+      } else if (s.length > 0) {
+        try {
+          d = JSON.parse(s)
+        } catch (e) {
+          // 截断的 JSON：绝不能把残缺文本当数据返回给页面
+          lastErr = { incomplete: true }
+          res = null
+          continue
+        }
+      } else {
+        d = null
+      }
+    }
+    if (!opt.raw && (opt.method || 'GET') === 'GET' && lastStatus === 200 && (d === null || d === undefined)) {
+      // GET 期望 JSON 却拿到空体：蓝牙代理丢长响应的典型表现，重试
+      lastErr = { incomplete: true }
+      res = null
+      continue
+    }
+    data = d
+    break
   }
   if (!res) {
+    if (lastErr && lastErr.incomplete) {
+      throw { status: lastStatus, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
+    }
     throw { status: 0, message: '网络连接失败，请检查手表网络（运动健康蓝牙代理 / eSIM）' }
   }
 
@@ -170,22 +204,6 @@ export async function request(path, options) {
   if (!isNaN(remaining)) _rate.remaining = remaining
   const limit = parseInt(pickHeader(res.headers, 'x-ratelimit-limit'))
   if (!isNaN(limit)) _rate.limit = limit
-
-  let data = res.data
-  if (typeof data === 'string') {
-    const s = data.replace(/^\uFEFF/, '').trim()
-    if (opt.raw) {
-      data = s
-    } else if (s.length > 0) {
-      try {
-        data = JSON.parse(s)
-      } catch (e) {
-        data = s
-      }
-    } else {
-      data = null
-    }
-  }
 
   if (status < 200 || status >= 300) {
     const ghMsg = data && data.message ? data.message : ''
@@ -310,10 +328,10 @@ export function getFileRaw(fullName, path, ref) {
   return request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
 }
 
-/** Issue 列表（自动过滤 PR） */
+/** Issue 列表（自动过滤 PR；per_page 压到 10 降低蓝牙代理长响应截断概率） */
 export async function getIssues(fullName, page, state) {
   const data = await request('/repos/' + fullName + '/issues' + qs({
-    page: page, per_page: PER_PAGE * 2, state: state || 'open', sort: 'created'
+    page: page, per_page: PER_PAGE, state: state || 'open', sort: 'created'
   }))
   const list = Array.isArray(data) ? data : []
   const out = []

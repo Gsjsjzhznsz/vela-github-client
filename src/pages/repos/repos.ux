@@ -133,6 +133,9 @@
       this.state = 'loading'
       try {
         const list = await this.fetchPage(1)
+        if (!Array.isArray(list)) {
+          throw { message: '仓库列表响应不完整，请重试' }
+        }
         this.items = list.map(mapRepo)
         this.page = 1
         this.hasMore = list.length >= 10

@@ -122,7 +122,7 @@
       this.state = 'loading'
       try {
         const r = await api.getTrending(this.mode, 1)
-        const list = (r && r.items) || []
+        const list = (r && Array.isArray(r.items)) ? r.items : []
         this.items = list.map((it, i) => {
           const m = mapRepo(it)
           m.rank = i + 1
@@ -142,7 +142,7 @@
       try {
         const next = this.page + 1
         const r = await api.getTrending(this.mode, next)
-        const list = (r && r.items) || []
+        const list = (r && Array.isArray(r.items)) ? r.items : []
         for (let i = 0; i < list.length; i++) {
           const m = mapRepo(list[i])
           m.rank = this.items.length + 1

@@ -110,6 +110,9 @@
       this.loadState = 'loading'
       try {
         const list = await api.getReleases(this.full, 1)
+        if (!Array.isArray(list)) {
+          throw { message: '发行版响应不完整，请重试' }
+        }
         this.items = list.map(mapRelease)
         this.page = 1
         this.hasMore = list.length >= 10

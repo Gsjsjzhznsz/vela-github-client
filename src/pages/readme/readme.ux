@@ -22,7 +22,7 @@
       <div class="li" show="{{state === 'ok' && rendered < totalBlocks}}">
         <text class="foot" onclick="loadMoreBlocks">上滑加载更多…</text>
       </div>
-      <div class="li" show="{{state === 'ok' && rendered >= totalBlocks}}">
+      <div class="li" show="{{state === 'ok' && totalBlocks > 0 && rendered >= totalBlocks}}">
         <text class="foot">— 全文完 —</text>
       </div>
     </scroll>
@@ -93,15 +93,27 @@
       this.state = 'loading'
       try {
         const r = await api.getReadme(this.full)
-        const md = b64.decode(r.content || '')
+        // 蓝牙代理对长响应可能截断/丢弃：r 非对象或缺 content 一律按失败处理，绝不渲染空文档
+        if (!r || typeof r !== 'object' || typeof r.content !== 'string' || !r.content) {
+          throw { message: 'README 响应不完整，请重试' }
+        }
+        const md = b64.decode(r.content)
         // 非响应式大数组挂在 this._ 前缀，遵循官方内存规范
-        this._allBlocks = mdToBlocks(md)
-        this.totalBlocks = this._allBlocks.length
+        const blocks = mdToBlocks(md)
+        if (!blocks || blocks.length === 0) {
+          throw { message: 'README 为空或解码失败' }
+        }
+        this._allBlocks = blocks
+        this.totalBlocks = blocks.length
         this.rendered = 0
         this.items = []
         this.appendMore()
         this.state = 'ok'
       } catch (e) {
+        this._allBlocks = null
+        this.totalBlocks = 0
+        this.rendered = 0
+        this.items = []
         this.state = 'error'
         this.errMsg = (e && e.message) || 'README 加载失败'
       }

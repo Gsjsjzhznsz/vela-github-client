@@ -126,6 +126,9 @@
       this.state = 'loading'
       try {
         const r = await api.getRepo(this.full)
+        if (!r || typeof r !== 'object') {
+          throw { message: '仓库响应不完整，请重试' }
+        }
         this.desc = r.description || ''
         this.lang = r.language || ''
         this.langc = langColor(r.language)

@@ -3,6 +3,10 @@
  */
 import { compact, relTime, langColor, avatar, truncate } from './fmt'
 
+function safeId(v) {
+  return v !== undefined && v !== null ? String(v) : 'x' + Math.floor(Math.random() * 1000000)
+}
+
 export function typeIcon(type) {
   if (type === 'Issue') return '/common/icons/issue.png'
   if (type === 'PullRequest') return '/common/icons/pull.png'
@@ -12,10 +16,11 @@ export function typeIcon(type) {
 }
 
 export function mapRepo(r) {
-  const owner = r && r.owner ? r.owner.login : '?'
+  if (!r || typeof r !== 'object') r = {}
+  const owner = r.owner ? r.owner.login : '?'
   const av = avatar(owner)
   return {
-    id: String(r.id),
+    id: safeId(r.id),
     full: r.full_name,
     desc: truncate(r.description || '', 72),
     stars: compact(r.stargazers_count),
@@ -28,10 +33,11 @@ export function mapRepo(r) {
 }
 
 export function mapNotif(n) {
-  const repoFullName = n && n.repository ? n.repository.full_name : ''
+  if (!n || typeof n !== 'object') n = {}
+  const repoFullName = n.repository ? n.repository.full_name : ''
   const av = avatar(repoFullName.split('/')[0] || '?')
   return {
-    id: String(n.id),
+    id: safeId(n.id),
     icon: typeIcon(n.subject && n.subject.type),
     repo: repoFullName,
     title: truncate(n.subject && n.subject.title, 60),
@@ -45,9 +51,10 @@ export function mapNotif(n) {
 }
 
 export function mapIssue(i) {
-  const labels = (i.labels || []).slice(0, 3)
+  if (!i || typeof i !== 'object') i = {}
+  const labels = Array.isArray(i.labels) ? i.labels.slice(0, 3) : []
   return {
-    id: String(i.id),
+    id: safeId(i.id),
     num: i.number,
     title: truncate(i.title, 64),
     open: i.state === 'open',
@@ -60,9 +67,10 @@ export function mapIssue(i) {
 }
 
 export function mapRelease(r) {
+  if (!r || typeof r !== 'object') r = {}
   const av = avatar(r.author ? r.author.login : '?')
   return {
-    id: String(r.id),
+    id: safeId(r.id),
     tag: r.tag_name || '',
     name: truncate(r.name || r.tag_name || 'Release', 48),
     time: relTime(r.published_at || r.created_at),

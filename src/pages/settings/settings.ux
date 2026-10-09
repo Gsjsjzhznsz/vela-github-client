@@ -10,12 +10,13 @@
     <scroll class="body" scroll-y="true">
       <div class="wrap">
         <!-- 账户状态 -->
-        <div class="card">
+        <div class="card" onclick="refreshAccount">
           <div class="card-col">
             <text class="c-title">GitHub 账户</text>
           <text class="c-row">{{hasTk ? '已登录 · ' + tokenMask : '游客模式（公开数据，限流 60 次/小时）'}}</text>
           <text class="c-row2">API 余量 {{rateText}}</text>
           <text class="c-row2" show="{{hasTk && diagText}}">持久化诊断：{{diagText}}</text>
+          <text class="c-act">点此刷新登录状态与 API 余量</text>
           </div>
         </div>
 
@@ -59,7 +60,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.2.0</text>
+          <text class="c-body">GitHub for Vela v1.2.1</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -88,6 +89,7 @@
   .c-row2 { font-size: 14px; color: #3fb950; margin-top: 4px; }
   .c-body { font-size: 14px; color: #8b949e; line-height: 18px; margin-top: 2px; }
   .warn { color: #d29922; }
+  .c-act { font-size: 14px; color: #58a6ff; margin-top: 8px; }
   .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-bottom: 10px; }
   .cell-icon { width: 22px; height: 22px; }
   .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
@@ -140,6 +142,15 @@
       } catch (e) {
         this.rateText = '未知'
       }
+    },
+    /** v1.2.1：账户卡手动刷新——重读 token + 重验 + 刷新余量 */
+    async refreshAccount() {
+      await api.loadToken(true)
+      this.hasTk = api.hasToken()
+      this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
+      this.refreshDiag()
+      await this.refreshRate()
+      prompt.showToast({ message: this.hasTk ? '已刷新 · 已登录' : '已刷新 · 游客模式', duration: 1200 })
     },
     /* ---- v1.2.0：免打字登录（Device Flow） ---- */
     startDevice() {

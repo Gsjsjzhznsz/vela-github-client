@@ -23,6 +23,8 @@
           </div>
           <text class="status" show="{{state === 'code'}}">{{statusText}}</text>
           <text class="status ok" show="{{state === 'saving'}}">授权成功，正在保存登录…</text>
+          <!-- v1.2.1：手动刷新——不想干等轮询时点此立即检查授权结果 -->
+          <text class="check" onclick="manualCheck">手动检查授权状态</text>
           <text class="cancel" onclick="cancel">取消</text>
         </div>
 
@@ -54,6 +56,7 @@
   .code { font-size: 44px; color: #3fb950; font-weight: bold; letter-spacing: 3px; }
   .status { font-size: 15px; color: #8b949e; margin-top: 12px; text-align: center; }
   .status.ok { color: #3fb950; }
+  .check { font-size: 16px; color: #d29922; margin-top: 14px; padding: 8px 20px; }
   .cancel { font-size: 17px; color: #58a6ff; margin-top: 16px; padding: 8px 20px; }
   .retry { color: #3fb950; }
   .err-t { font-size: 19px; color: #f85149; text-align: center; padding: 0 10px; }
@@ -80,6 +83,7 @@
       this._destroyed = false
       this._netFails = 0
       this._started = false
+      this._checking = false
     },
     onShow() {
       if (this.state === 'starting' && !this._dc && !this._started) {
@@ -118,6 +122,15 @@
         this._timer = null
         this.pollOnce()
       }, iv)
+    },
+    /** v1.2.1：手动刷新——不等轮询计时器，立即检查一次授权结果 */
+    async manualCheck() {
+      if (this._destroyed || this.state !== 'code' || this._checking) return
+      this._checking = true
+      this.statusText = '正在手动检查…'
+      if (this._timer) { clearTimeout(this._timer); this._timer = null }
+      await this.pollOnce() /* pollOnce 内部会自行安排下一轮（或终态返回） */
+      this._checking = false
     },
     async pollOnce() {
       if (this._destroyed || this.state !== 'code') return

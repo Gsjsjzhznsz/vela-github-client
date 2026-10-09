@@ -149,6 +149,7 @@ export async function saveToken(token) {
   // 同时撤销缓存态：确保后续 loadToken(true/false) 都能拿到最新值
   _tokenReady = Promise.resolve(_token)
   _self = null
+  clearCache() /* v1.2.1：token 变更全清缓存（不同身份的数据不可复用） */
   _persistDiag.storage = r.storage ? _token.length : 0
   _persistDiag.file = r.file ? _token.length : 0
   _persistDiag.write = _token ? (r.storage && r.file ? '双通道√' : (r.storage ? '仅storage' : (r.file ? '仅file' : '双通道均失败'))) : '已清除'
@@ -185,7 +186,7 @@ export async function validateToken(token) {
   _tokenReady = Promise.resolve(t)
   _self = null
   try {
-    const user = await request('/user')
+    const user = await request('/user', { noCache: true })
     if (!user || !user.login) throw { status: 200, message: '响应异常，未取到用户名' }
     return user
   } finally {
@@ -224,18 +225,70 @@ export function rateInfo() {
 
 /* ---------------- fetch Promise 封装 ---------------- */
 
+/* v1.2.1：显式超时（25s）——蓝牙代理偶发挂起时不再无限等待页面卡死，
+ * 超时按网络失败走重试/报错路径 */
+const FETCH_TIMEOUT = 25000
+
 function rawFetch(opts) {
   return new Promise((resolve, reject) => {
-    fetch.fetch({
-      url: opts.url,
-      method: opts.method || 'GET',
-      header: opts.header || {},
-      data: opts.data,
-      responseType: opts.rt || 'json',
-      success: (res) => resolve(res),
-      fail: (err, code) => reject({ err: err, code: code })
-    })
+    let done = false
+    const timer = setTimeout(() => {
+      if (!done) { done = true; reject({ timeout: true, message: '响应超时' }) }
+    }, opts.timeout || FETCH_TIMEOUT)
+    try {
+      fetch.fetch({
+        url: opts.url,
+        method: opts.method || 'GET',
+        header: opts.header || {},
+        data: opts.data,
+        responseType: opts.rt || 'json',
+        success: (res) => { if (!done) { done = true; clearTimeout(timer); resolve(res) } },
+        fail: (err, code) => { if (!done) { done = true; clearTimeout(timer); reject({ err: err, code: code }) } }
+      })
+    } catch (e) { if (!done) { done = true; clearTimeout(timer); reject(e) } }
   })
+}
+
+/* ================= v1.2.1 内存缓存 + 单飞去重 + ETag 条件请求 =================
+ * 手表端传输优化三件套（蓝牙代理慢、配额贵、返回导航重复全量拉取）：
+ * ① TTL 缓存：GET JSON 90s、raw 文本 5min，返回导航秒开、重复请求省配额；
+ * ② in-flight 去重：同 URL 并发请求合并为一次真实网络往返；
+ * ③ ETag 条件请求：缓存过期后带 If-None-Match 复验，304 只回响应头（几十字节），
+ *    大幅降低重进页面的传输量；代理不支持时回落 200 全量，无副作用。
+ * 写操作/登录校验/限流查询一律 noCache；通知已读操作后清前缀缓存。 */
+const CACHE_TTL = 90000
+const RAW_TTL = 300000
+const MEM_CAP = 40
+const _mem = { map: {}, inflight: {} }
+
+function memGet(url, ttl) {
+  const c = _mem.map[url]
+  if (!c) return null
+  if (Date.now() - c.ts > (ttl || CACHE_TTL)) return { fresh: false, data: c.data, etag: c.etag }
+  return { fresh: true, data: c.data }
+}
+
+function memSet(url, data, etag) {
+  const keys = Object.keys(_mem.map)
+  if (keys.length >= MEM_CAP) {
+    /* 容量保护：淘汰最旧一半（手表内存有限，避免长会话无界增长） */
+    keys.sort((a, b) => _mem.map[a].ts - _mem.map[b].ts)
+    for (let i = 0; i < Math.ceil(keys.length / 2); i++) delete _mem.map[keys[i]]
+  }
+  _mem.map[url] = { data: data, etag: etag || '', ts: Date.now() }
+}
+
+function memTouch(url) {
+  const c = _mem.map[url]
+  if (c) c.ts = Date.now()
+}
+
+/** 清缓存：无参全清（token 变更时），带前缀则清匹配项（通知已读后） */
+export function clearCache(prefix) {
+  if (!prefix) { _mem.map = {}; return }
+  for (const k in _mem.map) {
+    if (k.indexOf(prefix) >= 0) delete _mem.map[k]
+  }
 }
 
 function pickHeader(headers, name) {
@@ -462,6 +515,7 @@ function friendlyMessage(status, ghMessage) {
 
 /**
  * 统一请求：path 以 / 开头（相对 api.github.com），或传完整 URL
+ * v1.2.1：外层负责缓存命中 / 单飞去重，内层 requestGo 负责网络与重试
  * @returns Promise<any> 解析后的 JSON 数据
  * @reject {status, message}
  */
@@ -480,10 +534,25 @@ export async function request(path, options) {
   if (_token) header['Authorization'] = 'Bearer ' + _token
   if (opt.method && opt.body) header['Content-Type'] = 'application/json'
 
+  const isGet = (opt.method || 'GET') === 'GET'
+  if (isGet && !opt.noCache) {
+    const hit = memGet(url)
+    if (hit && hit.fresh) return hit.data
+    if (_mem.inflight[url]) return _mem.inflight[url]
+    const p = requestGo(url, header, opt).finally(() => { delete _mem.inflight[url] })
+    _mem.inflight[url] = p
+    return p
+  }
+  return requestGo(url, header, opt)
+}
+
+async function requestGo(url, header, opt) {
   let res = null
   let data = null
   let lastErr = null
   let lastStatus = 0
+  // v1.2.1：ETag 条件请求 —— 缓存过期后复验，304 只回响应头
+  const stale = _mem.map[url]
   // 防御性重试（模拟器实测连续请求偶发 fail；真机弱网同样受益）：1.2s / 2.4s 两次退避
   // v1.1.1：JSON 解析失败 / GET 200 空响应体（蓝牙代理对长响应截断/丢弃）同样纳入可重试失败
   // v1.1.3：新增 content-length 对照检测——raw 文本被静默截断时 JSON.parse 不会报错，
@@ -491,10 +560,13 @@ export async function request(path, options) {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 1200 : 2400))
     try {
+      const sendHeader = stale && stale.etag && (opt.method || 'GET') === 'GET'
+        ? Object.assign({}, header, { 'If-None-Match': stale.etag })
+        : header
       res = await rawFetch({
         url: url,
         method: opt.method || 'GET',
-        header: header,
+        header: sendHeader,
         data: opt.body ? JSON.stringify(opt.body) : undefined
       })
     } catch (e) {
@@ -556,24 +628,49 @@ export async function request(path, options) {
   if (!res) {
     if (lastErr && lastErr.incomplete) {
       // v1.1.4：incomplete 时先走下载通道兜底（GET 的 JSON/raw；
-      // 原生下载器与 fetch 不同路，可能不受蓝牙代理截断影响）
+      // 原生下载器与 fetch 不同路，可能不受蓝牙代理截断影响；
+      // v1.2.1：不带 If-None-Match，避免下载器收到 304 空文件）
       if ((opt.method || 'GET') === 'GET' && !opt.noDl) {
+        const dh = {}
+        for (const hk in header) { if (hk !== 'If-None-Match') dh[hk] = header[hk] }
         try {
-          const text = await dlFetchText(url, header)
+          const text = await dlFetchText(url, dh)
           if (text && text.length) {
             const cleaned = String(text).replace(/^\uFEFF/, '').trim()
             if (opt.raw) return cleaned
-            return JSON.parse(cleaned)
+            const d2 = JSON.parse(cleaned)
+            memSet(url, d2, '')
+            return d2
           }
-        } catch (e2) { /* 下载通道也失败 → 走 incomplete 报错 */ }
+        } catch (e2) { /* 下载通道也失败 → 回退缓存/报错 */ }
+      }
+      // v1.2.1：下载通道也失败 → 若本会话曾成功取回该 URL，回退旧缓存（旧数据好过报错）
+      const sc = _mem.map[url]
+      if (sc && sc.data !== null && sc.data !== undefined &&
+          (!Array.isArray(sc.data) || sc.data.length > 0)) {
+        return sc.data
       }
       // v1.1.3：incomplete 标志供自适应分页降档重试（确定性截断靠同参重试无解）
       throw { status: lastStatus, incomplete: true, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
+    }
+    // v1.2.1：代理把 304/超时当传输层失败且重试耗尽 → 有旧缓存则回退（旧数据好过报错）
+    const sc2 = _mem.map[url]
+    if (sc2 && sc2.data !== null && sc2.data !== undefined &&
+        (!Array.isArray(sc2.data) || sc2.data.length > 0)) {
+      return sc2.data
     }
     throw { status: 0, message: '网络连接失败，请检查手表网络（运动健康蓝牙代理 / eSIM）' }
   }
 
   const status = Number(res.code) || 0
+  // v1.2.1：304 Not Modified —— 服务器确认内容未变，直接用缓存（几十字节替代全量）
+  if (status === 304) {
+    if (stale) {
+      memTouch(url)
+      return stale.data
+    }
+    throw { status: 304, message: '内容未变化（304）但本地无缓存' }
+  }
   const remaining = parseInt(pickHeader(res.headers, 'x-ratelimit-remaining'))
   if (!isNaN(remaining)) _rate.remaining = remaining
   const limit = parseInt(pickHeader(res.headers, 'x-ratelimit-limit'))
@@ -582,6 +679,10 @@ export async function request(path, options) {
   if (status < 200 || status >= 300) {
     const ghMsg = data && data.message ? data.message : ''
     throw { status: status, message: friendlyMessage(status, ghMsg) }
+  }
+  // v1.2.1：成功响应写入缓存（GET JSON/raw；data 为空不缓存防毒化）
+  if ((opt.method || 'GET') === 'GET' && data !== null && data !== undefined) {
+    memSet(url, data, pickHeader(res.headers, 'etag'))
   }
   return data
 }
@@ -600,12 +701,22 @@ export function lastListPerPage() {
 
 const ADAPT_LADDER = [10, 4, 1]
 
-async function requestAdaptive(build) {
+/* v1.2.1：粘性降档（跨页防错位）——列表「数据不完整」的根因修复
+ * 旧行为：每页都从 per=10 重新起梯。第 1 页 10 条成功（第 1-10 条），第 2 页 10 条
+ * 被截断降到 4（第 11-14 条），第 3 页 10 条又成功（第 21-30 条）→ 第 15-20 条
+ * 永久丢失。改为按列表 key 记住已降档档位：同列表后续页沿用该档位绝不回升，
+ * 翻页边界稳定不跳条；page<=1（下拉刷新/重新加载）重置回乐观档位。 */
+const _adaptPer = {}
+
+async function requestAdaptive(key, build, page) {
   let lastErr = null
-  for (let i = 0; i < ADAPT_LADDER.length; i++) {
+  if (!page || page <= 1) delete _adaptPer[key]
+  const start = Math.max(0, ADAPT_LADDER.indexOf(_adaptPer[key]))
+  for (let i = start; i < ADAPT_LADDER.length; i++) {
     const per = ADAPT_LADDER[i]
     try {
       const d = await request(build(per))
+      _adaptPer[key] = per
       _lastListPerPage = per
       return d
     } catch (e) {
@@ -614,6 +725,7 @@ async function requestAdaptive(build) {
       if (!e || !e.incomplete) throw e
     }
   }
+  _adaptPer[key] = ADAPT_LADDER[ADAPT_LADDER.length - 1]
   throw lastErr
 }
 
@@ -627,7 +739,7 @@ async function requestAdaptive(build) {
 
 const RAW_BASE = 'https://raw.githubusercontent.com'
 const RAW_CHUNK = 8192
-const RAW_MAX_BLOCKS = 64 /* 8KB × 64 = 512KB 上限 */
+const RAW_MAX_BLOCKS = 128 /* v1.2.1：8KB × 128 = 1MB 上限（原 512KB） */
 
 function rawFileUrl(fullName, ref, path) {
   const encPath = String(path || '').split('/').map(encodeURIComponent).join('/')
@@ -701,7 +813,7 @@ async function rawRangeOnce(url, start, end, mode) {
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      res = await rawFetch({ url: url, method: 'GET', header: header, rt: mode })
+      res = await rawFetch({ url: url, method: 'GET', header: header, rt: mode, timeout: 15000 })
       break
     } catch (e) {
       if (attempt > 0) throw { status: 0, message: '网络连接失败，请检查手表网络' }
@@ -711,25 +823,64 @@ async function rawRangeOnce(url, start, end, mode) {
   return { code: Number(res.code) || 0, data: res.data, headers: res.headers }
 }
 
-/** Range 分块取回全文。返回 {text, full}：
- *  full=true 表示服务器不支持 Range（首块即全文，走降级路径）。 */
-async function fetchRawChunked(url) {
+/** 块级重试（v1.2.1）：单块网络抖动/瞬时 5xx 重试一次（800ms 退避），
+ *  避免大文件几十块取到 90% 时一块失败全盘报废 */
+async function rawRangeRetry(url, start, end, mode) {
+  let e0 = null
+  for (let i = 0; i < 2; i++) {
+    try {
+      return await rawRangeOnce(url, start, end, mode)
+    } catch (e) {
+      e0 = e
+      if (i > 0) break
+      await new Promise((r) => setTimeout(r, 800))
+    }
+  }
+  throw e0
+}
+
+/** 首块二进制嗅探（v1.2.1）：NUL 字节 = 二进制文件，立即报错而非渲染乱码 */
+function sniffBinary(u8) {
+  const n = Math.min(u8.length, 512)
+  for (let i = 0; i < n; i++) {
+    if (u8[i] === 0) return true
+  }
+  return false
+}
+
+/** Range 分块取回全文。返回 {text, full, capped}：
+ *  full=true 表示服务器不支持 Range（首块即全文，走降级路径）；
+ *  capped=true 表示达到 1MB 块数上限仍有后续数据（文件被截断显示）。
+ *  v1.2.1：新增 onProgress(loadedBytes, totalBytes) 进度回调（total 取自
+ *  首块 Content-Range），结果写入内存缓存（5min TTL，返回导航免重拉）。 */
+async function fetchRawChunked(url, onProgress) {
+  const hit = _mem.map[url]
+  if (hit && hit.data && typeof hit.data.text === 'string' && Date.now() - hit.ts < RAW_TTL) {
+    return hit.data
+  }
   let mode = 'arraybuffer'
   let out = ''
   let pending = []
   let offset = 0
+  let total = 0
+  let firstEtag = ''
+  let complete = false
+  let full = false
   for (let bi = 0; bi < RAW_MAX_BLOCKS; bi++) {
-    let r = await rawRangeOnce(url, offset, offset + RAW_CHUNK - 1, mode)
-    /* 首块探测：平台不支持 arraybuffer（回调给字符串）→ 全程换文本模式重取本块 */
-    if (bi === 0 && mode === 'arraybuffer' && typeof r.data === 'string' && !(r.data instanceof Uint8Array)) {
+    let r = await rawRangeRetry(url, offset, offset + RAW_CHUNK - 1, mode)
+    /* 首块探测：平台不支持 arraybuffer（回调给字符串）→ 全程换文本模式重取本块；
+     * v1.2.1：arraybuffer 请求直接抛错（固件不支持）→ 同样换文本模式重试 */
+    if (bi === 0 && mode === 'arraybuffer' &&
+        ((typeof r.data === 'string' && !(r.data instanceof Uint8Array)) || r.data == null)) {
       mode = 'text'
-      r = await rawRangeOnce(url, offset, offset + RAW_CHUNK - 1, mode)
+      r = await rawRangeRetry(url, offset, offset + RAW_CHUNK - 1, mode)
     }
-    if (r.code === 416) break /* 整块对齐时末尾越界 → 已取完 */
+    if (r.code === 416) { complete = true; break } /* 整块对齐时末尾越界 → 已取完 */
     if (r.code === 200) {
       /* Range 被忽略：首块即全文（可能超阈值），只能整体返回（降级）；
        * 但 200 全文同样可能被蓝牙代理截断——content-length 对照检测与
        * request() raw 模式同口径，绝不静默渲染残缺内容 */
+      complete = true
       if (offset > 0) break
       if (typeof r.data === 'string') {
         const s = r.data
@@ -738,20 +889,29 @@ async function fetchRawChunked(url) {
         if (!isNaN(clen) && clen > 0 && utf8Len(s) + 8 < clen) {
           throw { status: 200, incomplete: true, message: 'raw 全文响应不完整（疑似截断）' }
         }
-        return { text: s, full: true }
+        full = true
+        const res1 = { text: s, full: true, capped: false }
+        memSet(url, res1, pickHeader(r.headers, 'etag'))
+        return res1
       }
       const u8full = toU8(r.data)
       if (u8full) {
+        if (sniffBinary(u8full)) throw { status: 200, binary: true, message: '二进制文件，暂不支持预览' }
         const dec = utf8DecodeChunk([], u8full)
-        return { text: dec.text, full: true }
+        full = true
+        const res2 = { text: dec.text, full: true, capped: false }
+        memSet(url, res2, pickHeader(r.headers, 'etag'))
+        return res2
       }
       throw { status: 200, incomplete: true, message: 'raw 全文响应异常' }
     }
     if (r.code !== 206) throw { status: r.code, message: 'raw 拉取失败（HTTP ' + r.code + '）' }
+    if (!firstEtag) firstEtag = pickHeader(r.headers, 'etag')
     let got = 0
     if (mode === 'arraybuffer') {
       const u8 = toU8(r.data)
       if (!u8) throw { status: 206, message: '分块响应异常' }
+      if (bi === 0 && sniffBinary(u8)) throw { status: 206, binary: true, message: '二进制文件，暂不支持预览' }
       const dec = utf8DecodeChunk(pending, u8)
       out += dec.text
       pending = dec.pending
@@ -762,10 +922,28 @@ async function fetchRawChunked(url) {
       got = !isNaN(clen) && clen > 0 ? clen : utf8Len(s)
       out += s
     }
-    if (got <= 0 || got < RAW_CHUNK) break /* 短块 = 末块 */
+    if (bi === 0 && !total) {
+      /* 首块 Content-Range: bytes 0-8191/123456 → 解析总大小供进度显示 */
+      const cr = String(pickHeader(r.headers, 'content-range') || '')
+      const slash = cr.indexOf('/')
+      const t = slash >= 0 ? parseInt(cr.slice(slash + 1)) : NaN
+      if (!isNaN(t) && t > 0) total = t
+    }
+    if (typeof onProgress === 'function') {
+      try { onProgress(offset + got, total) } catch (e) { /* 进度回调不影响主流程 */ }
+    }
+    if (got <= 0 || got < RAW_CHUNK) { complete = true; break } /* 短块 = 末块 */
     offset += got
   }
-  return { text: out, full: false }
+  if (!complete) {
+    /* 块数耗尽仍有后续数据：明确告知截断，绝不冒充完整 */
+    const res3 = { text: out, full: false, capped: true }
+    memSet(url, res3, firstEtag)
+    return res3
+  }
+  const res4 = { text: out, full: full, capped: false }
+  memSet(url, res4, firstEtag)
+  return res4
 }
 
 const README_RE = /^readme(\.(md|markdown|rst|txt|html|adoc|org|mdown|mkd))?$/i
@@ -892,12 +1070,13 @@ export function qs(params) {
 
 let _self = null
 
-/** 当前登录用户（带进程内缓存）；未登录返回 null */
+/** 当前登录用户（带进程内缓存，v1.2.1：按 token 绑定防换号脏读）；未登录返回 null */
 export async function self() {
   if (!_token) return null
-  if (_self) return _self
+  if (_self && _self.__tk === _token) return _self
   try {
     _self = await request('/user')
+    if (_self) _self.__tk = _token
   } catch (e) {
     _self = null
     throw e
@@ -907,24 +1086,31 @@ export async function self() {
 
 /* ---------------- 端点封装 ---------------- */
 
-/** 限流余量查询（不消耗 core 配额） */
+/** 限流余量查询（不消耗 core 配额；实时数据不走缓存） */
 export function getRateLimit() {
-  return request('/rate_limit')
+  return request('/rate_limit', { noCache: true })
 }
 
-/** 通知列表（需登录） */
+/** 通知列表（需登录）；v1.2.1 粘性分页 key 区分全部/未读 */
 export function getNotifications(page, all) {
-  return requestAdaptive((per) => '/notifications' + qs({ page: page, per_page: per, all: !!all }))
+  return requestAdaptive('notif|' + (all ? 'all' : 'unread'),
+    (per) => '/notifications' + qs({ page: page, per_page: per, all: !!all }), page)
 }
 
 /** 全部标记已读 */
 export function markAllNotificationsRead() {
-  return request('/notifications', { method: 'PUT', body: {} })
+  return request('/notifications', { method: 'PUT', body: {} }).then((r) => {
+    clearCache('/notifications')
+    return r
+  })
 }
 
 /** 单条标记已读 */
 export function markThreadRead(threadUrl) {
-  return request(threadUrl, { method: 'PUT', body: {} })
+  return request(threadUrl, { method: 'PUT', body: {} }).then((r) => {
+    clearCache('/notifications')
+    return r
+  })
 }
 
 /** 通知主题详情（Issue/PR/Release 的 API 地址） */
@@ -944,11 +1130,11 @@ function repoOrderField(sort) {
 }
 
 function restMyRepos(page, sort) {
-  return requestAdaptive((per) => '/user/repos' + qs({
+  return requestAdaptive('repos-my|' + (sort || 'pushed'), (per) => '/user/repos' + qs({
     page: page, per_page: per,
     sort: sort || 'pushed', type: 'owner',
     affiliation: 'owner,collaborator,organization_member'
-  }))
+  }), page)
 }
 
 /** 登录用户仓库（GraphQL 瘦字段，REST 兜底） */
@@ -970,7 +1156,8 @@ export async function getMyRepos(page, sort) {
 }
 
 function restUserRepos(login, page) {
-  return requestAdaptive((per) => '/users/' + encodeURIComponent(login) + '/repos' + qs({ page: page, per_page: per, sort: 'pushed' }))
+  return requestAdaptive('repos-user|' + login,
+    (per) => '/users/' + encodeURIComponent(login) + '/repos' + qs({ page: page, per_page: per, sort: 'pushed' }), page)
 }
 
 /** 指定用户的公开仓库（GraphQL 瘦字段，REST 兜底） */
@@ -1002,10 +1189,10 @@ function searchSortQ(sort) {
 }
 
 function restSearch(keyword, page, sort) {
-  return requestAdaptive((per) => '/search/repositories' + qs({
+  return requestAdaptive('search-rest|' + keyword + '|' + (sort || ''), (per) => '/search/repositories' + qs({
     q: keyword, page: page, per_page: per,
     sort: sort || 'best match', order: 'desc'
-  }))
+  }), page)
 }
 
 /** 仓库搜索（GraphQL 瘦字段，REST 兜底；返回 {items,total_count} 契约不变） */
@@ -1042,7 +1229,8 @@ function trendingQuery(mode) {
 }
 
 function restTrending(mode, page) {
-  return requestAdaptive((per) => '/search/repositories' + qs({ q: trendingQuery(mode), page: page, per_page: per, sort: 'stars', order: 'desc' }))
+  return requestAdaptive('trend-rest|' + (mode || 'classic'),
+    (per) => '/search/repositories' + qs({ q: trendingQuery(mode), page: page, per_page: per, sort: 'stars', order: 'desc' }), page)
 }
 
 /** 趋势模拟（GraphQL 瘦字段，REST 兜底；返回 {items,total_count} 契约不变） */
@@ -1063,8 +1251,42 @@ export async function getTrending(mode, page) {
   }
 }
 
-/** 仓库详情 */
-export function getRepo(fullName) {
+/** 仓库详情（v1.2.1：GraphQL 瘦字段 ~1KB，替代 REST 全量 10-20KB——
+ *  单页详情从源头避开蓝牙代理截断；失败回退 REST） */
+const GQL_REPO_Q = 'query($o:String!,$n:String!){repository(owner:$o,name:$n){nameWithOwner description stargazerCount forkCount watchers{totalCount} issues(states:OPEN){totalCount} primaryLanguage{name} licenseInfo{spdxId} pushedAt updatedAt createdAt isPrivate isFork homepageUrl defaultBranchRef{name} owner{login}}}'
+
+export async function getRepo(fullName) {
+  const parts = String(fullName || '').split('/')
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    try {
+      const data = await ghql(GQL_REPO_Q, { o: parts[0], n: parts[1] })
+      const r = data && data.repository
+      if (!r || !r.nameWithOwner) throw { status: 0, gqlSkip: true, message: 'GraphQL 仓库详情为空' }
+      return {
+        id: r.id || fullName,
+        full_name: r.nameWithOwner,
+        name: String(r.nameWithOwner).split('/')[1] || parts[1],
+        owner: { login: (r.owner && r.owner.login) || parts[0] },
+        description: r.description || '',
+        stargazers_count: r.stargazerCount || 0,
+        forks_count: r.forkCount || 0,
+        subscribers_count: (r.watchers && r.watchers.totalCount) || 0,
+        open_issues_count: (r.issues && r.issues.totalCount) || 0,
+        language: r.primaryLanguage && r.primaryLanguage.name,
+        license: r.licenseInfo && r.licenseInfo.spdxId ? { spdx_id: r.licenseInfo.spdxId, name: r.licenseInfo.spdxId } : null,
+        pushed_at: r.pushedAt || r.updatedAt || '',
+        created_at: r.createdAt || '',
+        updated_at: r.updatedAt || '',
+        homepage: r.homepageUrl || '',
+        default_branch: (r.defaultBranchRef && r.defaultBranchRef.name) || 'HEAD',
+        fork: !!r.isFork,
+        private: !!r.isPrivate
+      }
+    } catch (e) {
+      if (!gqlShouldFallback(e)) throw e
+      /* 游客/限流/网络失败 → 回落 REST */
+    }
+  }
   return request('/repos/' + fullName)
 }
 
@@ -1085,23 +1307,37 @@ export function getTree(fullName, sha) {
   return request('/repos/' + fullName + '/git/trees/' + (sha || 'HEAD'))
 }
 
-/** 文件原始文本（v1.2.0：raw.githubusercontent Range 分块，任意大小完整可达；
- *  私有仓库 raw 404 → 回退 REST contents raw（受阈值限制）） */
-export async function getFileRaw(fullName, path, ref) {
+/** 文件内容拉取（v1.2.1 升级版）：raw Range 分块（1MB 上限）+ 进度回调。
+ *  返回 {text, full, capped, bytes}：capped=true 表示超过 1MB 只取了前 1MB。
+ *  私有仓库 raw 404 → 回退 REST contents raw（受阈值限制）。 */
+export async function getFileRawEx(fullName, path, ref, onProgress) {
   try {
-    const r = await fetchRawChunked(rawFileUrl(fullName, ref, path))
-    if (typeof r.text === 'string' && r.text.length) return r.text
-  } catch (e) { /* 落到 REST raw */ }
+    const r = await fetchRawChunked(rawFileUrl(fullName, ref, path), onProgress)
+    if (typeof r.text === 'string' && r.text.length) {
+      return { text: r.text, full: !!r.full, capped: !!r.capped, bytes: utf8Len(r.text) }
+    }
+  } catch (e) {
+    if (e && e.binary) throw e /* 二进制文件直接报错，不进 REST 通道拿乱码 */
+    /* 落到 REST raw */
+  }
   const p = path ? '/' + path : ''
-  return request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
+  const text = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
+  return { text: String(text == null ? '' : text), full: true, capped: false, bytes: utf8Len(String(text == null ? '' : text)) }
+}
+
+/** 文件原始文本（保持 v1.2.0 契约：直接返回字符串；readme 页等沿用） */
+export async function getFileRaw(fullName, path, ref) {
+  const r = await getFileRawEx(fullName, path, ref, null)
+  if (typeof r.text === 'string' && r.text.length) return r.text
+  throw { message: '文件内容为空' }
 }
 
 const GQL_ISSUES_Q = 'query($o:String!,$n:String!,$first:Int!,$after:String,$states:[IssueState!]){repository(owner:$o,name:$n){issues(first:$first,after:$after,states:$states,orderBy:{field:CREATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor} nodes{id number title state createdAt author{login} comments{totalCount} labels(first:4){nodes{name color}}}}}}'
 
 function restIssues(fullName, page, state) {
-  return requestAdaptive((per) => '/repos/' + fullName + '/issues' + qs({
+  return requestAdaptive('issues-rest|' + fullName + '|' + (state || 'open'), (per) => '/repos/' + fullName + '/issues' + qs({
     page: page, per_page: per, state: state || 'open', sort: 'created'
-  })).then((data) => {
+  }), page).then((data) => {
     const list = Array.isArray(data) ? data : []
     const out = []
     for (let i = 0; i < list.length && out.length < PER_PAGE; i++) {
@@ -1142,7 +1378,8 @@ export function getIssue(fullName, number) {
 
 /** Issue 评论列表（传 comments_url；评论正文可能很长，同样自适应） */
 export function getComments(commentsUrl, page) {
-  return requestAdaptive((per) => commentsUrl + qs({ page: page || 1, per_page: per }))
+  return requestAdaptive('cmt|' + commentsUrl,
+    (per) => commentsUrl + qs({ page: page || 1, per_page: per }), page || 1)
 }
 
 /** 发表 Issue 评论（需 Token，传 comments_url） */
@@ -1166,7 +1403,10 @@ export async function getReleases(fullName, page) {
     _lastListPerPage = PER_PAGE
     return (conn.nodes || []).map(gqlReleaseToRest).filter((x) => !!x && !!x.tag_name)
   } catch (e) {
-    if (gqlShouldFallback(e)) return requestAdaptive((per) => '/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: per }))
+    if (gqlShouldFallback(e)) {
+      return requestAdaptive('rel-rest|' + fullName,
+        (per) => '/repos/' + fullName + '/releases' + qs({ page: page || 1, per_page: per }), page || 1)
+    }
     throw e
   }
 }
@@ -1194,10 +1434,10 @@ export function getUser(login) {
 
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
-  request, qs, self, lastListPerPage, storageDiag, verifyPersisted,
+  request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
   getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
-  getRepo, getReadme, getReadmeText, getContents, getFileRaw, getTree,
+  getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser,
   deviceFlowStart, deviceFlowPoll, utf8DecodeChunk

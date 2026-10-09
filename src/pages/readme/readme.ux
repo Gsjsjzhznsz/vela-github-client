@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <div class="hd-main">
         <text class="hd-title">{{full}}</text>
         <text class="hd-sub">README · 共 {{totalBlocks}} 段</text>
@@ -11,13 +11,10 @@
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" onscroll="onListScroll">
       <div class="li" for="{{it in items}}" tid="id">
-        <text class="bh" style="height: {{it.h}}px" if="{{it.t === 'h'}}">{{it.s}}</text>
-        <text class="bp" style="height: {{it.h}}px" elif="{{it.t === 'p'}}">{{it.s}}</text>
-        <text class="bc" style="height: {{it.h}}px" elif="{{it.t === 'c'}}">{{it.s}}</text>
-        <text class="bq" style="height: {{it.h}}px" elif="{{it.t === 'q'}}">{{it.s}}</text>
-        <text class="bl" style="height: {{it.h}}px" elif="{{it.t === 'l'}}">{{it.s}}</text>
-        <div class="br" elif="{{it.t === 'r'}}"></div>
-        <text class="bp" else>{{it.s}}</text>
+        <!-- 固件 elif 指令不可靠（BandQQ/InputMethod 全程零 elif 实证），
+             块渲染统一为单 text 节点 + 动态 class（code.ux/BandQQ 同款已验证模式），
+             显式 height 由 md.estBlockH 按 CSS 对齐估算（缺省 → undefinedpx 塌陷隐形） -->
+        <text class="b-{{it.t}}" style="height: {{it.h}}px">{{it.s}}</text>
       </div>
       <div class="li" show="{{state === 'ok' && rendered < totalBlocks}}">
         <text class="foot" onclick="loadMoreBlocks">上滑加载更多…</text>
@@ -42,6 +39,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 13px; color: #484f58; margin-top: 1px; }
@@ -49,13 +48,14 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 2px 14px; }
-  .bh { font-size: 23px; color: #58a6ff; font-weight: bold; margin-top: 7px; }
-  .bp { font-size: 17px; color: #e6edf3; line-height: 24px; }
-  .bc { font-size: 16px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 2px 0; }
-  .bq { font-size: 17px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
-  .bl { font-size: 17px; color: #e6edf3; line-height: 24px; }
-  .br { height: 1px; background-color: #30363d; width: 100%; margin: 7px 0; }
+  .li { padding: 3px 14px; }
+  /* 块样式与 md.js H_TABLE 严格对齐：显式 line-height 保证高度估算确定性 */
+  .b-h { font-size: 22px; line-height: 30px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
+  .b-p { font-size: 17px; line-height: 24px; color: #e6edf3; }
+  .b-c { font-size: 16px; line-height: 21px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 3px 0; }
+  .b-q { font-size: 17px; line-height: 23px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
+  .b-l { font-size: 17px; line-height: 24px; color: #e6edf3; }
+  .b-r { font-size: 14px; line-height: 18px; color: #30363d; text-align: center; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
@@ -123,7 +123,8 @@
       const end = Math.min(this.totalBlocks, this.rendered + PAGE_CHUNK)
       for (let i = this.rendered; i < end; i++) {
         const b = this._allBlocks[i]
-        this.items.push({ id: 'b' + i, t: b.t, s: b.s })
+        // h 必须随块传给模板：style height 引用 it.h（v1.1.1 之前丢传 → 全部塌陷隐形）
+        this.items.push({ id: 'b' + i, t: b.t, s: b.s, h: b.h })
       }
       this.rendered = end
     },

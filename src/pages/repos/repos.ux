@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <text class="hd-title">{{title}}</text>
     </div>
 
@@ -59,6 +59,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 17px; height: 17px; }

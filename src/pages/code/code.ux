@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <div class="hd-main">
         <text class="hd-title">{{hdTitle}}</text>
         <text class="hd-sub" show="{{mode === 'dir' && pathText}}">{{pathText}}</text>
@@ -10,19 +10,20 @@
 
     <div class="body-wrap">
       <scroll class="body" scroll-y="true">
+      <!-- 固件 elif 不可靠：四种 kind 分支全部 show 预渲染（BandQQ v2.9.6 同款安全形态） -->
       <div class="{{it.kind === 'line' ? 'li-code' : 'li'}}" for="{{it in items}}" tid="id">
-        <div class="cell" if="{{it.kind === 'up'}}" onclick="goUp">
+        <div class="cell" show="{{it.kind === 'up'}}" onclick="goUp">
           <image class="cell-icon" src="/common/icons/back.png" />
           <text class="cell-name muted">返回上级</text>
         </div>
-        <div class="cell" elif="{{it.kind === 'entry'}}" onclick="openEntry(it)">
+        <div class="cell" show="{{it.kind === 'entry'}}" onclick="openEntry(it)">
           <image class="cell-icon" src="{{it.icon}}" />
           <text class="cell-name">{{it.name}}</text>
           <text class="cell-size" show="{{it.size}}">{{it.size}}</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" show="{{it.isDir}}" />
         </div>
-        <text class="code-line" elif="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
-        <text class="foot" else>{{it.text}}</text>
+        <text class="code-line" show="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
+        <text class="foot" show="{{it.kind === 'foot'}}">{{it.text}}</text>
       </div>
     </scroll>
     </div>
@@ -44,6 +45,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 13px; color: #484f58; margin-top: 1px; lines: 1; text-overflow: ellipsis; }
@@ -51,8 +54,8 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; }
-  .li-code { padding: 1px 10px; }
+  .li { padding: 4px 12px; width: 100%; }
+  .li-code { padding: 1px 10px; width: 100%; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 10px; padding: 11px 12px; }
   .cell-icon { width: 19px; height: 19px; }
   .cell-name { flex: 1; font-size: 19px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }

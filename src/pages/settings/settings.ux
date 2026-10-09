@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <text class="hd-title">设置</text>
     </div>
 
@@ -44,7 +44,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.1.0</text>
+          <text class="c-body">GitHub for Vela v1.1.2</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -61,6 +61,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -92,7 +94,9 @@
     onInit() {
     },
     async onShow() {
-      await api.loadToken()
+      // force 重读存储：登录/登出发生在 input 页的独立 JS context，
+      // 本页缓存的 loadToken promise 不会自动失效（游客模式假象根因）
+      await api.loadToken(true)
       this.hasTk = api.hasToken()
       this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
       this.refreshRate()
@@ -108,7 +112,8 @@
     },
     /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
     startInput() {
-      this.$app.$def.hook = { type: 'token', initial: '' }
+      // 预填已存 Token：重进时无需重新逐字键入 40 位（消除二次输入失败/手误风险）
+      this.$app.$def.hook = { type: 'token', initial: api.currentToken() || '' }
       router.push({ uri: 'pages/input' })
     },
     async logout() {

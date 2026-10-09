@@ -8,13 +8,16 @@
        kb-dock absolute 贴底锚（显式高 264 = KB_H_RECT）。 -->
   <div class="page">
     <div class="top-bar">
-      <image class="btn-back" src="/common/icons/back.png" onclick="goBack"></image>
+      <div class="btn-back-wrap" onclick="goBack"><image class="btn-back" src="/common/icons/back.png" /></div>
       <text class="bar-title">{{title}}</text>
       <text class="done-btn" onclick="confirmDraft">确认</text>
     </div>
     <div class="preview-box">
       <text class="preview-text">{{draft || placeholder}}</text>
-      <text class="preview-hint">{{mode === 'token' ? 'Token 仅存本机 · 输入后点确认' : '键盘支持拼音/英文 · 点确认返回'}}</text>
+      <div class="preview-tools">
+        <text class="preview-hint">{{mode === 'token' ? 'Token 仅存本机 · 输入后点确认' : '键盘支持拼音/英文 · 点确认返回'}}</text>
+        <text class="clear-btn" show="{{draft}}" onclick="clearDraft">清空</text>
+      </div>
     </div>
     <div class="kb-dock">
       <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="rect" @complete="onComplete" @delete="onDelete"></input-method>
@@ -26,12 +29,15 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
   .top-bar { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .btn-back { width: 44px; height: 44px; }
+  .btn-back-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .bar-title { flex: 1; font-size: 22px; color: #e6edf3; font-weight: bold; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
   .done-btn { width: 96px; height: 48px; text-align: center; line-height: 48px; font-size: 19px; color: #ffffff; background-color: #238636; border-radius: 24px; }
   /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */
   .preview-box { position: absolute; left: 0; top: 94px; bottom: 264px; width: 100%; flex-direction: column; padding: 4px 14px; }
   .preview-text { font-size: 20px; color: #58a6ff; line-height: 28px; text-align: left; word-break: break-all; }
-  .preview-hint { font-size: 14px; color: #484f58; margin-top: 8px; text-align: left; }
+  .preview-tools { flex-direction: row; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .preview-hint { font-size: 14px; color: #484f58; text-align: left; flex: 1; }
+  .clear-btn { font-size: 15px; color: #f85149; padding: 4px 14px; border: 1px solid #30363d; border-radius: 14px; }
   /* 键盘坞：bottom:0 由引擎按页面可用底解析（避让固件手势保留区），显式高 = 键盘物理高 */
   .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 264px; }
 </style>
@@ -80,6 +86,9 @@
     onDelete() {
       this.draft = this.draft.slice(0, -1)
     },
+    clearDraft() {
+      this.draft = ''
+    },
     goBack() {
       router.back()
     },
@@ -91,10 +100,11 @@
       }
       const app = this.$app.$def
       if (this.mode === 'token') {
-        // Token 模式：本页直接验证保存，成功/失败都回来源页（其 onShow 会刷新显示）
+        // Token 模式：本页直接验证保存，成功/失败都回来源页（其 onShow 会刷新显示）。
+        // force 重读：本页 context 的 loadToken 缓存需与存储同步（预填/覆盖场景）
         prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
         try {
-          await api.loadToken()
+          await api.loadToken(true)
           await api.saveToken(t)
           await api.self()
           app.inputResult = null
@@ -102,7 +112,9 @@
           router.back()
         } catch (e) {
           await api.clearToken()
-          prompt.showToast({ message: 'Token 验证失败：' + ((e && e.message) || ''), duration: 2200 })
+          // 透出状态码：401=Token 无效 / 403=限流 / 0=网络失败，真机排障必需
+          const st = e && e.status !== undefined ? e.status : '?'
+          prompt.showToast({ message: 'Token 验证失败[' + st + ']：' + ((e && e.message) || ''), duration: 2600 })
         }
         return
       }

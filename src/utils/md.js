@@ -83,10 +83,11 @@ export function mdToBlocks(md) {
       continue
     }
 
-    // 分隔线
+    // 分隔线（固件 elif 指令不可靠，块渲染统一为单 text 节点 + 动态 class，
+    // 故分隔线也给可见字符，由 .b-r 样式渲染为暗色水平线）
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
       flushPara()
-      blocks.push({ t: 'r', s: '' })
+      blocks.push({ t: 'r', s: '──────────────' })
       continue
     }
 
@@ -120,7 +121,8 @@ export function mdToBlocks(md) {
     if (li) {
       flushPara()
       let body = inline(li[2])
-      body = body.replace(/^\[([ xX])\]\s*/, (m, mk) => (mk === ' ' ? '□ ' : '☑ '))
+      // ☑(U+2611) 固件字库缺字形渲染为豆腐块，改用 √（模拟器实测 □ 可用、√ 属 CJK 字库常备）
+      body = body.replace(/^\[([ xX])\]\s*/, (m, mk) => (mk === ' ' ? '□ ' : '√ '))
       const prefix = /^\d/.test(li[1]) ? li[1].replace(/[.)]$/, '.') + ' ' : '• '
       blocks.push({ t: 'l', s: clip(prefix + body, MAX_BLOCK) })
       continue
@@ -136,14 +138,17 @@ export function mdToBlocks(md) {
 }
 
 /** 块渲染高度估算（px）：本固件对无界换行文本测量坍缩（BandQQ v2.15 同族问题），
- *  每个块必须显式高度。按字符宽度分类估算行数：CJK≈1.0×fs / 全角≈1.0 / 其他≈0.58×fs */
+ *  每个块必须显式高度（v1.1.2 修复：readme/issue 页 appendMore 此前丢传 h 字段，
+ *  模板 height: undefinedpx 导致内容块全部塌陷隐形——「显示全文完」根因）。
+ *  与页面 CSS 严格对齐（.b-h fs22/lh30 等）：行数×行高 + 内边距 + 外边距。
+ *  字符宽度按保守估算（CJK≈1.0×fs / 其他≈0.58×fs，可用宽度取略小值）保证宁高勿裁。 */
 const H_TABLE = {
-  h: { fs: 20, lh: 28, pad: 14 },
-  p: { fs: 16, lh: 25, pad: 6 },
-  c: { fs: 14, lh: 21, pad: 22 },
-  q: { fs: 15, lh: 22, pad: 6 },
-  l: { fs: 16, lh: 25, pad: 6 },
-  r: { fs: 12, lh: 20, pad: 14 },
+  h: { fs: 22, lh: 30, pad: 12 },
+  p: { fs: 17, lh: 24, pad: 8 },
+  c: { fs: 16, lh: 21, pad: 28 },
+  q: { fs: 17, lh: 23, pad: 14 },
+  l: { fs: 17, lh: 24, pad: 14 },
+  r: { fs: 14, lh: 18, pad: 16 },
 }
 function estBlockH(b) {
   const t = H_TABLE[b.t] || H_TABLE.p

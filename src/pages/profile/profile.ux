@@ -2,7 +2,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <text class="hd-title">个人主页</text>
     </div>
 
@@ -69,6 +69,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -122,7 +124,7 @@
         this.errMsg = '游客模式：点击下方输入用户名查询，或登录 Token'
       }
     },
-    onShow() {
+    async onShow() {
       // 消费独立输入页回传的用户名（BandQQ store 同构）
       const app = this.$app.$def
       const r = app && app.inputResult
@@ -130,7 +132,16 @@
         app.inputResult = null
         this.query = r.text
         this.loadUser(r.text)
+        return
       }
+      if (!this._shownOnce) {
+        // 首次显示由 onInit 负责，避免双重加载
+        this._shownOnce = true
+        return
+      }
+      // 登录/登出发生在其它页的独立 JS context：force 重读存储并跟随会话身份
+      await api.loadToken(true)
+      if (!this.query && this.state !== 'loading') this.loadUser(null)
     },
     async loadUser(login) {
       this.state = 'loading'

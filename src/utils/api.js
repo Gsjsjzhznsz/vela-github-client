@@ -39,11 +39,16 @@ function stRemove(key) {
 let _token = ''
 let _tokenReady = null
 
-/** 读取本地 Token（进程内缓存一次） */
-export function loadToken() {
+/** 读取本地 Token（进程内缓存一次）
+ *  v1.1.2：本固件每页 JS context 独立持有本模块副本，saveToken 只能重置当前页的
+ *  _tokenReady，其它存活页面的缓存仍指向旧值（实机实证：登录成功后设置页仍显示
+ *  游客模式）。force=true 时强制重读存储——需要在 onShow 感知登录态变化的页面
+ *  （settings/profile/input）必须传 force。 */
+export function loadToken(force) {
+  if (force) _tokenReady = null
   if (_tokenReady) return _tokenReady
   _tokenReady = stGet(TOKEN_KEY).then((v) => {
-    _token = v || ''
+    _token = typeof v === 'string' ? v : (v ? String(v) : '')
     return _token
   })
   return _tokenReady
@@ -65,7 +70,8 @@ export async function saveToken(token) {
   } else {
     await stRemove(TOKEN_KEY)
   }
-  // 同步进程内缓存（否则本 context 后续 loadToken 仍返回旧值）
+  // 同步进程内缓存（否则本 context 后续 loadToken 仍返回旧值）；
+  // 同时撤销缓存态：确保后续 loadToken(true/false) 都能拿到最新值
   _tokenReady = Promise.resolve(_token)
   _self = null
   return _token

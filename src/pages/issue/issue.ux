@@ -2,7 +2,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <div class="hd-main">
         <text class="hd-title">{{full}} #{{n}}</text>
         <text class="hd-sub">{{commentN}} 条评论</text>
@@ -19,19 +19,13 @@
           </div>
           <text class="h-title">{{title}}</text>
           <text class="h-meta">{{author}} · 创建于 {{created}}</text>
-          <text class="lb" if="{{labelsText}}" style="color: {{labelColor}}">{{labelsText}}</text>
+          <text class="lb" show="{{labelsText}}" style="color: {{labelColor}}">{{labelsText}}</text>
         </div>
       </div>
 
-      <!-- 正文块 -->
+      <!-- 正文块：单 text 节点 + 动态 class（固件 elif 不可靠，readme 页同款修复） -->
       <div class="li" for="{{it in bodyBlocks}}" tid="id">
-        <text class="bh" style="height: {{it.h}}px" if="{{it.t === 'h'}}">{{it.s}}</text>
-        <text class="bp" style="height: {{it.h}}px" elif="{{it.t === 'p'}}">{{it.s}}</text>
-        <text class="bc" style="height: {{it.h}}px" elif="{{it.t === 'c'}}">{{it.s}}</text>
-        <text class="bq" style="height: {{it.h}}px" elif="{{it.t === 'q'}}">{{it.s}}</text>
-        <text class="bl" style="height: {{it.h}}px" elif="{{it.t === 'l'}}">{{it.s}}</text>
-        <div class="br" elif="{{it.t === 'r'}}"></div>
-        <text class="bp" else>{{it.s}}</text>
+        <text class="b-{{it.t}}" style="height: {{it.h}}px">{{it.s}}</text>
       </div>
 
       <!-- 评论分隔 -->
@@ -57,12 +51,12 @@
             <text class="cmt-author">{{it.author}}</text>
             <text class="cmt-time">{{it.time}}</text>
           </div>
-          <text class="cmt-body" if="{{it.text}}">{{it.text}}</text>
-          <text class="cmt-empty" if="{{!it.text}}">（无正文）</text>
+          <text class="cmt-body" show="{{it.text}}">{{it.text}}</text>
+          <text class="cmt-empty" show="{{!it.text}}">（无正文）</text>
         </div>
       </div>
 
-      <div class="li" if="{{loadingComments}}">
+      <div class="li" show="{{loadingComments}}">
         <text class="foot">加载评论中…</text>
       </div>
       <div class="li" show="{{state === 'ok' && !hasMoreComments && comments.length > 0}}">
@@ -86,6 +80,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 13px; color: #484f58; margin-top: 1px; }
@@ -93,7 +89,7 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; }
+  .li { padding: 3px 14px; }
   .head-card { background-color: #161b22; border-radius: 12px; padding: 12px; width: 100%; flex-direction: column; }
   .badge { align-self: flex-start; border-radius: 12px; padding: 2px 10px; }
   .b-open { background-color: #238636; }
@@ -103,12 +99,13 @@
   .h-meta { font-size: 14px; color: #8b949e; margin-top: 5px; }
   .labels { flex-direction: row; flex-wrap: wrap; margin-top: 7px; }
   .lb { font-size: 13px; margin-right: 7px; border: 1px solid #30363d; border-radius: 10px; padding: 1px 7px; }
-  .bh { font-size: 20px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
-  .bp { font-size: 17px; color: #e6edf3; line-height: 23px; }
-  .bc { font-size: 16px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 6px 10px; margin: 2px 0; }
-  .bq { font-size: 17px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
-  .bl { font-size: 17px; color: #e6edf3; line-height: 23px; }
-  .br { height: 1px; background-color: #30363d; width: 100%; margin: 5px 0; }
+  /* 块样式与 md.js H_TABLE 严格对齐（readme 页同款）：显式 line-height 保证估算确定性 */
+  .b-h { font-size: 22px; line-height: 30px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
+  .b-p { font-size: 17px; line-height: 24px; color: #e6edf3; }
+  .b-c { font-size: 16px; line-height: 21px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 3px 0; }
+  .b-q { font-size: 17px; line-height: 23px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
+  .b-l { font-size: 17px; line-height: 24px; color: #e6edf3; }
+  .b-r { font-size: 14px; line-height: 18px; color: #30363d; text-align: center; }
   .sepa-t { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .cmt-card { background-color: #161b22; border-radius: 12px; padding: 11px 12px; width: 100%; flex-direction: column; }
   .cmt-hd { flex-direction: row; align-items: center; }
@@ -193,7 +190,8 @@
         const body = mdToBlocks(iss.body || '')
         const blocks = []
         for (let i = 0; i < body.length && i < 80; i++) {
-          blocks.push({ id: 'b' + i, t: body[i].t, s: body[i].s })
+          // h 必须随块传给模板（同 readme 页根因修复）
+          blocks.push({ id: 'b' + i, t: body[i].t, s: body[i].s, h: body[i].h })
         }
         this.bodyBlocks = blocks
         this._cmtsUrl = iss.comments_url || ''

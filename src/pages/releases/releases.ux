@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="hd">
-      <image class="hd-act" src="/common/icons/back.png" onclick="goBack" />
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <text class="hd-title">{{full}} · Releases</text>
     </div>
 
@@ -18,30 +18,30 @@
           <div class="cell-hd">
             <image class="cell-icon" src="/common/icons/book.png" />
             <text class="cell-tag">{{it.tag}}</text>
-            <text class="pre-badge" if="{{it.pre}}">预发布</text>
+            <text class="pre-badge" show="{{it.pre}}">预发布</text>
           </div>
-          <text class="cell-title" if="{{it.name}}">{{it.name}}</text>
+          <text class="cell-title" show="{{it.name}}">{{it.name}}</text>
           <text class="cell-sub">{{it.time}} · {{it.author}}{{it.assets > 0 ? ' · ' + it.assets + ' 个附件' : ''}}</text>
-          <text class="cell-body" if="{{it.body}}">{{it.body}}</text>
+          <text class="cell-body" show="{{it.body}}">{{it.body}}</text>
         </div>
       </div>
-      <div class="li" if="{{loadState === 'ok' && loadingMore}}">
+      <div class="li" show="{{loadState === 'ok' && loadingMore}}">
         <text class="foot" onclick="loadMore">加载更多</text>
       </div>
-      <div class="li" if="{{loadState === 'ok' && !hasMore && items.length > 0}}">
+      <div class="li" show="{{loadState === 'ok' && !hasMore && items.length > 0}}">
         <text class="foot">— 到底了 —</text>
       </div>
     </scroll>
     </div>
 
-    <div class="state" if="{{loadState === 'loading'}}">
+    <div class="state" show="{{loadState === 'loading'}}">
       <text class="state-t">加载中…</text>
     </div>
-    <div class="state" if="{{loadState === 'empty'}}">
+    <div class="state" show="{{loadState === 'empty'}}">
       <text class="state-t">还没有发布任何 Release</text>
       <text class="state-btn" onclick="doRefresh">重新加载</text>
     </div>
-    <div class="state" if="{{loadState === 'error'}}">
+    <div class="state" show="{{loadState === 'error'}}">
       <text class="state-t">{{errMsg}}</text>
       <text class="state-btn" onclick="doRefresh">点此重试</text>
     </div>
@@ -52,6 +52,8 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 17px; height: 17px; }

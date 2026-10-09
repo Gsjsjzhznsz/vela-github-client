@@ -9,7 +9,7 @@
     </div>
 
     <div class="body-wrap">
-      <scroll class="body" scroll-y="true">
+      <scroll class="body" scroll-y="true" scroll-top="{{scrollTop}}">
       <!-- 固件 elif 不可靠：四种 kind 分支全部 show 预渲染（BandQQ v2.9.6 同款安全形态） -->
       <div class="{{it.kind === 'line' ? 'li-code' : 'li'}}" for="{{it in items}}" tid="id">
         <div class="cell" show="{{it.kind === 'up'}}" onclick="goUp">
@@ -23,6 +23,12 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" show="{{it.isDir}}" />
         </div>
         <text class="code-line" show="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
+        <!-- 弦电子书式翻页器：每页固定行数，上一页/下一页 + 页码指示 -->
+        <div class="pager" show="{{it.kind === 'pager'}}">
+          <text class="pager-btn" show="{{it.canPrev}}" onclick="pagePrev">上一页</text>
+          <text class="pager-info">{{it.info}}</text>
+          <text class="pager-btn" show="{{it.canNext}}" onclick="pageNext">下一页</text>
+        </div>
         <text class="foot" show="{{it.kind === 'foot'}}">{{it.text}}</text>
       </div>
     </scroll>
@@ -64,6 +70,9 @@
   .cell-size { font-size: 13px; color: #484f58; }
   .cell-arrow { width: 14px; height: 14px; margin-left: 5px; }
   .code-line { font-size: 14px; color: #c9d1d9; line-height: 18px; }
+  .pager { flex-direction: row; align-items: center; justify-content: center; width: 100%; padding: 8px 12px; }
+  .pager-btn { font-size: 17px; color: #58a6ff; padding: 6px 14px; }
+  .pager-info { font-size: 14px; color: #8b949e; margin: 0 10px; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
@@ -79,9 +88,12 @@
   import { query } from '../../utils/view'
 
   /* v1.2.1：大文件上限 200KB → 1MB（raw Range 分块引擎同步升级到 1MB）；
-   * 超限不再直接拒绝——上限内全部可开，超过才提示 */
+   * 超限不再直接拒绝——上限内全部可开，超过才提示。
+   * v1.2.2：参考弦电子书分段渲染——每页固定行数（原 3000 行一次性入列，
+   * 模板节点多、渲染重、低端机滚动卡顿；分页后每页仅 ~20 节点）。 */
   const MAX_LINES = 3000
   const MAX_SIZE = 1024 * 1024
+  const PAGE_SIZE = 18
   const BIN_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'dylib', 'pdf', 'mp3', 'mp4', 'wav', 'woff', 'woff2', 'ttf', 'eot', 'otf', 'jar', 'class', 'pyc', 'bin', 'apk', 'rpk']
 
   export default {
@@ -95,7 +107,9 @@
       items: [],
       state: 'loading',
       errMsg: '',
-      progressText: ''
+      progressText: '',
+      scrollTop: 0,
+      curPage: 1
     },
     onInit(params) {
       const p = query(params, this)
@@ -104,6 +118,10 @@
       this._shaStack = []      // v1.1.3：各级目录 tree sha（contents 截断时 trees 回退用）
       this._filePath = ''      // 当前文件路径
       this._fileName = ''
+      this._allLines = []      // v1.2.2：文件全量行（分页渲染源）
+      this._totalPages = 1
+      this._capped = false
+      this._scrollTick = 0
       this.hdTitle = this.full
       this.loadDir()
     },
@@ -224,9 +242,10 @@
     },
     async openFileText(path, name) {
       try {
-        // v1.2.1：分块进度显示（大文件几十块串行拉取需要反馈，不再像卡死）
+        // v1.2.2：原生下载器主通道无逐块进度，先给「正在下载」占位避免像卡死；
+        // 分块回退路径由 onProg 覆盖为「已加载 X / Y」
         const fmtB = (n) => (n >= 1024 ? (Math.round(n / 102.4) / 10) + 'KB' : n + 'B')
-        this.progressText = ''
+        this.progressText = '正在下载文件（原生通道）…'
         this.state = 'loading'
         const onProg = (loaded, total) => {
           this.progressText = total > 0
@@ -246,20 +265,11 @@
         this.hdTitle = this._fileName
         const lines = text.replace(/\r/g, '').split('\n')
         if (lines.length > MAX_LINES) lines.length = MAX_LINES
+        this._allLines = lines
+        this._capped = !!r.capped
+        this._totalPages = Math.max(1, Math.ceil(lines.length / PAGE_SIZE))
         this.mode = 'file'
-        const out = []
-        for (let i = 0; i < lines.length; i++) {
-          out.push({
-            id: 'l' + i,
-            kind: 'line',
-            n: i + 1,
-            s: lines[i].length > 160 ? lines[i].slice(0, 160) + '…' : lines[i]
-          })
-        }
-        if (r.capped) out.push({ id: 'cap', kind: 'foot', text: '— 文件过大，仅显示前 1MB，其余已省略 —' })
-        else if (lines.length >= MAX_LINES) out.push({ id: 'max', kind: 'foot', text: '（已达 3000 行上限，其余行已省略）' })
-        else out.push({ id: 'end', kind: 'foot', text: '— 文件结尾 —' })
-        this.items = out
+        this.renderFilePage(1)
         this.state = 'ok'
         this.progressText = ''
       } catch (e) {
@@ -268,6 +278,44 @@
         this.errMsg = (e && e.message) || '文件加载失败'
         this.progressText = ''
       }
+    },
+    /* ---- v1.2.2 弦电子书式分页渲染 ---- */
+    renderFilePage(n) {
+      const start = (n - 1) * PAGE_SIZE
+      const slice = this._allLines.slice(start, start + PAGE_SIZE)
+      const out = []
+      for (let i = 0; i < slice.length; i++) {
+        out.push({
+          id: 'l' + start + '_' + i,
+          kind: 'line',
+          n: start + i + 1,
+          s: slice[i].length > 160 ? slice[i].slice(0, 160) + '…' : slice[i]
+        })
+      }
+      out.push({
+        id: 'pager',
+        kind: 'pager',
+        info: '第 ' + n + ' / ' + this._totalPages + ' 页',
+        canPrev: n > 1,
+        canNext: n < this._totalPages
+      })
+      if (this._capped) out.push({ id: 'cap', kind: 'foot', text: '— 文件过大，仅显示前 1MB，其余已省略 —' })
+      else if (this._allLines.length >= MAX_LINES) out.push({ id: 'max', kind: 'foot', text: '（已达 3000 行上限，其余行已省略）' })
+      else if (n >= this._totalPages) out.push({ id: 'end', kind: 'foot', text: '— 文件结尾 —' })
+      this.items = out
+      this.curPage = n
+    },
+    /* 翻页并复位滚动：交替 1/0 确保绑定值必变（同值不重触发，BandQQ tick 同源问题） */
+    pageTurnTo(n) {
+      this._scrollTick++
+      this.renderFilePage(n)
+      this.scrollTop = (this._scrollTick % 2) ? 1 : 0
+    },
+    pagePrev() {
+      if (this.mode === 'file' && this.curPage > 1) this.pageTurnTo(this.curPage - 1)
+    },
+    pageNext() {
+      if (this.mode === 'file' && this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1)
     },
     goUp() {
       if (this._segments.length > 0) {

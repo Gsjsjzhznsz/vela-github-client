@@ -300,6 +300,119 @@ function pickHeader(headers, name) {
   return ''
 }
 
+/* ================= v1.2.2 文件磁盘缓存（弦电子书式「一次落盘、随读随取」） =================
+ * 参考弦电子书（com.bandbbs.plus.ebook）chapterManager 架构：内容落盘 + 索引 +
+ * TTL 内存缓存。本应用文件内容经原生下载器整文件落盘到 fcache 后可反复读——
+ * 返回导航秒开、重进零传输、冷启仍有效（内存缓存 _mem 进程死即失）。
+ * internal://files/fcache/<hash>.txt + m.json 清单，LRU 容量 6 文件 / 4MB。 */
+const FCACHE_DIR = 'internal://files/fcache/'
+const FCACHE_MANIFEST = 'internal://files/fcache/m.json'
+const FCACHE_MAX_FILES = 6
+const FCACHE_MAX_BYTES = 4 * 1024 * 1024
+
+function fhash(s) {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return 'f' + (h >>> 0).toString(36)
+}
+
+let _fcacheManifest = null
+
+async function fcacheLoad() {
+  if (_fcacheManifest) return _fcacheManifest
+  const raw = await fileGet(FCACHE_MANIFEST)
+  try {
+    const m = JSON.parse(raw || '{}')
+    _fcacheManifest = (m && Array.isArray(m.items)) ? m : { items: [] }
+  } catch (e) { _fcacheManifest = { items: [] } }
+  return _fcacheManifest
+}
+
+async function fcacheSave(m) {
+  try { await fileSet(FCACHE_MANIFEST, JSON.stringify(m)) } catch (e) { /* 清单写失败仅影响下次冷启 */ }
+}
+
+/** 命中返回全文并 LRU 触碰；未命中返回 null（读失败也当未命中，下次重下） */
+async function fcacheGet(url) {
+  try {
+    const m = await fcacheLoad()
+    for (let i = 0; i < m.items.length; i++) {
+      if (m.items[i].url === url) {
+        const txt = await fileGet(FCACHE_DIR + m.items[i].f)
+        if (!txt || !txt.length) return null
+        m.items[i].ts = Date.now()
+        fcacheSave(m)
+        return txt
+      }
+    }
+  } catch (e) { /* 存储异常静默，走网络 */ }
+  return null
+}
+
+/** 写入缓存（头插 + LRU 裁剪）；失败不影响主流程 */
+async function fcachePut(url, text) {
+  try {
+    const m = await fcacheLoad()
+    const fname = fhash(url)
+    await fileSet(FCACHE_DIR + fname, text)
+    const rest = m.items.filter((x) => x.url !== url && x.f !== fname)
+    rest.unshift({ url: url, f: fname, bytes: utf8Len(text), ts: Date.now() })
+    let bytes = 0
+    for (let i = 0; i < rest.length; i++) bytes += rest[i].bytes || 0
+    while (rest.length > FCACHE_MAX_FILES || bytes > FCACHE_MAX_BYTES) {
+      const victim = rest.pop()
+      bytes -= victim.bytes || 0
+      try { await fileRemove(FCACHE_DIR + victim.f) } catch (e) {}
+    }
+    m.items = rest
+    await fcacheSave(m)
+  } catch (e) { /* 缓存写失败不影响内容返回 */ }
+}
+
+/** 按字节上限截断字符串（UTF-8 序列完整，不切多字节字符） */
+function utf8SliceBytes(s, maxBytes) {
+  let b = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    let w = c < 0x80 ? 1 : (c < 0x800 ? 2 : 3)
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d2 = s.charCodeAt(i + 1)
+      if (d2 >= 0xdc00 && d2 <= 0xdfff) w = 4
+    }
+    if (b + w > maxBytes) return s.slice(0, i)
+    b += w
+    if (w === 4) i++
+  }
+  return s
+}
+
+/** 有限并发映射（蓝牙代理对瞬时高并发敏感，并发压小 + 完成一个补一个） */
+function mapLimit(items, limit, fn) {
+  return new Promise((resolve, reject) => {
+    const out = new Array(items.length)
+    let next = 0
+    let done = 0
+    let failed = false
+    const launch = () => {
+      if (failed || next >= items.length) return
+      const i = next++
+      fn(items[i], i).then((r) => {
+        if (failed) return
+        out[i] = r
+        done++
+        if (done >= items.length) resolve(out)
+        else launch()
+      }).catch((e) => {
+        if (failed) return
+        failed = true
+        reject(e)
+      })
+    }
+    if (!items.length) return resolve(out)
+    for (let k = 0; k < Math.min(limit, items.length); k++) launch()
+  })
+}
+
 /* ---------------- 下载通道兜底（v1.1.4） ----------------
  * fetch 走蓝牙代理流式通道，大响应会被确定性截断（真机阈值 [14.3,42)KB）。
  * @system.request.download 走原生下载器管线（先落盘再回调），与 fetch 不同路；
@@ -350,16 +463,25 @@ function withTimeout(p, ms, tag) {
 }
 
 /** 下载通道取回响应正文（GET JSON/raw 均适用）；任何一步失败都抛错。
- *  超时收紧（8/15/5s）：兜底通道不能拖死 UI，最坏 ~28s 后仍走 incomplete 报错。 */
-async function dlFetchText(url, header) {
-  const token = await withTimeout(dlDownload(url, header), 8000, 'download')
+ *  v1.2.2：超时可调——文件主通道给足 30/45/10s（整文件落盘是慢而稳的管线），
+ *  默认 8/15/5s（兜底通道不能拖死 UI，最坏 ~28s 后仍走 incomplete 报错）。 */
+async function dlFetchText(url, header, timeouts) {
+  const t = timeouts || {}
+  const token = await withTimeout(dlDownload(url, header), t.download || 8000, 'download')
   if (!token) throw { dlErr: 'no token' }
-  const uri = await withTimeout(dlWait(token), 15000, 'complete')
+  const uri = await withTimeout(dlWait(token), t.complete || 15000, 'complete')
   if (!uri) throw { dlErr: 'no uri' }
-  const text = await withTimeout(dlRead(uri), 5000, 'read')
+  const text = await withTimeout(dlRead(uri), t.read || 5000, 'read')
   // 临时文件清理（官方最佳实践：及时清理避免内存过载），失败不影响主流程
   try { file.delete({ uri }) } catch (e) {}
   return text
+}
+
+/** raw 站点错误体嗅探：raw.githubusercontent.com 对 404/403 返回纯文本
+ *  「404: Not Found」等（HTTP 层可能是 200 由代理改写，或下载器拿到 200 空壳）。
+ *  命中则视为该通道失败，绝不把错误体当文件内容缓存/渲染。 */
+function sniffRawErrorBody(text) {
+  return /^(\d{3}):[ \r\n]/.test(String(text || '').slice(0, 16))
 }
 
 /* ================= v1.2.0 GraphQL 快车道 =================
@@ -616,7 +738,11 @@ async function requestGo(url, header, opt) {
         d = null
       }
     }
-    if (!opt.raw && (opt.method || 'GET') === 'GET' && lastStatus === 200 && (d === null || d === undefined)) {
+    // v1.2.2：GET 200 空响应体一律重试——raw 文本空体同样命中（蓝牙代理对大文件
+    // 偶发回 200 + 空体，v1.2.1 及之前被当「成功空内容」返回，页面报「文件内容为空」）。
+    // 守卫 lastStatus===200：304（无 body 属正常，复验命中）绝不能进重试
+    if ((opt.method || 'GET') === 'GET' && lastStatus === 200 &&
+        (d === null || d === undefined || (opt.raw && typeof d === 'string' && d.length === 0))) {
       // GET 期望 JSON 却拿到空体：蓝牙代理丢长响应的典型表现，重试
       lastErr = { incomplete: true }
       res = null
@@ -740,6 +866,7 @@ async function requestAdaptive(key, build, page) {
 const RAW_BASE = 'https://raw.githubusercontent.com'
 const RAW_CHUNK = 8192
 const RAW_MAX_BLOCKS = 128 /* v1.2.1：8KB × 128 = 1MB 上限（原 512KB） */
+const FILE_RAW_CAP = 1024 * 1024 /* v1.2.2：下载器整文件落盘后的字节上限（与页面 MAX_SIZE 对齐） */
 
 function rawFileUrl(fullName, ref, path) {
   const encPath = String(path || '').split('/').map(encodeURIComponent).join('/')
@@ -948,7 +1075,7 @@ async function fetchRawChunked(url, onProgress) {
 
 const README_RE = /^readme(\.(md|markdown|rst|txt|html|adoc|org|mdown|mkd))?$/i
 
-/** README 全文（v1.2.0 分块通道）：根树找 readme 文件名 → raw Range 分块。
+/** README 全文（v1.2.2：下载器落盘优先 + 磁盘缓存 → Range 分块 → REST base64）。
  *  任何失败抛 {fallback:true}，readme 页回退 REST base64 通道（现行为）。 */
 export async function getReadmeText(fullName, ref) {
   await loadToken()
@@ -964,13 +1091,32 @@ export async function getReadmeText(fullName, ref) {
     }
   } catch (e) { /* trees 失败不致命，走下方缺省判断 */ }
   if (!name) throw { fallback: true, message: '未在仓库根目录找到 README' }
+  const url = rawFileUrl(fullName, ref || 'HEAD', name)
+
+  /* 磁盘缓存（冷启/重进秒开） */
+  const cached = await fcacheGet(url)
+  if (cached) return { text: cached, name: name, raw: true }
+
+  /* 原生下载器优先（整文件落盘，绕开蓝牙代理截断） */
+  const rawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/octet-stream' }
+  if (_token) rawHeader['Authorization'] = 'Bearer ' + _token
+  try {
+    const dl = await dlFetchText(url, rawHeader, { download: 30000, complete: 45000, read: 10000 })
+    if (typeof dl === 'string' && dl.length && !sniffRawErrorBody(dl) &&
+        dl.slice(0, 512).indexOf('\u0000') < 0) {
+      await fcachePut(url, dl)
+      return { text: dl, name: name, raw: true }
+    }
+  } catch (e) { /* 下载器不可用 → 分块通道 */ }
+
   let r
   try {
-    r = await fetchRawChunked(rawFileUrl(fullName, ref || 'HEAD', name))
+    r = await fetchRawChunked(url)
   } catch (e) {
     throw { fallback: true, status: e && e.status, message: (e && e.message) || 'README 分块拉取失败' }
   }
   if (!r.text || !r.text.length) throw { fallback: true, message: 'README 内容为空' }
+  await fcachePut(url, r.text)
   return { text: r.text, name: name, raw: true }
 }
 
@@ -1091,10 +1237,51 @@ export function getRateLimit() {
   return request('/rate_limit', { noCache: true })
 }
 
-/** 通知列表（需登录）；v1.2.1 粘性分页 key 区分全部/未读 */
-export function getNotifications(page, all) {
-  return requestAdaptive('notif|' + (all ? 'all' : 'unread'),
-    (per) => '/notifications' + qs({ page: page, per_page: per, all: !!all }), page)
+/* ================= v1.2.2 通知并行子页（数据不完整根治） =================
+ * 量化根因（v1.2.1 后真机仍不完整）：/notifications 单条 ~6KB——嵌入的 repository
+ * 对象独占 5.5KB，REST 无法瘦身字段、GraphQL 又没有通知 API（schema 实证 Query
+ * 根无 notifications）。per=10 → 60KB 必截断；v1.2.1 自适应降到 per=1 后逐条串行，
+ * 一页要 3 次阶梯尝试，列表条数少且龟速，用户感知即「数据不完整」。
+ * 方案：逻辑页 = 10 条 = 5 个 per_page=2 子页（各 ~12.6KB，低于 14.3KB 实测下限）
+ * 并发 3 并行拉取后按序拼接。子页仍截断 → 降级为两个 per=1（各 ~6.3KB）补齐。
+ * 全有或全无：任一子页彻底失败整页抛错（页面有重试），绝不静默缺条造成跳条。 */
+const NOTIF_SUB_PER = 2
+const NOTIF_SUBS = 5
+const NOTIF_CONC = 3
+
+/** 通知逻辑页大小（notifications.ux 的 hasMore 判断依据） */
+export function notifPageSize() {
+  return NOTIF_SUBS * NOTIF_SUB_PER
+}
+
+/** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接） */
+async function notifSubPage(sp, all) {
+  try {
+    return await request('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }))
+  } catch (e) {
+    if (!e || !e.incomplete) throw e
+    /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页 */
+    const a = await request('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }))
+    const b = await request('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }))
+    return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
+  }
+}
+
+/** 通知列表（需登录）：并行子页拼接，返回最多 notifPageSize() 条的数组 */
+export async function getNotifications(page, all) {
+  await loadToken()
+  const base = (Math.max(1, page) - 1) * NOTIF_SUBS + 1
+  const subs = []
+  for (let i = 0; i < NOTIF_SUBS; i++) subs.push(base + i)
+  const parts = await mapLimit(subs, NOTIF_CONC, (sp) => notifSubPage(sp, all))
+  const out = []
+  for (let i = 0; i < parts.length; i++) {
+    const arr = parts[i]
+    if (Array.isArray(arr)) {
+      for (let j = 0; j < arr.length; j++) out.push(arr[j])
+    }
+  }
+  return out
 }
 
 /** 全部标记已读 */
@@ -1307,22 +1494,68 @@ export function getTree(fullName, sha) {
   return request('/repos/' + fullName + '/git/trees/' + (sha || 'HEAD'))
 }
 
-/** 文件内容拉取（v1.2.1 升级版）：raw Range 分块（1MB 上限）+ 进度回调。
- *  返回 {text, full, capped, bytes}：capped=true 表示超过 1MB 只取了前 1MB。
- *  私有仓库 raw 404 → 回退 REST contents raw（受阈值限制）。 */
+/** 文件内容拉取（v1.2.2 弦电子书式重写）：
+ *  ① 磁盘缓存（fcache，冷启仍有效，重进秒开零传输）；
+ *  ② 原生下载器整文件落盘为主通道（绕开 fetch 蓝牙代理截断——真机实证 Range
+ *     分块第 2 块起必失败、REST raw 大文件空体/截断，均为死路）；
+ *  ③ fetch Range 分块（带逐块进度，下载器不可用时的回退）；
+ *  ④ REST contents raw 兜底（私有仓库 raw 404 场景）。
+ *  返回 {text, full, capped, bytes, via}；capped=true 表示超 1MB 只取前 1MB。 */
 export async function getFileRawEx(fullName, path, ref, onProgress) {
+  const url = rawFileUrl(fullName, ref || '', path)
+  const prog = (a, b) => { if (typeof onProgress === 'function') { try { onProgress(a, b) } catch (e) {} } }
+
+  /* ① 磁盘缓存命中 */
+  const cached = await fcacheGet(url)
+  if (cached) {
+    const cb = utf8Len(cached)
+    prog(cb, cb)
+    return { text: cached, full: true, capped: false, bytes: cb, via: 'cache' }
+  }
+
+  const rawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/octet-stream' }
+  if (_token) rawHeader['Authorization'] = 'Bearer ' + _token
+
+  /* ② 原生下载器主通道：一次整文件落盘（≤1MB 由页面 rawSize 守卫） */
   try {
-    const r = await fetchRawChunked(rawFileUrl(fullName, ref, path), onProgress)
-    if (typeof r.text === 'string' && r.text.length) {
-      return { text: r.text, full: !!r.full, capped: !!r.capped, bytes: utf8Len(r.text) }
+    const dl = await dlFetchText(url, rawHeader, { download: 30000, complete: 45000, read: 10000 })
+    if (typeof dl === 'string' && dl.length) {
+      if (sniffRawErrorBody(dl)) throw { status: 404, message: 'raw 下载器返回错误体，转下一通道' }
+      if (dl.slice(0, 512).indexOf('\u0000') >= 0) throw { binary: true, message: '二进制文件，暂不支持预览' }
+      let text = dl
+      let capped = false
+      if (utf8Len(text) > FILE_RAW_CAP) {
+        text = utf8SliceBytes(text, FILE_RAW_CAP)
+        capped = true
+      }
+      await fcachePut(url, text)
+      const nb = utf8Len(text)
+      prog(nb, nb)
+      return { text: text, full: true, capped: capped, bytes: nb, via: 'dl' }
     }
   } catch (e) {
-    if (e && e.binary) throw e /* 二进制文件直接报错，不进 REST 通道拿乱码 */
+    if (e && e.binary) throw e
+    /* 下载器不可用（固件不支持/超时/404）→ 落到分块通道 */
+  }
+
+  /* ③ fetch Range 分块（逐块进度） */
+  try {
+    const r = await fetchRawChunked(url, onProgress)
+    if (typeof r.text === 'string' && r.text.length) {
+      await fcachePut(url, r.text)
+      return { text: r.text, full: !!r.full, capped: !!r.capped, bytes: utf8Len(r.text), via: 'chunk' }
+    }
+  } catch (e) {
+    if (e && e.binary) throw e
     /* 落到 REST raw */
   }
+
+  /* ④ REST contents raw 兜底（私有仓库 raw 404 的场景） */
   const p = path ? '/' + path : ''
   const text = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
-  return { text: String(text == null ? '' : text), full: true, capped: false, bytes: utf8Len(String(text == null ? '' : text)) }
+  const t3 = String(text == null ? '' : text)
+  if (t3) await fcachePut(url, t3)
+  return { text: t3, full: true, capped: false, bytes: utf8Len(t3), via: 'rest' }
 }
 
 /** 文件原始文本（保持 v1.2.0 契约：直接返回字符串；readme 页等沿用） */
@@ -1435,7 +1668,7 @@ export function getUser(login) {
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
-  getRateLimit, getNotifications, markAllNotificationsRead, markThreadRead, getSubject,
+  getRateLimit, getNotifications, notifPageSize, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
   getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,

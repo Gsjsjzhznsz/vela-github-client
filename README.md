@@ -114,6 +114,15 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 网络请求带 1.2s/2.4s 两级退避重试（弱网/蓝牙代理下更稳）+ 25s 显式超时（代理挂起不再卡死页面）
 - 应用启动零网络请求，onShow 智能去重
 
+### v1.2.2 弦电子书式性能重构（通知完整性 + 大文件 + 落盘缓存）
+
+参考同平台成熟电子书应用弦电子书（com.bandbbs.plus.ebook）的分段加载/落盘索引架构：
+
+- **通知并行子页（数据不完整根治）**：量化实证 `/notifications` 单条 ~6KB（嵌入 repository 对象占 5.5KB，REST 无法瘦身，GraphQL 又无通知 API）——逻辑页改为 5 个 `per_page=2` 子页（各 ~12.6KB，低于蓝牙代理截断下限）并发 3 拉取后按序拼接；子页仍截断自动降级为两个 `per=1`（~6.3KB）补齐；任一子页彻底失败整页报错重试，绝不静默缺条造成跳条
+- **大文件四级通道（8KB 即空的根治）**：真机实证 Range 分块第 2 块起必失败、REST raw 大文件回空体/截断均为死路——改为「磁盘缓存 → 原生下载器整文件落盘（绕开 fetch 蓝牙代理通道）→ Range 分块 → REST raw」四级链路；raw 站点错误体（`404: Not Found`）啄探不入缓存；GET 200 空响应体一律重试（旧版误判「文件内容为空」）
+- **文件磁盘缓存（弦电子书「一次落盘、随读随取」）**：文件内容落盘 `internal://files/fcache/`（LRU 6 文件/4MB），返回导航/冷启重进秒开零传输
+- **分页渲染（弦电子书每页限量）**：源码文件从 3000 行一次性入列改为每页 18 行 + 上一页/下一页/页码指示翻页器，模板节点从 ~3000 降到 ~20，低端机滚动不再卡顿；翻页后 `scroll-top` 复位到页首
+
 ### v1.2.1 传输优化（全面优化数据传输）
 
 - **内存 TTL 缓存**：GET JSON 90s / raw 文本 5min，返回导航秒开、重复请求省配额；容量上限 40 条自动淘汰最旧
@@ -156,7 +165,7 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 ## ⚠️ 已知限制
 
 - PR 仅显示会话正文与评论，不含 code review diffs；发 Issue 待后续版本
-- 代码查看上限 3000 行 / 1MB（超过 1MB 拒绝打开；1MB 内分块完整可达，超行数/超大小显示明确截断脚标），二进制文件不支持
+- 代码查看上限 3000 行 / 1MB（分页渲染每页 18 行；超过 1MB 拒绝打开，1MB 内经下载器/分块完整可达，超行数/超大小显示明确截断脚标），二进制文件不支持
 - 圆屏机型的安全边距为估算值，欢迎真机反馈
 - settings 状态卡文字在模拟器 swiftshader 下偶发不渲染（功能不受影响，待真机确认）
 - 模拟器 slirp 网络下 `/repos/{full}` 详情与 `/repos/{full}/readme` 请求易挂起（/search、/issues 正常）；真机蓝牙代理/eSIM 栈不同，待真机验证，应用层已加两级退避重试；README 渲染管线已用真实 GitHub 数据在 Node 端全链路验证（91 块正确解析、无乱码）
@@ -174,6 +183,7 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 | 项目 | 平台 | 对本项目的启发 |
 |------|------|----------------|
 | [hrk666666/tgwear-quickapp](https://github.com/hrk666666/tgwear-quickapp)（TG Wear） | 小米 Vela 穿戴设备 | **同平台最成熟的直连型客户端**。网络架构关键决定：全部 Telegram 流量经手机端桥（`@system.interconnect`）转发而非手表直连，规避手表端网络栈限制；手表端 `@system.storage` 仅存轻量 settings，会话主体放手机端。本项目的键盘组件、双通道持久化设计均参考其取舍 |
+| [弦电子书](https://github.com/Lejiya/com.bandbbs.plus.ebook.setting)（com.bandbbs.plus.ebook） | 小米手环/手表（米坛社区） | **大文本阅读的性能标杆**：内容分章落盘 + 多级索引 + TTL 内存缓存 + 每页限量渲染 + 分段加载/段落防分割（其「性能设置」面板）。v1.2.2 的文件磁盘缓存与分页渲染直接参考此架构 |
 | [cciccicu/JSLab](https://github.com/cciccicu/JSLab) | 小米 Vela 手环 | 手环端 JS 运行时 + 创作链路，其 manifest features 声明与工程结构可对照 |
 | [SarmonFish/VelaChat-Backend](https://github.com/SarmonFish/VelaChat-Backend)（VelaChat） | 小米/Redmi 手表 | 微信消息同步：FastAPI HTTP 后端 + 手表端，同样采用「重活放服务器/手机、手表只做展示」的架构 |
 | [mu-zi-lee/Halo-Signal](https://github.com/mu-zi-lee/Halo-Signal) | 小米手环 9 Pro | 手表 RPK + 手机 APK + 电脑服务三端协作范式 |

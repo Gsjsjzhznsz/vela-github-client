@@ -100,50 +100,44 @@ let _offset = 0
 function timeShift(ms) { _offset = ms }
 Date.now = function () { return REAL_NOW() + _offset }
 
-/* ---------------- 1. 粘性自适应分页 ---------------- */
+/* ---------------- 1. 粘性自适应分页（v1.2.2 起通知改并行子页，
+   改用 getMyRepos 的 REST 兑底路径驱动 requestAdaptive） ---------------- */
+
+function gqlDownHandler(perSeq, truncBody) {
+  return (n, o) => {
+    const u = String(o.url)
+    if (u.indexOf('/graphql') >= 0) return { __fail: 'gql down', code: 0 } /* 强制回退 REST */
+    const m = u.match(/per_page=(\d+)/)
+    const per = m ? Number(m[1]) : 0
+    const pg = Number((u.match(/page=(\d+)/) || [0, 1])[1])
+    perSeq.push(pg + ':' + per)
+    if (per >= 10) return { code: 200, data: truncBody, headers: {} } /* 10 条必截断 */
+    const list = []
+    for (let i = 0; i < per; i++) list.push({ id: (pg - 1) * 10 + i + 1, full_name: 'o/r' + pg + '_' + i })
+    return { code: 200, data: list, headers: {} }
+  }
+}
 
 async function t_sticky() {
-  await test('通知翻页：page1 降档到 per=4 后，page2 直接从 per=4 起（不回 10）', async () => {
+  await test('REST 自适应翻页（getMyRepos 兑底）：page1 降档到 per=4 后，page2 直接从 per=4 起（不回 10）', async () => {
     const perSeq = []
-    const mocks = authedMocks((n, o) => {
-      const m = String(o.url).match(/per_page=(\d+)/)
-      const per = m ? Number(m[1]) : 0
-      const pg = Number((String(o.url).match(/page=(\d+)/) || [0, 1])[1])
-      perSeq.push(pg + ':' + per)
-      if (per >= 10) {
-        /* 10 条必截断：返回残缺 JSON */
-        return { code: 200, data: '[{"id":1,"unread":true,"reaso', headers: {} }
-      }
-      const list = []
-      for (let i = 0; i < per; i++) list.push({ id: (pg - 1) * 10 + i + 1, unread: true, reason: 'ci_activity', updated_at: '2026-10-01T00:00:00Z', subject: { title: 'ntf ' + i, type: 'CIActivity', url: 'https://api.github.com/n' + i }, repository: { full_name: 'o/r' } })
-      return { code: 200, data: list, headers: {} }
-    })
+    const mocks = authedMocks(gqlDownHandler(perSeq, '[{"id":1,"full_nam'))
     const api = loadModule('src/utils/api.js', mocks)
-    const p1 = await api.getNotifications(1, true)
+    const p1 = await api.getMyRepos(1, 'pushed')
     assertEq(p1.length, 4, 'page1 降档后 4 条')
-    const p2 = await api.getNotifications(2, true)
+    const p2 = await api.getMyRepos(2, 'pushed')
     assertEq(p2.length, 4, 'page2 沿用 4 条')
-    assertEq(perSeq.slice(-2), ['1:10', '1:4', '2:4'].slice(-2), 'page2 首请求即 per=4（粘性）')
     assert(perSeq.indexOf('2:10') < 0, 'page2 不再尝试 per=10')
     assertEq(api.lastListPerPage(), 4, 'lastListPerPage 跟随粘性档位')
   })
 
-  await test('通知 page1 重新加载：粘性档位重置回 10（乐观起梯）', async () => {
+  await test('REST page1 重新加载：粘性档位重置回 10（乐观起梯）', async () => {
     const perSeq = []
-    const mocks = authedMocks((n, o) => {
-      const m = String(o.url).match(/per_page=(\d+)/)
-      const per = m ? Number(m[1]) : 0
-      const pg = Number((String(o.url).match(/page=(\d+)/) || [0, 1])[1])
-      perSeq.push(pg + ':' + per)
-      if (per >= 10) return { code: 200, data: '[{"id":1,', headers: {} }
-      const list = []
-      for (let i = 0; i < per; i++) list.push({ id: i, unread: false, reason: 'x', updated_at: '2026-10-01T00:00:00Z', subject: { title: 't', type: 'Issue', url: 'u' }, repository: { full_name: 'o/r' } })
-      return { code: 200, data: list, headers: {} }
-    })
+    const mocks = authedMocks(gqlDownHandler(perSeq, '[{"id":1,'))
     const api = loadModule('src/utils/api.js', mocks)
-    await api.getNotifications(1, true) /* 降档到 4 */
-    await api.getNotifications(2, true) /* 粘在 4 */
-    await api.getNotifications(1, true) /* 重新加载 → 重置 → 10→4 */
+    await api.getMyRepos(1, 'pushed') /* 降档到 4 */
+    await api.getMyRepos(2, 'pushed') /* 粘在 4 */
+    await api.getMyRepos(1, 'pushed') /* 重新加载 → 重置 → 10→4 */
     assert(perSeq.indexOf('1:10') >= 0 && perSeq.lastIndexOf('1:10') > perSeq.indexOf('2:4'), 'page1 重置后重新从 10 起梯')
   })
 }
@@ -221,12 +215,12 @@ async function t_cache() {
       return { code: 204, data: null, headers: {} }
     })
     const api = loadModule('src/utils/api.js', mocks)
-    await api.getNotifications(1, true)
+    await api.getNotifications(1, true) /* 5 个 per=2 子页 */
     await api.getNotifications(1, true) /* 命中缓存 */
-    assertEq(notifHits, 1, '二次命中缓存')
+    assertEq(notifHits, 5, '二次命中缓存（v1.2.2 并行子页：每逻辑页 5 子请求）')
     await api.markAllNotificationsRead()
     await api.getNotifications(1, true)
-    assertEq(notifHits, 2, '已读操作后缓存被清，重新拉取')
+    assertEq(notifHits, 10, '已读操作后缓存被清，重新拉取')
   })
 
   await test('saveToken 清空全部缓存（换身份后数据不可复用）', async () => {

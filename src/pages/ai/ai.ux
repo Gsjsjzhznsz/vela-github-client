@@ -24,12 +24,6 @@
           <text class="quick-note dim">模型回复由 GitHub AI 提供，回答仅供参考</text>
         </div>
 
-        <!-- v1.5.0：Copilot 授权引导（PAT 不能直连 Copilot，一次点击免打字完成） -->
-        <div class="cp-cta" show="{{needCp}}" onclick="goCopilotAuth">
-          <text class="cp-t">检测到 Copilot Free · 点此一键授权开启 AI</text>
-          <text class="cp-d">免打字设备授权 · 不影响已登录账号 · VS Code 同款免费模型</text>
-        </div>
-
         <!-- 会话气泡 -->
         <div class="li" for="{{m in msgs}}" tid="m.id">
           <div class="row-u" show="{{m.role === 'user'}}">
@@ -56,6 +50,18 @@
 
     <div class="state" show="{{state === 'needauth'}}">
       <text class="state-t">AI 功能需登录 Token（首页 → 设置）</text>
+      <text class="state-btn" onclick="goBack">返回</text>
+    </div>
+
+    <!-- v1.7.1：授权门——Copilot 未授权必须先授权才能进入对话界面 -->
+    <div class="state" show="{{needCp}}">
+      <text class="gate-logo">AI</text>
+      <text class="gate-t">开启 Copilot AI</text>
+      <text class="gate-d">一次点击设备授权 · 免打字 · 不影响已登录账号</text>
+      <text class="gate-d2">VS Code 同款免费模型（默认 GPT-4o mini）</text>
+      <div class="gate-btn" onclick="goCopilotAuth"><text class="gate-btn-t">一键授权</text></div>
+      <text class="gate-tip">手表显示设备码 → 手机/电脑浏览器打开</text>
+      <text class="gate-tip2">github.com/login/device 输入即可</text>
       <text class="state-btn" onclick="goBack">返回</text>
     </div>
   </div>
@@ -87,10 +93,15 @@
   .q-t { font-size: 16px; color: #d2a8ff; }
   .quick-note { font-size: 13px; color: #58a6ff; margin-top: 10px; text-align: center; padding: 0 18px; }
   .quick-note.dim { color: #484f58; margin-top: 5px; }
-  /* v1.5.0：Copilot 授权引导卡 */
-  .cp-cta { flex-direction: column; align-items: center; background-color: #1f1325; border: 1px solid #8957e5; border-radius: 14px; padding: 13px 10px; margin: 10px 12px; }
-  .cp-t { font-size: 17px; color: #d2a8ff; font-weight: bold; text-align: center; }
-  .cp-d { font-size: 13px; color: #8b949e; margin-top: 5px; text-align: center; padding: 0 8px; }
+  /* v1.7.1：授权门（未授权必须先授权，全屏拦截） */
+  .gate-logo { width: 64px; height: 64px; border-radius: 16px; background-color: #1f1325; border: 1px solid #8957e5; color: #d2a8ff; font-size: 26px; font-weight: bold; text-align: center; line-height: 64px; }
+  .gate-t { font-size: 22px; color: #e6edf3; font-weight: bold; margin-top: 12px; }
+  .gate-d { font-size: 15px; color: #8b949e; margin-top: 10px; text-align: center; line-height: 21px; padding: 0 26px; }
+  .gate-d2 { font-size: 15px; color: #8b949e; margin-top: 3px; text-align: center; line-height: 21px; padding: 0 26px; }
+  .gate-btn { width: 250px; height: 76px; border-radius: 38px; background-color: #8957e5; align-items: center; justify-content: center; margin-top: 14px; }
+  .gate-btn-t { font-size: 20px; color: #ffffff; font-weight: bold; }
+  .gate-tip { font-size: 13px; color: #484f58; margin-top: 12px; text-align: center; line-height: 19px; padding: 0 20px; }
+  .gate-tip2 { font-size: 13px; color: #484f58; margin-top: 1px; text-align: center; line-height: 19px; padding: 0 20px; }
   .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 92px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 16px; }
   .in-ic { width: 26px; height: 26px; }
   .in-ph { font-size: 17px; color: #484f58; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
@@ -279,7 +290,11 @@
     },
     openInput() {
       if (this.busy) return
-      router.push({ uri: 'pages/input', params: { type: 'ai' } })
+      /* v1.7.1 根修：本固件 router 不透传 params（BandQQ/全项目 hook 模式实证，
+       * 此处曾是全项目唯一 params 直传调用点）→ type 丢失落 search → 确认回传
+       * type 不匹配被 AI 页丢弃 = 「手动输入点确认没有任何反应」。统一 hook。 */
+      this.$app.$def.hook = { type: 'ai' }
+      router.push({ uri: 'pages/input' })
     },
     buildMessages(userText) {
       const msgs = [{ role: 'system', content: SYSTEM_PROMPT }]
@@ -317,8 +332,8 @@
         const st = (e && e.status) || 0
         let tip = ''
         if (e && e.needCopilot) {
-          this.needCp = true
-          tip = '\n→ 点顶部紫色卡片「一键授权」即可开启'
+          this.needCp = true /* v1.7.1：授权门全屏弹出 */
+          tip = '\n→ 完成授权后重发即可'
         } else if (st === 429) tip = ' · 会话额度用尽，下月刷新或切模型'
         else tip = ' · 可点顶部模型行切换重试'
         this.pushMsg('ai', em + tip)

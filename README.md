@@ -1,8 +1,49 @@
-# GitHub for Vela ⌚
+<div align="center">
 
-运行在 **小米 Vela OS** 手表上的 GitHub 客户端，优先适配 **Redmi Watch 5**（432×514 方屏），兼容圆屏机型。数据经 **小米运动健康** 蓝牙代理或 **eSIM** 独立联网直连 GitHub REST API；**联网能力被阉割的机型可开启「手机网桥」（AstroBox FetchBridge 插件），经手机蓝牙代发 HTTP 完整恢复联网**。
+# ⌚ GitHub for Vela
 
-> 基于 Vela 官方 JS 应用框架（aiot-toolkit）开发，遵循官方组件 / API 白名单与性能规范。
+**小米 Vela OS 手表上的 GitHub 客户端 · 通知 / 仓库 / 代码 / Copilot AI 一应俱全**
+
+[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
+[![Platform](https://img.shields.io/badge/platform-Vela%20OS-green)]()
+[![Device](https://img.shields.io/badge/device-Redmi%20Watch%205-orange)]()
+[![AI](https://img.shields.io/badge/AI-GitHub%20Copilot-8956e5)]()
+[![License](https://img.shields.io/badge/license-AGPL--3.0-red)](LICENSE)
+[![Release](https://img.shields.io/badge/download-GitHub%20Releases-9cf)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Gsjsjzhznsz/vela-github-client/build-release.yml?label=CI&logo=githubactions&logoColor=white)](https://github.com/Gsjsjzhznsz/vela-github-client/actions/workflows/build-release.yml)
+[![Size](https://img.shields.io/badge/rpk-456KB-success)]()
+
+![GitHub for Vela 宣传图](docs/promo/banner-3x2.jpg)
+
+**手表上直接刷 GitHub：看通知、翻仓库、读源码、问 Copilot。**
+运行在小米 Vela OS 手表上，优先适配 Redmi Watch 5（432×514 方屏），兼容圆屏机型。
+数据经小米运动健康蓝牙代理或 eSIM 独立联网直连 GitHub REST API；**联网能力被阉割的机型可开启「手机网桥」（AstroBox FetchBridge 插件），经手机蓝牙代发 HTTP 完整恢复联网**。
+基于 Vela 官方 JS 应用框架（aiot-toolkit）开发，遵循官方组件 / API 白名单与性能规范。
+
+</div>
+
+## 🖼 界面预览（官方 Vela 虚拟机实拍 · 432×514）
+
+以下截图均由小米官方 Vela 虚拟机（QEMU + vela-miwear-watch-5.0 镜像）运行 rpk 实拍，
+登录态数据为真实 GitHub 账号返回，非网页模拟：
+
+| 首页（登录态 · API 配额） | 通知中心（CI 聚合卡） |
+|:---:|:---:|
+| ![首页](docs/screenshots-vvm/01-首页-登录态-5000配额.png) | ![通知中心](docs/screenshots-vvm/02-通知中心-CI聚合卡-真实数据.png) |
+
+| 我的仓库（真实列表） | 搜索（实时结果） |
+|:---:|:---:|
+| ![我的仓库](docs/screenshots-vvm/03-我的仓库-真实列表.png) | ![搜索](docs/screenshots-vvm/04-搜索-真实结果.png) |
+
+| 趋势（新星榜） | Copilot 专区（授权门） |
+|:---:|:---:|
+| ![趋势](docs/screenshots-vvm/05-趋势-新星榜.png) | ![Copilot 专区](docs/screenshots-vvm/06-Copilot专区-授权门.png) |
+
+| 设置（双通道登录） | 关于页 |
+|:---:|:---:|
+| ![设置](docs/screenshots-vvm/07-设置-双通道登录.png) | ![关于页](docs/screenshots-vvm/08-关于页.png) |
+
+> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 的 Redmi Watch 5 模板透视合成。
 
 ## ✨ 功能
 

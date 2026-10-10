@@ -4,14 +4,14 @@
 
 **小米 Vela OS 手表上的 GitHub 客户端 · 通知 / 仓库 / 代码 / Copilot AI 一应俱全**
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
 [![Platform](https://img.shields.io/badge/platform-Vela%20OS-green)]()
 [![Device](https://img.shields.io/badge/device-Redmi%20Watch%205-orange)]()
 [![AI](https://img.shields.io/badge/AI-GitHub%20Copilot-8956e5)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0-red)](LICENSE)
 [![Release](https://img.shields.io/badge/download-GitHub%20Releases-9cf)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/Gsjsjzhznsz/vela-github-client/build-release.yml?label=CI&logo=githubactions&logoColor=white)](https://github.com/Gsjsjzhznsz/vela-github-client/actions/workflows/build-release.yml)
-[![Size](https://img.shields.io/badge/rpk-456KB-success)]()
+[![Size](https://img.shields.io/badge/rpk-461KB-success)]()
 
 ![GitHub for Vela 宣传图](docs/promo/banner-3x2.jpg)
 

@@ -12,7 +12,7 @@
       <div class="hero">
         <image class="icon" src="/common/icons/logo.png"></image>
         <text class="app-name">GitHub for Vela</text>
-        <text class="ver">v1.10.0 · Redmi Watch 5 · AGPL-3.0</text>
+        <text class="ver">v1.10.0-s · 小米 Watch S 系列 · AGPL-3.0</text>
       </div>
       <div class="card col">
         <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、PR、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字），支持 AstroBox 网桥为砍网机型恢复联网。</text>

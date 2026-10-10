@@ -2,14 +2,14 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "1.10.0",
+  "versionName": "1.10.0-s",
   "versionCode": 20,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
   ],
   "config": {
-    "designWidth": 432,
+    "designWidth": 466,
     "logLevel": "log"
   },
   "features": [

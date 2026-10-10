@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.10.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v1.10.0-s（小米 Watch S3/S4/S5 版 · 466×466 圆屏；详情见「关于」页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：手表直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>

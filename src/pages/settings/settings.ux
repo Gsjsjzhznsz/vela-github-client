@@ -47,6 +47,12 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
+        <div class="cell" onclick="goAbout">
+          <image class="cell-icon" src="/common/icons/book.png" />
+          <text class="cell-label">关于 GitHub for Vela</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
         <!-- 说明 -->
         <div class="card">
           <div class="card-col">
@@ -60,7 +66,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.7.1（设置页版本号与发布同步）</text>
+          <text class="c-body">GitHub for Vela v1.8.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -100,7 +106,7 @@
 <script>
   import router from '@system.router'
   import prompt from '@system.prompt'
-  import api from '../../utils/api'
+  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
   import { maskToken } from '../../utils/fmt'
 
   export default {
@@ -162,6 +168,10 @@
       // 预填已存 Token：重进时无需重新逐字键入 40 位（input 页首个键入会整体替换，不会拼接）
       this.$app.$def.hook = { type: 'token', initial: api.currentToken() || '' }
       router.push({ uri: 'pages/input' })
+    },
+    /* v1.8.0：独立关于页（照搬 BandQQ pages/about，仅改项目相关信息） */
+    goAbout() {
+      router.push({ uri: 'pages/about' })
     },
     /* v1.1.3：一键重验已存 Token —— 二次输入手误 401 的根治路径：根本不用再输入 */
     async revalidate() {

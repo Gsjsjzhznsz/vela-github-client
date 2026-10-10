@@ -1,0 +1,105 @@
+<template>
+  <div class="page">
+    <div class="top-row">
+      <div class="btn-wrap" onclick="goBack"><image class="btn" src="/common/icons/back.png"></image></div>
+    </div>
+    <div class="title-bar">
+      <text class="page-title">关于</text>
+    </div>
+    <!-- BandQQ v2.9.6 同构：与 settings/index 同构，scroll absolute 铺满不依赖引擎 flex -->
+    <div class="body-wrap">
+    <scroll class="body" scroll-y="true">
+      <div class="hero">
+        <image class="icon" src="/common/icons/logo.png"></image>
+        <text class="app-name">GitHub for Vela</text>
+        <text class="ver">v1.8.0 · Redmi Watch 5 · AGPL-3.0</text>
+      </div>
+      <div class="card col">
+        <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字）。</text>
+      </div>
+      <div class="card col" @click="copyIssues">
+        <text class="k">联系方式（点击复制链接）</text>
+        <text class="v">github.com/Gsjsjzhznsz/vela-github-client/issues</text>
+      </div>
+      <div class="card col" @click="copyRepo">
+        <text class="k">GitHub（点击复制链接）</text>
+        <text class="v">github.com/Gsjsjzhznsz/vela-github-client</text>
+      </div>
+      <div class="card col">
+        <text class="k">参考致谢</text>
+        <text class="v2">BandQQ · Vela_input_method · 弦电子书</text>
+      </div>
+    </scroll>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
+  .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
+  .btn { width: 102px; height: 72px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .btn-wrap { width: 110px; height: 78px; align-items: center; justify-content: center; }
+  .title-bar { height: 40px; align-items: center; justify-content: center; }
+  .page-title { font-size: 24px; color: #ffffff; }
+  /* BandQQ v2.9.6：wrap flex:1 + scroll absolute 铺满（index/settings 同构方案） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .hero { flex-direction: column; align-items: center; margin: 10px 8px 4px 8px; }
+  .icon { width: 64px; height: 64px; border-radius: 16px; }
+  .app-name { font-size: 22px; color: #ffffff; margin-top: 6px; font-weight: bold; }
+  .ver { font-size: 13px; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
+  .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; margin: 4px 8px; padding: 10px 12px; flex-direction: column; }
+  .col { flex-direction: column; }
+  .line { font-size: 14px; color: #dddddd; line-height: 20px; }
+  .k { font-size: 12px; color: rgba(255, 255, 255, 0.45); }
+  .v { font-size: 17px; color: #5b9bff; margin-top: 2px; }
+  .v2 { font-size: 15px; color: #5b9bff; margin-top: 2px; line-height: 21px; }
+</style>
+
+<script>
+  /* 关于页 —— 照搬 BandQQ pages/about（v2.28.2）结构与样式，仅替换本项目
+   * 相关信息（名称/版本/简介/仓库链接/致谢）：
+   *  - 布局同构：78px 顶部安全区 + 标题条 + wrap/absolute 铺满 scroll（RW5 黑屏根修）
+   *  - 卡片语言：hero（图标+应用名+版本）→ 简介 → 作者 → 联系方式 → GitHub → 致谢
+   *  - 快应用无法打开系统浏览器：仓库/Issues 链接点击复制到剪贴板（BandQQ 同款方案）
+   *  - BandQQ 的演示模式彩蛋（连点 7 次）不适用本项目，已移除
+   * 注：卡片 @click 与固件 div onclick 同义（BandQQ 原样保留，全项目混用已实证均可） */
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import clipboard from '@system.clipboard'
+
+  const REPO_URL = 'https://github.com/Gsjsjzhznsz/vela-github-client'
+  const ISSUES_URL = 'https://github.com/Gsjsjzhznsz/vela-github-client/issues'
+
+  export default {
+    private: {},
+    goBack() {
+      router.back()
+    },
+    /** GitHub 行点击复制仓库链接（快应用无法打开系统浏览器，复制后到手机粘贴访问） */
+    copyRepo() {
+      try {
+        clipboard.set({
+          text: REPO_URL,
+          success: () => prompt.showToast({ message: '仓库链接已复制' }),
+          fail: () => prompt.showToast({ message: '复制失败：github.com/Gsjsjzhznsz/vela-github-client' })
+        })
+      } catch (e) {
+        prompt.showToast({ message: 'github.com/Gsjsjzhznsz/vela-github-client' })
+      }
+    },
+    /** Issues 行点击复制反馈链接 */
+    copyIssues() {
+      try {
+        clipboard.set({
+          text: ISSUES_URL,
+          success: () => prompt.showToast({ message: '反馈链接已复制' }),
+          fail: () => prompt.showToast({ message: '复制失败：见 README 反馈指引' })
+        })
+      } catch (e) {
+        prompt.showToast({ message: 'github.com/Gsjsjzhznsz/…/issues' })
+      }
+    }
+  }
+</script>

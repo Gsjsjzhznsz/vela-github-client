@@ -30,12 +30,18 @@
             <text class="bub-u">{{m.text}}</text>
           </div>
           <div class="row-a" show="{{m.role !== 'user'}}">
-            <text class="bub-a">{{m.text}}</text>
-            <text class="meta" show="{{m.meta}}">{{m.meta}}</text>
+            <div class="bub-col">
+              <!-- v1.8.0：思考过程折叠块（推理模型才有内容，非推理模型不显示） -->
+              <text class="think-h" show="{{m.think}}" onclick="toggleThink(m)">{{m.thinkOpen ? '▾ 收起思考过程' : '▸ 思考过程（点此展开）'}}</text>
+              <text class="think-b" show="{{m.thinkOpen && m.think}}">{{m.think}}</text>
+              <text class="bub-a">{{m.text}}</text>
+              <text class="meta" show="{{m.meta}}">{{m.meta}}</text>
+            </div>
           </div>
         </div>
         <div class="li" show="{{busy}}">
-          <div class="row-a"><text class="bub-a dim">思考中…</text></div>
+          <!-- v1.8.0：实时思考状态（计时 + 模型 + 慢网提示，替换静态思考中） -->
+          <div class="row-a"><text class="bub-a dim">{{thinkText || '思考中…'}}</text></div>
         </div>
         <div class="pad-end"></div>
       </scroll>
@@ -83,7 +89,11 @@
   .row-u { flex-direction: row; justify-content: flex-end; }
   .row-a { flex-direction: row; justify-content: flex-start; }
   .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 17px; color: #ffffff; width: 330px; line-height: 24px; }
+  .bub-col { flex-direction: column; width: 330px; }
   .bub-a { background-color: #161b22; border-radius: 3px 12px 12px 12px; padding: 9px 11px; font-size: 17px; color: #e6edf3; width: 330px; line-height: 24px; }
+  /* v1.8.0：思考过程折叠块 */
+  .think-h { font-size: 13px; color: #58a6ff; margin-bottom: 4px; padding: 2px 0; }
+  .think-b { background-color: #1c2128; border-radius: 10px; padding: 9px 11px; font-size: 14px; color: #8b949e; line-height: 20px; margin-bottom: 5px; }
   .dim { color: #8b949e; }
   .meta { font-size: 12px; color: #484f58; margin-top: 3px; }
   .quick { flex-direction: column; align-items: center; padding: 14px 12px; width: 100%; }
@@ -114,7 +124,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import storage from '@system.storage'
-  import api from '../../utils/api'
+  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
 
   /* v1.5.0 Copilot 专区（单通道重构）：
    *  Copilot Chat 唯一通道（Models 2026-07-30 已退役）；PAT 用户点卡片一键
@@ -146,7 +156,8 @@
       modelShort: '',
       ctxHint: '提示：在代码页/仓库页点「问 AI」可附加上下文',
       state: 'ok',
-      needCp: false /* v1.5.0：PAT 且未 Copilot 授权 → 显示授权引导卡 */
+      needCp: false, /* v1.5.0：PAT 且未 Copilot 授权 → 显示授权引导卡 */
+      thinkText: '' /* v1.8.0：实时思考状态文本 */
     },
     onInit() {
       this._model = api.aiModels()[0]
@@ -209,7 +220,10 @@
     },
     saveHist() {
       try {
-        const keep = this.msgs.slice(-HIST_CAP)
+        /* v1.8.0：思考过程入档瘦身（600 字截断，去开关位）——控制 storage 体积 */
+        const keep = this.msgs.slice(-HIST_CAP).map(function (m) {
+          return { id: m.id, role: m.role, text: m.text, meta: m.meta, think: (m.think || '').slice(0, 600) }
+        })
         storage.set({ key: HIST_KEY, value: JSON.stringify(keep) })
       } catch (e) {}
     },
@@ -221,12 +235,45 @@
       try { storage.delete({ key: HIST_KEY }) } catch (e) {}
       prompt.showToast({ message: '会话已清空', duration: 1200 })
     },
-    pushMsg(role, text, meta) {
-      const m = { id: 'm' + Date.now() + '_' + Math.floor(Math.random() * 1000), role: role, text: text, meta: meta || '' }
+    pushMsg(role, text, meta, think) {
+      const m = {
+        id: 'm' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        role: role, text: text, meta: meta || '',
+        /* v1.8.0：思考过程（推理模型才有，非推理模型空串不渲染） */
+        think: think ? String(think).slice(0, 800) : '',
+        thinkOpen: false
+      }
       this.msgs.push(m)
       if (this.msgs.length > HIST_CAP) this.msgs = this.msgs.slice(-HIST_CAP)
       this.scrollBottom()
       return m
+    },
+    /* v1.8.0：实时思考状态（秒级计时 + 点动画 + 慢网提示） */
+    startThink() {
+      const self = this
+      this._thinkT0 = Date.now()
+      this._thinkN = 0
+      this.tickThink()
+      this._thinkTimer = setInterval(function () { self.tickThink() }, 1000)
+    },
+    tickThink() {
+      const sec = Math.floor((Date.now() - this._thinkT0) / 1000)
+      const dots = ['', ' ·', ' ··', ' ···']
+      const d = dots[this._thinkN % 4]
+      this._thinkN++
+      let s = '思考中' + d + ' · ' + sec + 's · ' + (this.modelShort || this._model)
+      if (sec >= 15) s += '\n蓝牙网络较慢，请稍候…'
+      this.thinkText = s
+    },
+    stopThink() {
+      if (this._thinkTimer) { clearInterval(this._thinkTimer); this._thinkTimer = null }
+      this.thinkText = ''
+    },
+    /* v1.8.0：思考过程折叠切换 */
+    toggleThink(m) {
+      if (!m || !m.think) return
+      m.thinkOpen = !m.thinkOpen
+      this.msgs = this.msgs.slice()
     },
     scrollBottom() {
       this._tick++
@@ -315,18 +362,24 @@
       if (!api.hasToken()) { this.state = 'needauth'; return }
       this.pushMsg('user', t)
       this.busy = true
+      this.startThink()
       try {
         const r = await api.aiChat(this.buildMessages(t), { model: this._model })
+        this.stopThink()
         const um = r.model || this._model
+        const dur = r.ms ? (Math.round(r.ms / 100) / 10) + 's' : ''
         const meta = 'Copilot · ' + um +
+          (r.ep === 'responses' ? ' · /responses' : '') +
+          (dur ? ' · ' + dur : '') +
           (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '')
-        const m = this.pushMsg('ai', '', meta)
+        const m = this.pushMsg('ai', '', meta, r.thinking || '')
         if (r.model && r.model !== this._model) {
           this._model = r.model
           this.syncModelLabel()
         }
         this.typewrite(m, String(r.text), 0)
       } catch (e) {
+        this.stopThink()
         this.busy = false
         const em = (e && e.message) || 'AI 请求失败'
         const st = (e && e.status) || 0
@@ -365,6 +418,7 @@
       router.back()
     },
     onDestroy() {
+      this.stopThink()
       this.msgs = []
       this._ctx = null
     }

@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "1.7.1",
-  "versionCode": 17,
+  "versionName": "1.8.0",
+  "versionCode": 18,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -15,6 +15,9 @@
   "features": [
     {
       "name": "system.fetch"
+    },
+    {
+      "name": "system.clipboard"
     },
     {
       "name": "system.storage"
@@ -111,6 +114,10 @@
       "pages/device": {
         "component": "device",
         "path": "/device"
+      },
+      "pages/about": {
+        "component": "about",
+        "path": "/about"
       }
     }
   }

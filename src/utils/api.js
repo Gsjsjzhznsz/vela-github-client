@@ -1545,6 +1545,15 @@ export function markThreadRead(threadUrl) {
   })
 }
 
+/** v1.8.0 仓库维度全部已读（开发者分仓清理）：PUT /repos/{o}/{r}/notifications。
+ *  长按通知列表仓库分组头触发——一个仓库的 CI/机器人通知一次清零，不再逐条长按。 */
+export function markRepoNotificationsRead(fullName) {
+  return request('/repos/' + fullName + '/notifications', { method: 'PUT', body: {} }).then((r) => {
+    clearCache('/notifications')
+    return r
+  })
+}
+
 /** 通知主题详情（Issue/PR/Release 的 API 地址） */
 export function getSubject(url) {
   return request(url)
@@ -2446,13 +2455,17 @@ async function aiPost(url, header, bodyObj, tag) {
   throw { status: code, message: tg + (em || raw || ('AI 服务 HTTP ' + code)) }
 }
 
-/** /responses 响应文本抽取（output_text 直取 → output[] content[].text 拼接） */
+/** /responses 响应文本抽取（output_text 直取 → output[] content[].text 拼接）。
+ *  v1.8.0：type=reasoning 节点不算正文（其 summary/content 归 thinking 展示），
+ *  避免部分实现把推理文本同时塞进 content 时正文重复。 */
 function respText(d) {
   if (d && typeof d.output_text === 'string' && d.output_text.length) return d.output_text
   if (d && Array.isArray(d.output)) {
     let s = ''
     for (let i = 0; i < d.output.length; i++) {
-      const c = d.output[i] && d.output[i].content
+      const o = d.output[i]
+      if (!o || o.type === 'reasoning') continue
+      const c = o.content
       if (Array.isArray(c)) {
         for (let j = 0; j < c.length; j++) {
           if (c[j] && typeof c[j].text === 'string') s += c[j].text
@@ -2468,6 +2481,7 @@ function respText(d) {
  *  模型级失败（400/403/404：模型下线/无权限）自动降级下一模型，最多 3 个；
  *  429（额度）/needCopilot（未授权）等通道级失败直接透出（换模型无解）。 */
 export async function aiChat(messages, opts) {
+  const t0 = Date.now()
   await loadToken()
   if (!_token) throw { status: 0, needAuth: true, message: 'AI 功能需登录 Token' }
   const o = opts || {}
@@ -2524,12 +2538,41 @@ export async function aiChat(messages, opts) {
       } else if (d) {
         text = respText(d)
       }
+      /* v1.8.0 思考过程抽取（AI 页可折叠展示）：
+       * - /responses：output[] 中 type=reasoning 的 summary[]/content[].text；
+       * - /chat/completions：message.reasoning_content（DeepSeek 系）/
+       *   message.reasoning（OpenRouter 系）。非推理模型两路皆空 → 不展示。 */
+      let think = ''
+      if (usedEp === 'responses') {
+        if (d && Array.isArray(d.output)) {
+          for (let i = 0; i < d.output.length; i++) {
+            const ob = d.output[i] || {}
+            if (ob.type !== 'reasoning') continue
+            const secs = [ob.summary, ob.content]
+            for (let s = 0; s < 2; s++) {
+              if (!Array.isArray(secs[s])) continue
+              for (let j = 0; j < secs[s].length; j++) {
+                const x = secs[s][j]
+                if (x && typeof x.text === 'string' && x.text.length) think += (think ? '\n' : '') + x.text
+              }
+            }
+          }
+        }
+      } else if (d && d.choices && d.choices[0] && d.choices[0].message) {
+        const cm = d.choices[0].message
+        if (typeof cm.reasoning_content === 'string' && cm.reasoning_content.length) think = cm.reasoning_content
+        else if (typeof cm.reasoning === 'string' && cm.reasoning.length) think = cm.reasoning
+      }
       if (!text.length) {
         /* /responses 回退后仍无可取文本：回抛 chat 原始错误（信息量更大且保降级）；
          * respOnly 直达则抛通用缺内容 */
         throw firstErr || { message: 'AI 响应缺内容，请重试', modelErr: true }
       }
-      return { text: text, via: 'copilot', usage: d.usage || null, model: useModel, ep: usedEp }
+      return {
+        text: text, via: 'copilot', usage: d.usage || null, model: useModel, ep: usedEp,
+        thinking: think.length > 1500 ? (think.slice(0, 1500) + '\n…（思考过程已截断）') : think,
+        ms: Date.now() - t0
+      }
     } catch (e) {
       /* v1.6.0：降级耗尽后保留信息量最大的错误（带原文的 400/403 优先于
        * 「缺内容」类通用噪声），用户看到的是真因 */
@@ -2684,7 +2727,7 @@ export async function markThreadsRead(threadUrls) {
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
-  getRateLimit, getNotifications, notifPageSize, lastNotifGaps, markAllNotificationsRead, markThreadRead, getSubject,
+  getRateLimit, getNotifications, notifPageSize, lastNotifGaps, markAllNotificationsRead, markThreadRead, markRepoNotificationsRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
   getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree, getTreeEx,
   getIssues, getIssue, getComments, addComment, getReleases,

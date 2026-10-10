@@ -15,6 +15,14 @@
    * 仅做轻量初始化，网络与页面逻辑全部在各页面内完成，
    * 避免应用启动期做任何网络请求（官方启动性能规范）。
    */
+  /* v1.8.0 体积优化：api.js 只在此引入一次（打包进 app.js 分发），
+   * 挂到全局后由 src/utils/gh.js 桥接给各页面（api.js 此前被 17 个
+   * 页面 bundle 逐页内联，≈2.6MB 重复源码）。 */
+  import api from './utils/api'
+
+  if (typeof globalThis !== 'undefined') globalThis.__GH_API_IMPL__ = api
+  else if (typeof window !== 'undefined') window.__GH_API_IMPL__ = api
+
   export default {
     /* 跨页传参中转（Vela onInit 不传参，见 utils/view.js query 注释）：
        跳转前由来源页写入，目标页 query(params, this) 读取 */
@@ -22,6 +30,9 @@
     /* 独立输入页回传草稿（input → 来源页 onShow 消费） */
     inputResult: null,
     onCreate() {
+      /* 双保险：个别固件模块求值顺序异常时，onCreate 阶段再补挂一次 */
+      const g = typeof globalThis !== 'undefined' ? globalThis : window
+      if (g) g.__GH_API_IMPL__ = api
       console.log('[GH] app created')
     },
     onError(err) {

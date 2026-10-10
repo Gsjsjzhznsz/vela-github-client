@@ -51,9 +51,37 @@ export function mapNotif(n) {
     url: (n.subject && n.subject.url) || '',
     threadUrl: n.url || '',
     ci: isCi,
+    /* v1.8.0：原始 subject 类型（Issue/PullRequest/Release/Commit/CheckSuite…）
+     * 供类型筛选芯片用（CI 卡聚合后 stype 仍保留首条类型） */
+    stype: subjType,
     avn: av.ch,
     avc: av.color
   }
+}
+
+/** v1.8.0：仓库维度分组（开发者分仓清理）。保序首见插入（Map 语义，不要求
+ *  同仓库相邻）；组内条目为 CI 聚合后的卡片引用（后续已读变更可直接改原对象）。
+ *  返回 [{repo, key, open, count, unreadN, ciN, items}]：
+ *  count/unreadN/ciN 均按底层通知条数计（聚合卡 aggN 展开）。 */
+export function groupNotifsByRepo(items) {
+  const out = []
+  const idx = {}
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    if (!it) continue
+    const repo = it.repo || '未知仓库'
+    if (idx[repo] === undefined) {
+      idx[repo] = out.length
+      out.push({ repo: repo, key: 'g' + out.length + '_' + repo, open: true, count: 0, unreadN: 0, ciN: 0, items: [] })
+    }
+    const g = out[idx[repo]]
+    g.items.push(it)
+    const w = it.aggN > 1 ? it.aggN : 1
+    g.count += w
+    if (it.unread) g.unreadN += (it.aggN > 1 ? (it.unreadN || 1) : 1)
+    if (it.ci) g.ciN += w
+  }
+  return out
 }
 
 /** v1.2.3：通知列表聚合——把**连续**同仓库的 CI 通知折叠成一张聚合卡。

@@ -7,33 +7,49 @@
       <div class="hd-act-wrap" onclick="markAllRead"><image class="hd-act" src="/common/icons/check.png" /></div>
     </div>
 
+    <!-- v1.8.0：类型芯片行（开发者分诊：全部/Issue/PR/CI/其他） -->
+    <div class="chips">
+      <text class="{{c.cls}}" for="{{chips}}" tid="c.k" onclick="setType(c)">{{c.label}}</text>
+    </div>
+
+    <!-- v1.8.0：概览行（N 仓库 · M 条 · CI K）+ CI 一键已读 -->
+    <div class="sum">
+      <text class="sum-t">{{sumText}}</text>
+      <text class="sum-btn" show="{{ciN > 0}}" onclick="markAllCiRead">CI 全部已读</text>
+    </div>
+
     <div class="pull" style="height: {{pullY}}px">
       <image class="pull-icon" src="/common/icons/refresh.png" />
       <text class="pull-text">{{pullText}}</text>
     </div>
 
-    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满，不依赖引擎 flex 高度计算 -->
+    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满 -->
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" onscroll="onListScroll"
               ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
-        <div class="li" for="{{it in items}}" tid="id">
-          <div class="cell" onclick="openNotif(it)" onlongpress="markOne(it)">
-            <div class="unread" show="{{it.unread}}"></div>
-            <image class="cell-icon" src="{{it.icon}}" />
+        <!-- v1.8.0：单层平铺列表 = 仓库分组头 + 条目卡交错（规避嵌套 for 固件坑）。
+             分组头：点击折叠/展开，长按 = 整仓已读 -->
+        <div class="li" for="{{f in flat}}" tid="f.key">
+          <div class="ghdr" show="{{f.hdr}}" onclick="toggleGroup(f)" onlongpress="markRepoRead(f)">
+            <text class="gh-arrow">{{f.open ? '－' : '＋'}}</text>
+            <text class="gh-repo">{{f.repo}}</text>
+            <text class="gh-n">{{f.unreadN > 0 ? f.unreadN + '/' : ''}}{{f.count}} 条{{f.ciN > 0 ? ' · CI ' + f.ciN : ''}}</text>
+          </div>
+          <div class="cell" show="{{!f.hdr}}" onclick="openNotif(f)" onlongpress="markOne(f)">
+            <div class="unread" show="{{f.unread}}"></div>
+            <image class="cell-icon" src="{{f.icon}}" />
             <div class="cell-main">
-              <text class="cell-repo">{{it.repo}}</text>
-              <!-- v1.2.3：CI 聚合卡（aggN>1）显示条数与操作提示；普通通知原样 -->
-              <text class="cell-title" show="{{!it.aggN || it.aggN <= 1}}">{{it.title}}</text>
-              <text class="cell-title" show="{{it.aggN > 1}}">{{it.aggN}} 条 CI 通知（未读 {{it.unreadN}}）</text>
-              <text class="cell-time">{{it.time}}{{it.ci ? ' · CI' : ''}}{{it.unread ? ' · 长按标已读' : ''}}</text>
+              <text class="cell-title" show="{{!f.aggN || f.aggN <= 1}}">{{f.title}}</text>
+              <text class="cell-title" show="{{f.aggN > 1}}">{{f.aggN}} 条 CI 通知（未读 {{f.unreadN}}）</text>
+              <text class="cell-time">{{f.time}}{{f.ci ? ' · CI' : ''}}{{f.unread ? ' · 长按标已读' : ''}}</text>
             </div>
           </div>
         </div>
-        <!-- v1.3.0：CI 噪音分流提示（仅参与视图下引导切档） -->
-        <text class="foot hint" show="{{state === 'ok' && filter === 'mine' && items.length === 0}}">参与项已全部已读 · 右上角切「全部」看 CI</text>
-        <text class="foot warn" show="{{state === 'ok' && gaps > 0}}" onclick="doRefresh">有 {{gaps}} 段未载入 · 点此重试</text>
+        <text class="foot hint" show="{{state === 'ok' && filter === 'mine' && flat.length === 0}}">参与项已全部已读 · 右上角切「全部」看 CI</text>
+        <text class="foot hint" show="{{state === 'ok' && flat.length === 0 && filter !== 'mine' && typeFilter}}">该类型暂无通知 · 点「全部」芯片恢复</text>
+        <text class="foot warn" show="{{warnText}}" onclick="doRefresh">{{warnText}}</text>
         <text class="foot" show="{{state === 'ok' && hasMore}}" onclick="loadMore">已载 {{totalN}} 条 · 点此加载更多</text>
-        <text class="foot" show="{{state === 'ok' && !hasMore && items.length > 0}}">— 已载全部 {{totalN}} 条 —</text>
+        <text class="foot" show="{{state === 'ok' && !hasMore && itemsN > 0}}">— 已载全部 {{totalN}} 条 —</text>
         <div class="pad-end"></div>
       </scroll>
     </div>
@@ -60,19 +76,30 @@
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .hd-filter { font-size: 16px; color: #58a6ff; margin-right: 12px; }
+  /* v1.8.0：类型芯片行 */
+  .chips { flex-direction: row; padding: 2px 12px 4px; }
+  .chip { font-size: 14px; color: #8b949e; border-radius: 14px; padding: 5px 13px; margin-right: 8px; background-color: #161b22; }
+  .chip-on { font-size: 14px; color: #ffffff; border-radius: 14px; padding: 5px 13px; margin-right: 8px; background-color: #1f6feb; }
+  /* v1.8.0：概览行 */
+  .sum { flex-direction: row; align-items: center; padding: 0 12px 5px; }
+  .sum-t { font-size: 13px; color: #484f58; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .sum-btn { font-size: 13px; color: #d29922; padding: 3px 9px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 17px; height: 17px; }
   .pull-text { font-size: 14px; color: #8b949e; margin-left: 7px; }
-  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; }
+  .li { padding: 3px 12px; }
+  /* v1.8.0：仓库分组头（点击折叠 / 长按整仓已读） */
+  .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 10px; padding: 9px 11px; }
+  .gh-arrow { font-size: 15px; color: #58a6ff; width: 26px; }
+  .gh-repo { font-size: 16px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .gh-n { font-size: 12px; color: #8b949e; margin-left: 7px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
   .unread { position: absolute; left: 2px; top: 2px; width: 7px; height: 7px; border-radius: 4px; background-color: #3fb950; }
   .cell-icon { width: 22px; height: 22px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-repo { font-size: 14px; color: #8b949e; lines: 1; text-overflow: ellipsis; }
   .cell-title { font-size: 20px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
   .cell-time { font-size: 13px; color: #484f58; margin-top: 2px; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
@@ -86,20 +113,43 @@
 <script>
   import router from '@system.router'
   import prompt from '@system.prompt'
-  import api from '../../utils/api'
-  import { mapNotif, aggregateNotifs } from '../../utils/view'
+  import storage from '@system.storage'
+  import api from '../../utils/gh'
+  import { mapNotif, aggregateNotifs, groupNotifsByRepo } from '../../utils/view'
+
+  /* v1.8.0 通知中心彻底重构（开发者分诊导向）：
+   *  ① 缓存秒开——最近一次列表（瘦字段 ≤150 条）按过滤档落 storage，
+   *     进页先渲染缓存再后台刷新：网络抖动/截断不再白屏报错，
+   *     「响应数据不完整」从硬错误降级为 footnote 警告。
+   *  ② 仓库分组——单层平铺（分组头+条目交错，规避嵌套 for 固件坑），
+   *     点头折叠/展开；开发者多仓库通知一眼分仓。
+   *  ③ 类型芯片——全部/Issue/PR/CI/其他 五档（与三态过滤正交叠加）。
+   *  ④ 分仓清理——长按分组头 = PUT /repos/{o}/{r}/notifications 整仓已读；
+   *     CI 一键已读 = 当前列表全部 CI 线程并发标已读。 */
+  const CACHE_KEY = 'notif_cache_v2_'
+  const CACHE_CAP = 150
+
+  const CHIPS = [
+    { k: '', label: '全部' },
+    { k: 'Issue', label: 'Issue' },
+    { k: 'PullRequest', label: 'PR' },
+    { k: 'ci', label: 'CI' },
+    { k: 'other', label: '其他' }
+  ]
 
   export default {
     private: {
-      items: [],
+      flat: [],
       all: false,
-      /* v1.3.0 三态过滤：unread（未读）| all（全部）| mine（仅参与——
-       * participating=true，99% CI 噪音被服务端直接过滤，列表从百页级缩到
-       * 1-2 页，「数据不完整」的体感根源） */
+      /* v1.3.0 三态过滤：unread（未读）| all（全部）| mine（仅参与） */
       filter: 'unread',
+      /* v1.8.0 类型筛选：'' | Issue | PullRequest | ci | other */
+      typeFilter: '',
+      chips: [],
       state: 'loading',   // loading | ok | empty | error
       errMsg: '',
       emptyText: '暂无通知',
+      warnText: '',
       page: 1,
       hasMore: true,
       loadingMore: false,
@@ -111,9 +161,36 @@
       unreadN: 0,
       gaps: 0,
       totalN: 0,
+      itemsN: 0,
+      ciN: 0,
+      sumText: '',
       filterLabel: '未读'
     },
-    onInit() {},
+    onInit() {
+      this._raw = []          /* 当前过滤档的聚合后全量卡（非响应式） */
+      this._lastLoad = 0      /* 上次网络成功时间（90s 去重） */
+      this._fromCache = false
+      this.chips = this.buildChips()
+    },
+    /* ---- v1.8.0 芯片（class 表达式固件不可靠 → 预计算 cls） ---- */
+    buildChips() {
+      const out = []
+      for (let i = 0; i < CHIPS.length; i++) {
+        const c = CHIPS[i]
+        out.push({
+          k: c.k,
+          label: c.label,
+          cls: c.k === this.typeFilter ? 'chip-on' : 'chip'
+        })
+      }
+      return out
+    },
+    setType(c) {
+      if (!c || this.typeFilter === c.k) return
+      this.typeFilter = c.k
+      this.chips = this.buildChips()
+      this.rebuild()
+    },
     /* v1.3.0：filter 标签同步（模板不可调函数，数据驱动） */
     syncFilterLabel() {
       this.filterLabel = this.filter === 'unread' ? '未读' : (this.filter === 'all' ? '全部' : '仅参与')
@@ -125,57 +202,168 @@
         this.emptyText = '通知需登录：请到首页 → 设置填入 Token'
         return
       }
-      if (this.items.length === 0) this.reload()
+      if (this._raw.length === 0) {
+        /* 缓存秒开：先渲染上次列表（无网络等待），再后台刷新 */
+        const cached = await this.loadCache()
+        if (cached.length) {
+          this._raw = cached
+          this._fromCache = true
+          this.applyData({ fromCache: true })
+          this.state = this.flat.length ? 'ok' : 'loading'
+        }
+        if (this.state !== 'ok') this.state = 'loading'
+        this.reload()
+      } else if (Date.now() - this._lastLoad > 90000) {
+        this.reload()
+      }
+    },
+    /* ---- 缓存读写（瘦字段，聚合卡 threads 截 40 条） ---- */
+    loadCache() {
+      return new Promise((resolve) => {
+        try {
+          storage.get({
+            key: CACHE_KEY + this.filter,
+            success: (d) => {
+              try {
+                const arr = d ? JSON.parse(d) : null
+                resolve(Array.isArray(arr) ? arr : [])
+              } catch (e) { resolve([]) }
+            },
+            fail: () => resolve([])
+          })
+        } catch (e) { resolve([]) }
+      })
+    },
+    saveCache() {
+      try {
+        const slim = []
+        for (let i = 0; i < this._raw.length && i < CACHE_CAP; i++) {
+          const it = this._raw[i]
+          slim.push({
+            id: it.id, icon: it.icon, repo: it.repo, title: it.title,
+            unread: it.unread, time: it.time, url: it.url, threadUrl: it.threadUrl,
+            ci: it.ci, stype: it.stype, avn: it.avn, avc: it.avc,
+            aggN: it.aggN || 0, unreadN: it.unreadN || 0,
+            threads: (it.threads || []).slice(0, 40)
+          })
+        }
+        storage.set({ key: CACHE_KEY + this.filter, value: JSON.stringify(slim) })
+      } catch (e) {}
+    },
+    /* ---- 类型过滤（作用于聚合后卡片） ---- */
+    typePass(it) {
+      const tf = this.typeFilter
+      if (!tf) return true
+      if (tf === 'ci') return !!it.ci
+      if (tf === 'Issue') return it.stype === 'Issue'
+      if (tf === 'PullRequest') return it.stype === 'PullRequest'
+      /* 其他：非 CI 的 Release/Commit/… 全收 */
+      return !it.ci && it.stype !== 'Issue' && it.stype !== 'PullRequest'
+    },
+    /* ---- 单层平铺重建（分组头 + 条目交错）---- */
+    rebuild() {
+      const items = []
+      for (let i = 0; i < this._raw.length; i++) {
+        if (this.typePass(this._raw[i])) items.push(this._raw[i])
+      }
+      this.applyGroups(groupNotifsByRepo(items))
+    },
+    toggleGroup(f) {
+      if (!f || !f.hdr) return
+      this.rebuildOpen(f.repo, !f.open)
+    },
+    /* toggleGroup 后按新 open 重建平铺（保持其余组状态） */
+    rebuildOpen(repo, open) {
+      const items = []
+      for (let i = 0; i < this._raw.length; i++) {
+        if (this.typePass(this._raw[i])) items.push(this._raw[i])
+      }
+      const groups = groupNotifsByRepo(items)
+      for (let i = 0; i < groups.length; i++) {
+        if (groups[i].repo === repo) groups[i].open = open
+      }
+      this.applyGroups(groups)
+    },
+    /* groups → 平铺 + 统计（rebuild 与 rebuildOpen 共用尾部） */
+    applyGroups(groups) {
+      const flat = []
+      let ciN = 0
+      let itemsN = 0
+      let unreadN = 0
+      for (let i = 0; i < groups.length; i++) {
+        const g = groups[i]
+        flat.push({
+          key: 'h' + i + '_' + g.repo, hdr: true, open: g.open,
+          repo: g.repo, count: g.count, unreadN: g.unreadN, ciN: g.ciN
+        })
+        if (g.open) {
+          for (let j = 0; j < g.items.length; j++) {
+            const it = g.items[j]
+            it.key = it.id
+            flat.push(it)
+          }
+        }
+        ciN += g.ciN
+        itemsN += g.count
+        unreadN += g.unreadN
+      }
+      this.flat = flat
+      this.itemsN = itemsN
+      this.ciN = ciN
+      this.unreadN = unreadN
+      this.totalN = itemsN
+      this.sumText = groups.length + ' 仓库 · ' + itemsN + ' 条' + (ciN > 0 ? ' · CI ' + ciN : '') + (this._fromCache ? ' · 缓存' : '')
+    },
+    /* 网络数据落地（reload/loadMore 成功后统一入口） */
+    applyData() {
+      this.rebuild()
+      this.state = this.flat.length ? 'ok' : 'empty'
+      this.emptyText = this.filter === 'mine'
+        ? '参与的对话已全部处理\n右上角切「全部」看 CI 通知'
+        : (this.all ? '没有通知' : '没有未读通知')
+      if (this.state === 'empty' && this.typeFilter) {
+        this.emptyText = '该类型暂无通知'
+      }
     },
     async reload() {
-      this.state = 'loading'
       this.syncFilterLabel()
       try {
         const list = await api.getNotifications(1, this.all, this.filter === 'mine')
         if (!Array.isArray(list)) {
           throw { message: '通知响应不完整，请重试' }
         }
-        // v1.2.4：截断族失败的段不再整页报错（api 层已对失败段重试一轮）——
-        // 透传 gap 数给警告行「有 N 段未载入」，成功段照常渲染；
-        // 全段失败（list 空且有 gap）才升级为错误态。
         const gaps = api.lastNotifGaps().length
-        if (list.length === 0 && gaps > 0) {
+        if (list.length === 0 && gaps > 0 && this._raw.length === 0) {
           throw { message: '通知响应不完整（双通道均失败），请重试' }
         }
-        // v1.2.3：CI 通知聚合折叠——同仓库连续 ci_activity 合成一张卡，
-        // 200 条 CI 噪音不再淹没真实通知（用户体感「数据不完整」的根源）
-        const mapped = aggregateNotifs(list.map(mapNotif))
-        this.items = mapped
+        if (list.length === 0 && gaps > 0) {
+          /* 有缓存数据兜底：不整页报错，只挂警告行 */
+          this.gaps = gaps
+          this.warnText = '有 ' + gaps + ' 段未载入 · 点此重试'
+          this._lastLoad = Date.now()
+          this.saveCache()
+          return
+        }
+        this._fromCache = false
+        this._raw = aggregateNotifs(list.map(mapNotif))
         this.page = 1
         this.gaps = gaps
-        this.totalN = list.length
-        // v1.2.2：通知改为并行子页策略，逻辑页大小固定 notifPageSize()（10）；
-        // v1.2.4：有 gap 时按每段 2 条估算潜在总量，避免误判「到底了」
+        this.warnText = gaps > 0 ? ('有 ' + gaps + ' 段未载入 · 点此重试') : ''
         this.hasMore = list.length + gaps * 2 >= api.notifPageSize()
-        this.state = this.items.length === 0 ? 'empty' : 'ok'
-        this.emptyText = this.filter === 'mine'
-          ? '参与的对话已全部处理\n右上角切「全部」看 CI 通知'
-          : (this.all ? '没有通知' : '没有未读通知')
-        this.countUnread()
+        this._lastLoad = Date.now()
+        this.applyData()
+        this.saveCache()
       } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
+        if (this._raw.length) {
+          /* v1.8.0：有缓存/旧数据兜底——网络失败不再白屏，
+             只挂警告行（「响应数据不完整」降级为非致命） */
+          this.warnText = ((e && e.message) || '加载失败') + ' · 展示的是上次数据'
+          this.state = 'ok'
+        } else {
+          this.state = 'error'
+          this.errMsg = (e && e.message) || '加载失败'
+        }
       }
-    },
-    /** v1.2.4：标题计数改用真实通知条数（聚合卡按底层条数计）——
-     *  旧版计卡片数，与 GitHub 网页未读徽标（底层条数）对不上，
-     *  是用户体感「数据不完整」的另一来源。 */
-    countUnread() {
-      let n = 0
-      let total = 0
-      for (let i = 0; i < this.items.length; i++) {
-        const it = this.items[i]
-        const w = it.aggN > 1 ? (it.aggN || 1) : 1
-        total += w
-        if (it.unread) n += it.aggN > 1 ? (it.unreadN || 0) : 1
-      }
-      this.unreadN = n
-      this.totalN = total
     },
     async loadMore() {
       if (!this.hasMore || this.loadingMore || this.state !== 'ok') return
@@ -187,9 +375,8 @@
         if (!Array.isArray(list) || (list.length === 0 && gaps > 0)) {
           throw { message: '通知响应不完整，请重试' }
         }
-        // v1.2.3：增量聚合——新页先自身聚合，再与尾部同仓库 CI 段合并防断卡
         const agg = aggregateNotifs(list.map(mapNotif))
-        const tail = this.items[this.items.length - 1]
+        const tail = this._raw[this._raw.length - 1]
         const head = agg[0]
         if (tail && head && tail.ci && head.ci && tail.repo === head.repo && tail.aggN) {
           tail.threads = tail.threads.concat(head.threads)
@@ -199,13 +386,13 @@
           tail.time = head.time
           agg.shift()
         }
-        for (let i = 0; i < agg.length; i++) this.items.push(agg[i])
+        for (let i = 0; i < agg.length; i++) this._raw.push(agg[i])
         this.page = next
         this.gaps = gaps
-        // v1.2.4：totalN 按底层条数累计（含 gap 段潜在量由 hasMore 表达）
-        this.totalN += list.length
         this.hasMore = list.length + gaps * 2 >= api.notifPageSize()
-        this.countUnread()
+        this._lastLoad = Date.now()
+        this.applyData()
+        this.saveCache()
       } catch (e) {
         prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
       }
@@ -216,25 +403,76 @@
       if (this.filter === 'unread') { this.filter = 'all'; this.all = true }
       else if (this.filter === 'all') { this.filter = 'mine'; this.all = true }
       else { this.filter = 'unread'; this.all = false }
+      this._raw = []
+      this._fromCache = false
+      this.state = 'loading'
+      this.syncFilterLabel()
       this.reload()
     },
     async markAllRead() {
       try {
         await api.markAllNotificationsRead()
-        for (let i = 0; i < this.items.length; i++) this.items[i].unread = false
-        this.countUnread()
+        for (let i = 0; i < this._raw.length; i++) {
+          this._raw[i].unread = false
+          if (this._raw[i].aggN > 1) this._raw[i].unreadN = 0
+        }
+        this.applyData()
         prompt.showToast({ message: '已全部标记已读', duration: 1500 })
       } catch (e) {
         prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
       }
     },
+    /** v1.8.0：CI 一键已读——当前列表全部 CI 聚合卡线程并发标已读 */
+    async markAllCiRead() {
+      const threads = []
+      for (let i = 0; i < this._raw.length; i++) {
+        const it = this._raw[i]
+        if (it.ci && it.unread) {
+          if (it.threads && it.threads.length) {
+            for (let j = 0; j < it.threads.length; j++) threads.push(it.threads[j])
+          } else if (it.threadUrl) threads.push(it.threadUrl)
+        }
+      }
+      if (!threads.length) {
+        prompt.showToast({ message: '没有未读 CI 通知', duration: 1200 })
+        return
+      }
+      prompt.showToast({ message: '正在标记 ' + threads.length + ' 条 CI…', duration: 1200 })
+      try {
+        const ok = await api.markThreadsRead(threads)
+        for (let i = 0; i < this._raw.length; i++) {
+          if (this._raw[i].ci) { this._raw[i].unread = false; this._raw[i].unreadN = 0 }
+        }
+        this.applyData()
+        prompt.showToast({ message: '已标记 ' + ok + ' 条 CI 已读', duration: 1500 })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 1500 })
+      }
+    },
+    /** v1.8.0：整仓已读（长按分组头）——PUT /repos/{o}/{r}/notifications */
+    async markRepoRead(f) {
+      if (!f || !f.repo) return
+      try {
+        await api.markRepoNotificationsRead(f.repo)
+        for (let i = 0; i < this._raw.length; i++) {
+          if (this._raw[i].repo === f.repo) {
+            this._raw[i].unread = false
+            if (this._raw[i].aggN > 1) this._raw[i].unreadN = 0
+          }
+        }
+        this.applyData()
+        prompt.showToast({ message: f.repo + ' 全部已读', duration: 1500 })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 1500 })
+      }
+    },
     async openNotif(item) {
-      if (!item) return
+      if (!item || item.hdr) return
       // v1.2.3：CI 通知/聚合卡 → Actions 页（workflow 运行列表）
       if (item.ci) {
         if (item.unread) {
           item.unread = false
-          this.countUnread()
+          this.rebuild()
         }
         this.$app.$def.hook = { full: item.repo }
         router.push({ uri: 'pages/actions' })
@@ -242,7 +480,7 @@
       }
       if (item.unread) {
         item.unread = false
-        this.countUnread()
+        this.rebuild()
         api.markThreadRead(item.threadUrl).catch(function () {})
       }
       if ((item.icon === '/common/icons/issue.png' || item.icon === '/common/icons/pull.png') && item.url) {
@@ -256,13 +494,13 @@
     },
     /** 长按：CI 聚合卡 → 批量已读（该段全部线程并行标记）；普通通知仅标记单条 */
     async markOne(item) {
-      if (!item) return
+      if (!item || item.hdr) return
       if (item.ci && item.aggN > 1) {
         try {
           const ok = await api.markThreadsRead(item.threads)
           item.unread = false
           item.unreadN = 0
-          this.countUnread()
+          this.rebuild()
           prompt.showToast({ message: '已标记 ' + ok + ' 条 CI 已读', duration: 1500 })
         } catch (e) {
           prompt.showToast({ message: (e && e.message) || '操作失败', duration: 1500 })
@@ -271,7 +509,7 @@
       }
       if (!item.unread) return
       item.unread = false
-      this.countUnread()
+      this.rebuild()
       try {
         await api.markThreadRead(item.threadUrl)
         prompt.showToast({ message: '已标记已读', duration: 1200 })
@@ -292,9 +530,9 @@
     },
     onListScroll(e) {
       this.scY = (e && e.scrollY) || 0
-      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 78px）
+      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 110px）
       if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 110 - 420
+        const near = this.flat.length * 110 - 420
         if (near > 0 && this.scY >= near) this.loadMore()
       }
     },

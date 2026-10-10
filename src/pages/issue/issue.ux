@@ -135,7 +135,7 @@
 
 <script>
   import router from '@system.router'
-  import api from '../../utils/api'
+  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
   import { mdToBlocks } from '../../utils/md'
   import { relTime, truncate, avatar } from '../../utils/fmt'
   import { mapIssue } from '../../utils/view'

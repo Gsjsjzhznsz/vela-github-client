@@ -49,6 +49,8 @@
   import { query } from '../../utils/view'
 
   const MAXLEN = 100
+  /* v1.3.0：AI 提问放宽到 400 字（快捷指令/追问需更长输入） */
+  const MAXLEN_AI = 400
 
   export default {
     protected: {
@@ -74,7 +76,8 @@
         search: { title: '搜索仓库', ph: '输入关键词…' },
         token: { title: '输入 Token', ph: '粘贴或键入 ghp_ …' },
         user: { title: '查用户', ph: '输入用户名…' },
-        comment: { title: '写评论', ph: '输入评论…' }
+        comment: { title: '写评论', ph: '输入评论…' },
+        ai: { title: '问 Copilot', ph: '输入问题…' }
       }
       const c = conf[this.mode] || conf.search
       this.title = c.title
@@ -99,8 +102,8 @@
       // v1.1.3：token 模式预填未被编辑时，首个键入直接替换（绝不拼接在旧 token 尾部）
       if (this.mode === 'token' && !this._dirty && this.initial && this.draft === this.initial) {
         this.draft = c.slice(0, MAXLEN)
-      } else if (this.draft.length < MAXLEN) {
-        this.draft = (this.draft + c).slice(0, MAXLEN)
+      } else if (this.draft.length < (this.mode === 'ai' ? MAXLEN_AI : MAXLEN)) {
+        this.draft = (this.draft + c).slice(0, this.mode === 'ai' ? MAXLEN_AI : MAXLEN)
       }
       this._dirty = true
       this.refreshTokHint()

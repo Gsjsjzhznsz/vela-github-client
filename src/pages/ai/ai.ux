@@ -1,0 +1,278 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
+      <div class="hd-main">
+        <text class="hd-title">Copilot 专区</text>
+        <!-- 点通道/模型行循环切换模型 -->
+        <text class="hd-sub" onclick="cycleModel">{{chan}} · {{modelShort}}（点击切换）</text>
+      </div>
+      <text class="hd-clear" onclick="clearHist">清空</text>
+    </div>
+
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" scroll-top="{{scrollTop}}">
+        <!-- 空态：快捷指令网格（Copilot 专区功能入口，尽量多） -->
+        <div class="quick" show="{{msgs.length === 0}}">
+          <text class="quick-h">快捷指令</text>
+          <div class="q-grid">
+            <div class="q-cell" for="{{q in quicks}}" tid="q.id" onclick="quickAsk(q)">
+              <text class="q-t">{{q.label}}</text>
+            </div>
+          </div>
+          <text class="quick-note">{{ctxHint}}</text>
+          <text class="quick-note dim">模型回复由 GitHub AI 提供，回答仅供参考</text>
+        </div>
+
+        <!-- 会话气泡 -->
+        <div class="li" for="{{m in msgs}}" tid="m.id">
+          <div class="row-u" show="{{m.role === 'user'}}">
+            <text class="bub-u">{{m.text}}</text>
+          </div>
+          <div class="row-a" show="{{m.role !== 'user'}}">
+            <text class="bub-a">{{m.text}}</text>
+            <text class="meta" show="{{m.meta}}">{{m.meta}}</text>
+          </div>
+        </div>
+        <div class="li" show="{{busy}}">
+          <div class="row-a"><text class="bub-a dim">思考中…</text></div>
+        </div>
+        <div class="pad-end"></div>
+      </scroll>
+    </div>
+
+    <!-- 底部输入栏：点击跳独立键盘页（BandQQ 同构，键盘常驻） -->
+    <div class="inbar" onclick="openInput">
+      <image class="in-ic" src="/common/icons/search.png" />
+      <text class="in-ph" show="{{!busy}}">问点什么…（点此输入）</text>
+      <text class="in-ph" show="{{busy}}">回复中…</text>
+    </div>
+
+    <div class="state" show="{{state === 'needauth'}}">
+      <text class="state-t">AI 功能需登录 Token（首页 → 设置）</text>
+      <text class="state-btn" onclick="goBack">返回</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 13px; color: #d2a8ff; margin-top: 1px; lines: 1; text-overflow: ellipsis; }
+  .hd-clear { font-size: 16px; color: #f85149; padding: 6px 10px; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 120px; }
+  .li { padding: 4px 12px; }
+  .row-u { flex-direction: row; justify-content: flex-end; }
+  .row-a { flex-direction: row; justify-content: flex-start; }
+  .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 17px; color: #ffffff; width: 330px; line-height: 24px; }
+  .bub-a { background-color: #161b22; border-radius: 3px 12px 12px 12px; padding: 9px 11px; font-size: 17px; color: #e6edf3; width: 330px; line-height: 24px; }
+  .dim { color: #8b949e; }
+  .meta { font-size: 12px; color: #484f58; margin-top: 3px; }
+  .quick { flex-direction: column; align-items: center; padding: 14px 12px; width: 100%; }
+  .quick-h { font-size: 15px; color: #8b949e; margin-bottom: 9px; }
+  .q-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 100%; }
+  .q-cell { width: 194px; background-color: #161b22; border-radius: 12px; padding: 12px 0; margin: 4px; align-items: center; }
+  .q-t { font-size: 16px; color: #d2a8ff; }
+  .quick-note { font-size: 13px; color: #58a6ff; margin-top: 10px; text-align: center; padding: 0 18px; }
+  .quick-note.dim { color: #484f58; margin-top: 5px; }
+  .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 92px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 16px; }
+  .in-ic { width: 26px; height: 26px; }
+  .in-ph { font-size: 17px; color: #484f58; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import storage from '@system.storage'
+  import api from '../../utils/api'
+
+  /* v1.3.0 Copilot 专区：
+   *  双通道（api.aiChat）：设备授权 token → Copilot Chat 优先、Models 兜底；
+   *  PAT → GitHub Models（无需 Copilot 订阅）。
+   *  会话持久化 storage（40 条上限）；上下文注入（代码页/仓库页「问 AI」）；
+   *  打字机分帧渲染（弦电子书限量思路，避免长文本一次性入列）。 */
+  const HIST_KEY = 'ai_hist_v1'
+  const HIST_CAP = 40
+  const QUICKS = [
+    { id: 'q1', label: '总结这个仓库', prompt: '请用中文简要总结当前仓库的用途、技术栈和亮点。' },
+    { id: 'q2', label: '解释这段代码', prompt: '请用中文逐段解释附加上下文里的代码片段，说明它做了什么。' },
+    { id: 'q3', label: '写 commit 信息', prompt: '请根据附加上下文的代码变更/文件内容，用约定式提交（Conventional Commits）风格写一条简短 commit message。' },
+    { id: 'q4', label: '找潜在 Bug', prompt: '请检查附加上下文里的代码，指出潜在 bug 或风险点，用中文简要列出。' },
+    { id: 'q5', label: '写 README 草稿', prompt: '请为附加上下文的仓库/文件写一段简短的 README 介绍草稿（中文）。' },
+    { id: 'q6', label: '生成 Issue 回复', prompt: '请针对附加上下文里的讨论内容，用中文起草一条礼貌、专业的 Issue/PR 回复。' }
+  ]
+  const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。'
+
+  export default {
+    protected: {},
+    private: {
+      msgs: [],
+      quicks: QUICKS,
+      busy: false,
+      scrollTop: 0,
+      chan: '',
+      modelShort: '',
+      ctxHint: '提示：在代码页/仓库页点「问 AI」可附加上下文',
+      state: 'ok'
+    },
+    onInit() {
+      this._model = api.aiModels()[0]
+      this._ctx = null
+      this._tick = 0
+    },
+    async onShow() {
+      await api.loadToken()
+      if (!api.hasToken()) {
+        this.state = 'needauth'
+        this.chan = api.aiChannelLabel()
+        return
+      }
+      this.state = 'ok'
+      this.chan = api.aiChannelLabel()
+      this.syncModelLabel()
+      // 消费代码页/仓库页注入的上下文
+      const app = this.$app.$def
+      const cx = app && app.aiCtx
+      if (cx && cx.text) {
+        app.aiCtx = null
+        this._ctx = cx
+        this.ctxHint = '已附加：' + (cx.path || cx.full || '上下文') + '（本次会话有效）'
+      }
+      // 消费键盘页回传的问题
+      const r = app && app.inputResult
+      if (r && r.type === 'ai' && r.text) {
+        app.inputResult = null
+        this.send(r.text)
+        return
+      }
+      if (this.msgs.length === 0) this.loadHist()
+    },
+    syncModelLabel() {
+      const m = this._model
+      this.modelShort = m.indexOf('/') >= 0 ? m.split('/')[1] : m
+    },
+    cycleModel() {
+      if (this.busy) return
+      const ms = api.aiModels()
+      let i = ms.indexOf(this._model)
+      this._model = ms[(i + 1) % ms.length]
+      this.syncModelLabel()
+      prompt.showToast({ message: '模型：' + this._model, duration: 1400 })
+    },
+    loadHist() {
+      try {
+        storage.get({
+          key: HIST_KEY,
+          success: (d) => {
+            try {
+              const arr = d ? JSON.parse(d) : null
+              if (Array.isArray(arr) && arr.length) this.msgs = arr
+            } catch (e) {}
+          }
+        })
+      } catch (e) {}
+    },
+    saveHist() {
+      try {
+        const keep = this.msgs.slice(-HIST_CAP)
+        storage.set({ key: HIST_KEY, value: JSON.stringify(keep) })
+      } catch (e) {}
+    },
+    clearHist() {
+      if (this.busy) return
+      this.msgs = []
+      this._ctx = null
+      this.ctxHint = '提示：在代码页/仓库页点「问 AI」可附加上下文'
+      try { storage.delete({ key: HIST_KEY }) } catch (e) {}
+      prompt.showToast({ message: '会话已清空', duration: 1200 })
+    },
+    pushMsg(role, text, meta) {
+      const m = { id: 'm' + Date.now() + '_' + Math.floor(Math.random() * 1000), role: role, text: text, meta: meta || '' }
+      this.msgs.push(m)
+      if (this.msgs.length > HIST_CAP) this.msgs = this.msgs.slice(-HIST_CAP)
+      this.scrollBottom()
+      return m
+    },
+    scrollBottom() {
+      this._tick++
+      this.scrollTop = (this._tick % 2) ? 1 : 0
+    },
+    quickAsk(q) {
+      if (this.busy) return
+      this.send(q.prompt)
+    },
+    openInput() {
+      if (this.busy) return
+      router.push({ uri: 'pages/input', params: { type: 'ai' } })
+    },
+    buildMessages(userText) {
+      const msgs = [{ role: 'system', content: SYSTEM_PROMPT }]
+      if (this._ctx && this._ctx.text) {
+        msgs.push({ role: 'system', content: '以下是与本次问题相关的上下文：\n' + this._ctx.text.slice(0, 3600) })
+      }
+      // 最近 8 条历史（错误提示条目 role=ai 但文本以失败文案开头，简单截尾即可）
+      const hist = this.msgs.slice(-8)
+      for (let i = 0; i < hist.length; i++) {
+        msgs.push({ role: hist[i].role === 'user' ? 'user' : 'assistant', content: String(hist[i].text).slice(0, 1200) })
+      }
+      msgs.push({ role: 'user', content: userText })
+      return msgs
+    },
+    async send(text) {
+      const t = String(text || '').trim()
+      if (!t || this.busy) return
+      if (!api.hasToken()) { this.state = 'needauth'; return }
+      this.pushMsg('user', t)
+      this.busy = true
+      try {
+        const r = await api.aiChat(this.buildMessages(t), { model: this._model })
+        const meta = (r.via === 'copilot' ? 'Copilot' : 'Models · ' + this._model) +
+          (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '')
+        const m = this.pushMsg('ai', '', meta)
+        this.typewrite(m, String(r.text), 0)
+      } catch (e) {
+        this.busy = false
+        const em = (e && e.message) || 'AI 请求失败'
+        this.pushMsg('ai', em.indexOf('登录') >= 0 ? em + '（首页 → 设置）' : em + ' · 可点顶部模型行切换重试')
+        this.scrollBottom()
+      }
+    },
+    /* 打字机分帧：14 字/33ms，长回复 60 帧后一次补全（渲染压力可控） */
+    typewrite(m, full, idx) {
+      if (idx >= full.length) {
+        this.busy = false
+        this.saveHist()
+        this.scrollBottom()
+        return
+      }
+      const step = Math.min(full.length, idx + 14)
+      m.text = full.slice(0, step)
+      this.msgs = this.msgs.slice()
+      if (step - idx < 840) {
+        const self = this
+        setTimeout(function () { self.typewrite(m, full, step) }, 33)
+      } else {
+        m.text = full
+        this.busy = false
+        this.saveHist()
+        this.scrollBottom()
+      }
+    },
+    goBack() {
+      router.back()
+    },
+    onDestroy() {
+      this.msgs = []
+      this._ctx = null
+    }
+  }
+</script>

@@ -27,6 +27,13 @@
       <div class="li" for="{{it in bodyBlocks}}" tid="id">
         <text class="b-{{it.t}}" style="height: {{it.h}}px">{{it.s}}</text>
       </div>
+      <!-- v1.3.0：三通道降级到 GraphQL 时正文不可达（fetch/下载器均被截断） -->
+      <div class="li" show="{{bodyTrunc}}">
+        <div class="trunc-card">
+          <text class="trunc-t">正文过长，已省略（网络通道受限）</text>
+          <text class="trunc-btn" onclick="copyIssueLink">复制网页链接在手机查看</text>
+        </div>
+      </div>
 
       <!-- 评论分隔 -->
       <div class="li">
@@ -121,6 +128,9 @@
   .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
   .compose-label { font-size: 18px; color: #58a6ff; font-weight: bold; }
   .compose-hint { font-size: 14px; color: #484f58; margin-top: 4px; }
+  .trunc-card { background-color: #302018; border-radius: 12px; padding: 11px 12px; width: 100%; flex-direction: column; }
+  .trunc-t { font-size: 15px; color: #d29922; }
+  .trunc-btn { font-size: 15px; color: #58a6ff; margin-top: 7px; }
 </style>
 
 <script>
@@ -146,6 +156,7 @@
       labelColor: '#8b949e',
       commentN: 0,
       bodyBlocks: [],
+      bodyTrunc: false,
       comments: [],
       state: 'loading',
       errMsg: '',
@@ -194,6 +205,9 @@
           blocks.push({ id: 'b' + i, t: body[i].t, s: body[i].s, h: body[i].h })
         }
         this.bodyBlocks = blocks
+        // v1.3.0：三级通道降级到 GraphQL（无 body）时显示省略提示
+        this.bodyTrunc = !!iss.__bodyTruncated
+        this._issueUrl = 'https://github.com/' + this.full + '/' + (iss.pull_request ? 'pull/' : 'issues/') + this.n
         this._cmtsUrl = iss.comments_url || ''
         this.comments = []
         this._cPage = 0
@@ -278,6 +292,10 @@
     },
     goBack() {
       router.back()
+    },
+    /* v1.3.0：正文省略时引导手机浏览器（快应用无剪贴板 API，用分享型 toast 展示链接） */
+    copyIssueLink() {
+      prompt.showToast({ message: this._issueUrl || '', duration: 4000 })
     }
   }
 </script>

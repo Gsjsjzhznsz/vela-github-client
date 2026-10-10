@@ -1156,7 +1156,10 @@ export async function getReadmeText(fullName, ref) {
  * 仅作 device flow 发起方，Token 由 GitHub 直接发给本机，不经过任何第三方。 */
 
 const DEVICE_CLIENT_ID = '178c6fc778ccc68e1d6a'
-const DEVICE_SCOPE = 'repo read:user notifications'
+/* v1.3.0：scope 追加 copilot——设备授权的 OAuth token（ghu_）可交换 Copilot
+ * 临时凭据（PAT/ghp_ 永远不行，GitHub 明确拒绝 PAT 调 Copilot 端点）。
+ * 已授权老用户不受影响；新授权生效后 Copilot 专区自动亮起真通道。 */
+const DEVICE_SCOPE = 'repo read:user notifications copilot'
 const DEVICE_URL_CODE = 'https://github.com/login/device/code'
 const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token'
 
@@ -1303,7 +1306,10 @@ async function notifOnce(pathUrl, useDl) {
 /** v1.2.4：通知下载器兜底 —— 真机实测 per=1 单条 ~6.3KB 响应仍偶发被代理截断
  *  （「响应数据不完整」残存案例），fetch 与原生下载器不同路（v1.2.2 大文件管线
  *  实证可靠）。超时收紧 6/12/4s：单条 JSON 极小，正常秒回，最坏 ~22s 判死。 */
-const NOTIF_DL_T = { download: 6000, complete: 12000, read: 4000 }
+/* v1.3.0：真机实测蓝牙代理下载器启动即需数秒（大文件管线 45s 同源），
+ *  6s 启动超时把「能到的响应」误判为死 → gap 警告频发（用户体感依旧不完整）。
+ *  放宽到 10/22/8：单条 JSON 极小，正常仍秒回，最坏 ~40s 判死。 */
+const NOTIF_DL_T = { download: 10000, complete: 22000, read: 8000 }
 
 async function notifDl(url) {
   const header = {
@@ -1323,14 +1329,17 @@ async function notifDl(url) {
  *  降级，一个子页要 ~35s、整页 5 子页并发 3 也要 70s+，用户体感即「拉不全/拉不动」。
  *  v1.2.4：per=1 之上再叠下载器兜底（notifOnce 内置）——单条 ~6KB 截断概率趋零，
  *  但真机实测仍存在；下载器是最后防线，双通道全灭才真正判死该段。 */
-async function notifSubPage(sp, all) {
+/* v1.3.0：participating 过滤——未读通知 99% 是 ci_activity 噪音（用户 200+ 条），
+ *  participating=true 只留「我参与的对话」（issue/PR 评论、mention、review），
+ *  列表从百页级缩到 1-2 页，「拉不全」的体感直接消失。三态：未读/全部/仅参与。 */
+async function notifSubPage(sp, all, participating) {
   try {
-    return await notifOnce('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }), false)
+    return await notifOnce('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all, participating: participating ? true : undefined }), false)
   } catch (e) {
     if (!e || !e.incomplete) throw e
     /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页（开下载器兜底） */
-    const a = await notifOnce('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }), true)
-    const b = await notifOnce('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }), true)
+    const a = await notifOnce('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all, participating: participating ? true : undefined }), true)
+    const b = await notifOnce('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all, participating: participating ? true : undefined }), true)
     return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
   }
 }
@@ -1351,7 +1360,7 @@ export function lastNotifGaps() {
   return _lastNotifGaps
 }
 
-export async function getNotifications(page, all) {
+export async function getNotifications(page, all, participating) {
   await loadToken()
   const pg = Math.max(1, page)
   const base = (pg - 1) * NOTIF_SUBS + 1
@@ -1360,7 +1369,7 @@ export async function getNotifications(page, all) {
   const parts = new Array(NOTIF_SUBS)
   const failed = []
   const first = await mapLimit(subs, NOTIF_CONC, (sp) =>
-    notifSubPage(sp, all)
+    notifSubPage(sp, all, participating)
       .then((arr) => ({ ok: true, arr: arr }))
       .catch((e) => ({ ok: false, err: e }))
   )
@@ -1373,7 +1382,7 @@ export async function getNotifications(page, all) {
   /* 失败段低并发（2）重试一轮：蓝牙代理瞬时故障大概率此轮恢复 */
   if (failed.length) {
     const second = await mapLimit(failed, 2, (i) =>
-      notifSubPage(subs[i], all)
+      notifSubPage(subs[i], all, participating)
         .then((arr) => ({ ok: true, arr: arr }))
         .catch((e) => ({ ok: false, err: e }))
     )
@@ -1602,6 +1611,31 @@ export function getTree(fullName, sha) {
   return request('/repos/' + fullName + '/git/trees/' + (sha || 'HEAD'))
 }
 
+/** v1.3.0：git 树 + 原生下载器兜底——「访问深目录数据不完整/死机」根治。
+ *  深层/巨型目录（如 node_modules 单层数百条目）contents 与 trees 的 fetch
+ *  响应 30-120KB 必截断；下载器与 fetch 不同路（文件管线实证可靠），
+ *  整树 JSON 一次到齐 → 配合页面目录分页（节点数上限）双保险。 */
+export async function getTreeEx(fullName, sha) {
+  const path = '/repos/' + fullName + '/git/trees/' + (sha || 'HEAD')
+  try {
+    return await request(path)
+  } catch (e) {
+    if (!(e && (e.incomplete || e.timeout))) throw e
+  }
+  const header = {
+    'User-Agent': 'vela-github-client',
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+  if (_token) header['Authorization'] = 'Bearer ' + _token
+  const text = await dlFetchText(API_BASE + path, header, { download: 15000, complete: 60000, read: 12000 })
+  const cleaned = String(text).replace(/^\uFEFF/, '').trim()
+  if (!cleaned || cleaned.charAt(0) !== '{') throw { status: 200, incomplete: true, message: '目录树响应异常' }
+  const d = JSON.parse(cleaned)
+  if (!d || !Array.isArray(d.tree)) throw { status: 200, incomplete: true, message: '目录树响应不完整' }
+  return d
+}
+
 /** 文件内容拉取（v1.2.2 弦电子书式重写）：
  *  ① 磁盘缓存（fcache，冷启仍有效，重进秒开零传输）；
  *  ② 原生下载器整文件落盘为主通道（绕开 fetch 蓝牙代理截断——真机实证 Range
@@ -1767,8 +1801,63 @@ export async function getIssues(fullName, page, state) {
 }
 
 /** Issue 详情 */
-export function getIssue(fullName, number) {
-  return request('/repos/' + fullName + '/issues/' + number)
+/** v1.3.0 三级通道根治「点开通知 → 响应数据不完整」：
+ *  根因：详情 JSON 内嵌 body 全文，长正文的 Issue/PR 30-100KB 必被蓝牙代理
+ *  截断（fetch 通道同 URL 重试无解）。链路：
+ *  ① REST fetch（短正文 <14.3KB 截断下限内最稳）；
+ *  ② 截断 → REST 原生下载器（与 fetch 不同路，文件管线 v1.2.2 实证可靠）；
+ *  ③ 下载器失败/不可用 → GraphQL issueOrPullRequest 瘦字段逃生
+ *     （响应 ~1KB 必达，body 置空 + __bodyTruncated=true，页面显示省略提示）。
+ *  附 __via 供诊断。 */
+const GQL_ISSUE_Q = 'query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){issueOrPullRequest(number:$num){__typename ... on Issue{number title state createdAt author{login} comments{totalCount} labels(first:6){nodes{name color}}} ... on PullRequest{number title state createdAt author{login} comments{totalCount} labels(first:6){nodes{name color}}}}}}'
+
+export async function getIssue(fullName, number) {
+  const path = '/repos/' + fullName + '/issues/' + number
+  try {
+    const r = await request(path)
+    if (r && typeof r === 'object' && r.number) return r
+    throw { incomplete: true }
+  } catch (e) {
+    if (!(e && (e.incomplete || e.timeout))) throw e
+  }
+  /* ② REST 原生下载器（JSON 形态） */
+  try {
+    const header = {
+      'User-Agent': 'vela-github-client',
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+    if (_token) header['Authorization'] = 'Bearer ' + _token
+    const text = await dlFetchText(API_BASE + path, header, { download: 15000, complete: 40000, read: 10000 })
+    const cleaned = String(text).replace(/^\uFEFF/, '').trim()
+    if (cleaned && cleaned.charAt(0) === '{') {
+      const d = JSON.parse(cleaned)
+      if (d && d.number) { d.__via = 'dl'; return d }
+    }
+  } catch (e2) { /* 落 GraphQL 逃生 */ }
+  /* ③ GraphQL 逃生（无 body，仅头部字段 + 计数） */
+  try {
+    const parts = String(fullName || '').split('/')
+    const d = await ghql(GQL_ISSUE_Q, { o: parts[0], n: parts[1], num: Number(number) })
+    const io = d && d.repository && d.repository.issueOrPullRequest
+    if (io && io.number) {
+      return {
+        number: io.number,
+        title: io.title,
+        state: String(io.state || 'open').toLowerCase(),
+        created_at: io.createdAt,
+        user: io.author ? { login: io.author.login } : null,
+        comments: (io.comments && io.comments.totalCount) || 0,
+        labels: (io.labels && io.labels.nodes ? io.labels.nodes : []).map(function (l) {
+          return { name: l.name, color: String(l.color || '').replace('#', '') }
+        }),
+        body: '',
+        __bodyTruncated: true,
+        __via: 'gql'
+      }
+    }
+  } catch (e3) { /* 三级全灭 → 抛可行动文案 */ }
+  throw { status: 0, incomplete: true, message: '详情响应不完整（fetch/下载器/GraphQL 三通道均失败），请稍后重试' }
 }
 
 /** Issue 评论列表（传 comments_url；评论正文可能很长，同样自适应） */
@@ -1903,6 +1992,112 @@ export async function getCommitChecks(fullName, branch, page) {
   return { commits: commits, total: h.totalCount || commits.length, hasNext: !!(h.pageInfo && h.pageInfo.hasNextPage) }
 }
 
+/* ================= v1.3.0 Copilot 专区（AI 双通道） =================
+ *  通道A GitHub Models（models.github.ai）：PAT 直接可用、无需 Copilot 订阅，
+ *    OpenAI 兼容 chat/completions，免费额度按模型/日计。
+ *  通道B Copilot Chat（api.githubcopilot.com）：需 Copilot 订阅 + 设备授权
+ *    token（ghu_/gho_，scope 含 copilot）——先 copilot_internal/v2/token 换
+ *    ~30min 临时凭据再调 chat/completions；PAT 恒不可用（GitHub 明确拒绝，
+ *    2026-10 沙箱实测 bad request: Personal Access Tokens are not supported）。
+ *  代理网络返回非 JSON 体（健康检查 "OK"/HTML）一律识别为通道失败并降级。 */
+const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
+const COPILOT_TOK_URL = 'https://api.github.com/copilot_internal/v2/token'
+const COPILOT_CHAT_URL = 'https://api.githubcopilot.com/chat/completions'
+const AI_MODELS = ['openai/gpt-4o-mini', 'openai/gpt-4.1-mini', 'xai/grok-3-mini']
+const AI_MAX_TOKENS = 900
+let _cpTok = null /* { token, exp(ms) }，提前 2min 判过期 */
+
+export function aiModels() {
+  return AI_MODELS
+}
+
+/** token 形态：pat（ghp_/github_pat_）| oauth（设备授权 ghu_/gho_）| none */
+export function aiTokenKind() {
+  if (!_token) return 'none'
+  const t = String(_token)
+  if (t.indexOf('ghu_') === 0 || t.indexOf('gho_') === 0) return 'oauth'
+  return 'pat'
+}
+
+/** 通道可用性标签（AI 页状态行） */
+export function aiChannelLabel() {
+  const k = aiTokenKind()
+  if (k === 'oauth') return 'Copilot + Models 双通道'
+  if (k === 'pat') return 'GitHub Models（PAT 可用）'
+  return '需登录 Token'
+}
+
+async function copilotToken(force) {
+  if (_cpTok && !force && _cpTok.exp - Date.now() > 120000) return _cpTok.token
+  const d = await request(COPILOT_TOK_URL, { noCache: true })
+  if (!d || !d.token) throw { status: 0, message: 'Copilot 凭据交换失败' }
+  _cpTok = { token: d.token, exp: (d.expires_at || 0) * 1000 }
+  return _cpTok.token
+}
+
+/** AI POST（不走 request 缓存管线）：重试 1 次；非 JSON 体 = 通道不可用特征 */
+async function aiPost(url, header, bodyObj) {
+  let res = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await rawFetch({ url: url, method: 'POST', header: header, data: JSON.stringify(bodyObj) })
+      break
+    } catch (e) { res = null }
+  }
+  if (!res) throw { status: 0, message: 'AI 网络失败，请检查手表网络' }
+  const code = Number(res.code) || 0
+  const d = jsonMaybe(res)
+  if (!d) throw { status: code, message: 'AI 通道响应异常（网关返回非标准体），请稍后重试' }
+  if (code === 401 || code === 403) throw { status: code, message: 'AI 授权失败（' + code + '）：请确认登录与订阅状态' }
+  if (code === 429) throw { status: 429, message: 'AI 额度用尽或限流，请稍后再试或切换模型' }
+  if (code < 200 || code >= 300) {
+    const m = d && d.error && d.error.message
+    throw { status: code, message: m || ('AI 服务 HTTP ' + code) }
+  }
+  return d
+}
+
+/** AI 对话（Copilot 专区核心）。messages=[{role:'user'|'assistant'|'system',content}]。
+ *  oauth token → 先 Copilot Chat（真 Copilot），失败自动落 Models；
+ *  pat → 仅 Models。opts: { model, forceModels }。返回 {text, via, usage}。 */
+export async function aiChat(messages, opts) {
+  await loadToken()
+  if (!_token) throw { status: 0, needAuth: true, message: 'AI 功能需登录 Token' }
+  const o = opts || {}
+  const model = o.model || AI_MODELS[0]
+  if (aiTokenKind() === 'oauth' && !o.forceModels) {
+    try {
+      const ct = await copilotToken()
+      const d = await aiPost(COPILOT_CHAT_URL, {
+        'User-Agent': 'vela-github-client',
+        Authorization: 'Bearer ' + ct,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Copilot-Integration-Id': 'vscode-chat',
+        'Openai-Intent': 'conversation-panel'
+      }, { messages: messages, model: 'gpt-4o', max_tokens: AI_MAX_TOKENS })
+      const ch = d.choices && d.choices[0] && d.choices[0].message
+      if (ch && typeof ch.content === 'string' && ch.content.length) {
+        return { text: ch.content, via: 'copilot', usage: d.usage || null }
+      }
+      throw { message: 'Copilot 响应缺内容' }
+    } catch (e) {
+      /* Copilot 通道失败（无订阅/凭据交换失败/网络）→ 自动落 Models 兜底 */
+    }
+  }
+  const d = await aiPost(MODELS_URL, {
+    'User-Agent': 'vela-github-client',
+    Authorization: 'Bearer ' + _token,
+    'Content-Type': 'application/json',
+    Accept: 'application/json'
+  }, { messages: messages, model: model, max_tokens: AI_MAX_TOKENS })
+  const ch = d.choices && d.choices[0] && d.choices[0].message
+  if (!ch || typeof ch.content !== 'string' || !ch.content.length) {
+    throw { message: 'AI 响应缺内容，请重试' }
+  }
+  return { text: ch.content, via: 'models', usage: d.usage || null }
+}
+
 /** 批量标记通知线程已读（v1.2.3 CI 聚合卡长按用）：mapLimit 限并发 3，
  *  返回成功数；单条失败不计入（404 已读等常态）。 */
 export async function markThreadsRead(threadUrls) {
@@ -1920,9 +2115,10 @@ export default {
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
   getRateLimit, getNotifications, notifPageSize, lastNotifGaps, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
-  getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree,
+  getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree, getTreeEx,
   getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser,
   deviceFlowStart, deviceFlowPoll, utf8DecodeChunk,
-  getCommitChecks, markThreadsRead
+  getCommitChecks, markThreadsRead,
+  aiChat, aiModels, aiTokenKind, aiChannelLabel
 }

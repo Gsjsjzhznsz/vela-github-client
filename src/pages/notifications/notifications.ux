@@ -3,7 +3,7 @@
     <div class="hd">
       <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
       <text class="hd-title">通知{{unreadN > 0 ? ' (' + unreadN + ')' : ''}}</text>
-      <text class="hd-filter" onclick="toggleAll">{{all ? '全部' : '未读'}}</text>
+      <text class="hd-filter" onclick="toggleAll">{{filterLabel}}</text>
       <div class="hd-act-wrap" onclick="markAllRead"><image class="hd-act" src="/common/icons/check.png" /></div>
     </div>
 
@@ -29,6 +29,8 @@
             </div>
           </div>
         </div>
+        <!-- v1.3.0：CI 噪音分流提示（仅参与视图下引导切档） -->
+        <text class="foot hint" show="{{state === 'ok' && filter === 'mine' && items.length === 0}}">参与项已全部已读 · 右上角切「全部」看 CI</text>
         <text class="foot warn" show="{{state === 'ok' && gaps > 0}}" onclick="doRefresh">有 {{gaps}} 段未载入 · 点此重试</text>
         <text class="foot" show="{{state === 'ok' && hasMore}}" onclick="loadMore">已载 {{totalN}} 条 · 点此加载更多</text>
         <text class="foot" show="{{state === 'ok' && !hasMore && items.length > 0}}">— 已载全部 {{totalN}} 条 —</text>
@@ -75,6 +77,7 @@
   .cell-time { font-size: 13px; color: #484f58; margin-top: 2px; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .warn { color: #d29922; }
+  .hint { color: #8b949e; padding: 14px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
   .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
@@ -90,6 +93,10 @@
     private: {
       items: [],
       all: false,
+      /* v1.3.0 三态过滤：unread（未读）| all（全部）| mine（仅参与——
+       * participating=true，99% CI 噪音被服务端直接过滤，列表从百页级缩到
+       * 1-2 页，「数据不完整」的体感根源） */
+      filter: 'unread',
       state: 'loading',   // loading | ok | empty | error
       errMsg: '',
       emptyText: '暂无通知',
@@ -103,9 +110,14 @@
       pullText: '下拉刷新',
       unreadN: 0,
       gaps: 0,
-      totalN: 0
+      totalN: 0,
+      filterLabel: '未读'
     },
     onInit() {},
+    /* v1.3.0：filter 标签同步（模板不可调函数，数据驱动） */
+    syncFilterLabel() {
+      this.filterLabel = this.filter === 'unread' ? '未读' : (this.filter === 'all' ? '全部' : '仅参与')
+    },
     async onShow() {
       await api.loadToken()
       if (!api.hasToken()) {
@@ -117,8 +129,9 @@
     },
     async reload() {
       this.state = 'loading'
+      this.syncFilterLabel()
       try {
-        const list = await api.getNotifications(1, this.all)
+        const list = await api.getNotifications(1, this.all, this.filter === 'mine')
         if (!Array.isArray(list)) {
           throw { message: '通知响应不完整，请重试' }
         }
@@ -140,7 +153,9 @@
         // v1.2.4：有 gap 时按每段 2 条估算潜在总量，避免误判「到底了」
         this.hasMore = list.length + gaps * 2 >= api.notifPageSize()
         this.state = this.items.length === 0 ? 'empty' : 'ok'
-        this.emptyText = this.all ? '没有通知' : '没有未读通知'
+        this.emptyText = this.filter === 'mine'
+          ? '参与的对话已全部处理\n右上角切「全部」看 CI 通知'
+          : (this.all ? '没有通知' : '没有未读通知')
         this.countUnread()
       } catch (e) {
         this.state = 'error'
@@ -167,7 +182,7 @@
       this.loadingMore = true
       try {
         const next = this.page + 1
-        const list = await api.getNotifications(next, this.all)
+        const list = await api.getNotifications(next, this.all, this.filter === 'mine')
         const gaps = api.lastNotifGaps().length
         if (!Array.isArray(list) || (list.length === 0 && gaps > 0)) {
           throw { message: '通知响应不完整，请重试' }
@@ -196,8 +211,11 @@
       }
       this.loadingMore = false
     },
+    /** v1.3.0：三态循环 未读 → 全部 → 仅参与；all/participating 联动 */
     toggleAll() {
-      this.all = !this.all
+      if (this.filter === 'unread') { this.filter = 'all'; this.all = true }
+      else if (this.filter === 'all') { this.filter = 'mine'; this.all = true }
+      else { this.filter = 'unread'; this.all = false }
       this.reload()
     },
     async markAllRead() {

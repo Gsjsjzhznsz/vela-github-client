@@ -30,11 +30,15 @@
           </div>
         </div>
         <text class="code-line" show="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
-        <!-- 弦电子书式翻页器：每页固定行数，上一页/下一页 + 页码指示 -->
+        <!-- 弦电子书式翻页器：每页固定行数，上一页/下一页 + 页码指示（目录/文件共用，pagePrev/Next 内按 mode 分发） -->
         <div class="pager" show="{{it.kind === 'pager'}}">
           <text class="pager-btn" show="{{it.canPrev}}" onclick="pagePrev">上一页</text>
           <text class="pager-info">{{it.info}}</text>
           <text class="pager-btn" show="{{it.canNext}}" onclick="pageNext">下一页</text>
+        </div>
+        <div class="ai-row" show="{{it.kind === 'ai'}}" onclick="askAI">
+          <image class="ai-ic" src="/common/icons/ai.png" />
+          <text class="ai-t">{{it.text}}</text>
         </div>
         <text class="foot" show="{{it.kind === 'foot'}}">{{it.text}}</text>
       </div>
@@ -97,6 +101,9 @@
   .pager { flex-direction: row; align-items: center; justify-content: center; width: 100%; padding: 8px 12px; }
   .pager-btn { font-size: 17px; color: #58a6ff; padding: 6px 14px; }
   .pager-info { font-size: 14px; color: #8b949e; margin: 0 10px; }
+  .ai-row { flex-direction: row; align-items: center; justify-content: center; width: 100%; padding: 9px 12px; }
+  .ai-ic { width: 22px; height: 22px; margin-right: 8px; }
+  .ai-t { font-size: 17px; color: #d2a8ff; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
@@ -119,6 +126,9 @@
   const MAX_LINES = 3000
   const MAX_SIZE = 1024 * 1024
   const PAGE_SIZE = 18
+  /* v1.3.0：目录列表同样分页——深/巨型目录（node_modules 单层数百条目）
+   * 一次性入列曾导致渲染树爆炸 → OOM 死机重启；每页 24 条后节点数恒定。 */
+  const PAGE_DIR = 24
   const BIN_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'dylib', 'pdf', 'mp3', 'mp4', 'wav', 'woff', 'woff2', 'ttf', 'eot', 'otf', 'jar', 'class', 'pyc', 'bin', 'apk', 'rpk']
 
   export default {
@@ -134,7 +144,8 @@
       errMsg: '',
       progressText: '',
       scrollTop: 0,
-      curPage: 1
+      curPage: 1,
+      dirPages: 1
     },
     onInit(params) {
       const p = query(params, this)
@@ -149,6 +160,8 @@
       this._totalPages = 1
       this._capped = false
       this._scrollTick = 0
+      this._dirEntries = []     // v1.3.0：目录全量条目（分页渲染源）
+      this._dirCache = {}       // v1.3.0：会话目录缓存（返回上级/来回翻秒开，上限 16 层）
       this.hdTitle = this.full
       this.loadDir()
     },
@@ -158,6 +171,10 @@
     async loadDir() {
       this.mode = 'dir'
       this.state = 'loading'
+      const cacheKey = this.full + '#' + this.currentPath()
+      /* v1.3.0：会话目录缓存命中 → 零网络秒开（返回上级/来回翻目录不再重拉） */
+      const hit = this._dirCache && this._dirCache[cacheKey]
+      if (hit) { this.applyDirList(hit); return }
       try {
         let list = null
         try {
@@ -167,8 +184,10 @@
             // v1.1.3：目录响应被蓝牙代理截断（contents 接口无 per_page 可降）——
             // 回退 git trees API：条目瘦 3-4 倍，大目录可完整到达；
             // 子树定位用上一级缓存的目录 sha（根用 HEAD）
+            // v1.3.0：改用 getTreeEx——trees 的 fetch 响应对巨型目录仍会截断，
+            // 原生下载器整树一次到齐（深目录数据不完整的根治）
             const sha = this._shaStack.length ? this._shaStack[this._shaStack.length - 1] : 'HEAD'
-            const t = await api.getTree(this.full, sha)
+            const t = await api.getTreeEx(this.full, sha)
             const arr = t && Array.isArray(t.tree) ? t.tree : null
             if (!arr) throw { message: '目录响应不完整，请重试' }
             list = []
@@ -234,13 +253,72 @@
           })
         }
         if (out.length === 0) out.push({ id: 'empty0', kind: 'foot', text: '（空目录）' })
-        this.items = out
-        this.pathText = this.currentPath()
-        this.state = 'ok'
+        // v1.3.0：目录缓存 + 分页——全量条目入 _dirEntries，页面仅渲染当页 24 条
+        this._dirCache[cacheKey] = out
+        const keys = Object.keys(this._dirCache)
+        if (keys.length > 16) delete this._dirCache[keys[0]]
+        this.applyDirList(out)
       } catch (e) {
         this.state = 'error'
         this.errMsg = (e && e.message) || '加载失败'
       }
+    },
+    /* 目录渲染统一出口：缓存命中/网络拉取共用（分页 + 滚动复位 + 路径文本） */
+    applyDirList(out) {
+        this._dirEntries = out
+        this.dirPages = Math.max(1, Math.ceil(out.length / PAGE_DIR))
+        this.renderDirPage(1)
+        this.pathText = this.currentPath()
+        this._scrollTick++
+        this.scrollTop = (this._scrollTick % 2) ? 1 : 0
+        this.state = 'ok'
+    },
+    /* v1.3.0：目录分页渲染（弦电子书式限量）——含「返回上级」首项与翻页器 */
+    renderDirPage(n) {
+      const start = (n - 1) * PAGE_DIR
+      const slice = this._dirEntries.slice(start, start + PAGE_DIR)
+      const out = slice.slice()
+      out.push({
+        id: 'dpager',
+        kind: 'pager',
+        info: '第 ' + n + ' / ' + this.dirPages + ' 页 · 共 ' + this._dirEntries.length + ' 项',
+        canPrev: n > 1,
+        canNext: n < this.dirPages
+      })
+      out.push({ id: 'dai', kind: 'ai', text: '问 AI 关于本目录' })
+      this.items = out
+      this.curPage = n
+    },
+    /* v1.3.0：翻页器目录/文件共用，按 mode 分发 */
+    pagePrev() {
+      if (this.mode === 'file') { if (this.curPage > 1) this.pageTurnTo(this.curPage - 1); return }
+      if (this.mode === 'dir' && this.curPage > 1) this.turnDir(this.curPage - 1)
+    },
+    pageNext() {
+      if (this.mode === 'file') { if (this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1); return }
+      if (this.mode === 'dir' && this.curPage < this.dirPages) this.turnDir(this.curPage + 1)
+    },
+    turnDir(n) {
+      this._scrollTick++
+      this.renderDirPage(n)
+      this.scrollTop = (this._scrollTick % 2) ? 1 : 0
+    },
+    /* v1.3.0：问 AI——把当前文件片段/目录清单注入 Copilot 专区上下文 */
+    askAI() {
+      const app = this.$app.$def
+      let ctx = ''
+      if (this.mode === 'file' && this._allLines.length) {
+        ctx = '文件 ' + this._filePath + ' 内容片段：\n' + this._allLines.slice(0, 120).join('\n').slice(0, 3800)
+      } else if (this._dirEntries.length) {
+        const names = []
+        for (let i = 0; i < this._dirEntries.length && i < 60; i++) {
+          const e = this._dirEntries[i]
+          if (e.kind === 'entry') names.push((e.isDir ? '[目录] ' : '[文件] ') + e.name)
+        }
+        ctx = (this.currentPath() || '仓库根目录') + ' 目录清单：\n' + names.join('\n')
+      }
+      app.aiCtx = { full: this.full, path: this.mode === 'file' ? this._filePath : this.currentPath(), text: ctx }
+      router.push({ uri: 'pages/ai' })
     },
     async openEntry(item) {
       if (!item) return
@@ -338,6 +416,7 @@
         canPrev: n > 1,
         canNext: n < this._totalPages
       })
+      out.push({ id: 'fai', kind: 'ai', text: '问 AI 关于本文件' })
       if (this._capped) out.push({ id: 'cap', kind: 'foot', text: '— 文件过大，仅显示前 1MB，其余已省略 —' })
       else if (this._allLines.length >= MAX_LINES) out.push({ id: 'max', kind: 'foot', text: '（已达 3000 行上限，其余行已省略）' })
       else if (n >= this._totalPages) out.push({ id: 'end', kind: 'foot', text: '— 文件结尾 —' })
@@ -385,6 +464,10 @@
     },
     onDestroy() {
       this.items = []
+      this._allLines = []
+      this._block = []
+      this._dirEntries = []
+      this._dirCache = {}
     }
   }
 </script>

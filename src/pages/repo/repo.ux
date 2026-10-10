@@ -47,6 +47,10 @@
             <image class="gicon" src="/common/icons/gear.png" />
             <text class="glabel">Actions</text>
           </div>
+          <div class="gcell" onclick="goAI">
+            <image class="gicon" src="/common/icons/ai.png" />
+            <text class="glabel">问 AI</text>
+          </div>
           <div class="gcell" onclick="toggleStar">
             <image class="gicon" src="{{starred ? '/common/icons/star-fill.png' : '/common/icons/star.png'}}" />
             <text class="glabel">{{starred ? '已 Star' : 'Star'}}</text>
@@ -195,6 +199,11 @@
     goActions() {
       this.$app.$def.hook = { full: this.full }
       router.push({ uri: 'pages/actions' })
+    },
+    /* v1.3.0：仓库上下文注入 Copilot 专区（README 摘要由 AI 页发送时补拉） */
+    goAI() {
+      this.$app.$def.aiCtx = { full: this.full, path: '', text: '当前仓库：' + this.full + (this.desc ? ('\n仓库简介：' + this.desc) : '') }
+      router.push({ uri: 'pages/ai' })
     },
     goBack() {
       router.back()

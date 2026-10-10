@@ -90,6 +90,7 @@
         { id: 'repos', icon: '/common/icons/repo.png', label: '我的仓库', sub: '' },
         { id: 'search', icon: '/common/icons/search.png', label: '搜索', sub: '' },
         { id: 'trending', icon: '/common/icons/trend.png', label: '趋势', sub: '' },
+        { id: 'ai', icon: '/common/icons/ai.png', label: 'Copilot 专区', sub: '' },
         { id: 'profile', icon: '/common/icons/person.png', label: '个人主页', sub: '' },
         { id: 'settings', icon: '/common/icons/gear.png', label: '设置 · Token', sub: '' }
       ]
@@ -138,6 +139,10 @@
       }
       if (item.id === 'repos' && !this.hasTk) {
         this.toast('仓库列表需登录；游客可使用搜索/趋势')
+        return
+      }
+      if (item.id === 'ai' && !this.hasTk) {
+        this.toast('AI 功能需登录 Token')
         return
       }
       router.push({ uri: 'pages/' + item.id })

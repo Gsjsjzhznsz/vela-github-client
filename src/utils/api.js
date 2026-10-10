@@ -715,7 +715,15 @@ function dig(obj, path) {
 
 function friendlyMessage(status, ghMessage) {
   if (status === 401) return 'Token 无效或已过期，请在「设置」更新'
-  if (status === 403) return 'GitHub 接口限流：游客每小时 60 次，建议在设置中填入 Token（5000 次/小时）'
+  if (status === 403) {
+    /* v1.6.0：认证用户（5000/小时）撞的是二级限流/滥用拦截，旧文案「游客每小时
+     * 60 次」误导用户去填 Token——按实际额度分级提示 */
+    const gm = String(ghMessage || '')
+    if (_rate.limit >= 5000 || /secondary|abuse|unusual/i.test(gm)) {
+      return 'GitHub 限流拦截（403）：请求过于频繁，请等待 1-2 分钟后重试'
+    }
+    return 'GitHub 接口限流：游客每小时 60 次，建议在设置中填入 Token（5000 次/小时）'
+  }
   if (status === 404) return '内容不存在（404，GitHub 路径区分大小写）'
   if (status === 422) return '请求参数错误（422）'
   if (status >= 500) return 'GitHub 服务暂时不可用（' + status + '）'
@@ -889,7 +897,7 @@ async function requestGo(url, header, opt) {
         return sc.data
       }
       // v1.1.3：incomplete 标志供自适应分页降档重试（确定性截断靠同参重试无解）
-      throw { status: lastStatus, incomplete: true, message: '响应数据不完整（蓝牙代理对长响应有限制），请重试' }
+      throw { status: lastStatus, incomplete: true, message: '响应数据不完整（代理长响应受限' + (lastBody ? '，残片 ' + lastBody.length + 'B' : '') + (lastStatus ? '，HTTP ' + lastStatus : '') + '），请重试' }
     }
     // v1.2.1：代理把 304/超时当传输层失败且重试耗尽 → 有旧缓存则回退（旧数据好过报错）
     const sc2 = _mem.map[url]
@@ -1393,7 +1401,9 @@ export function getRateLimit() {
  * 请求总数与旧真机实际开销（5 次 per=2 截断 + 5 次 per=1 补拉）持平。
  * gap 机制保留：单页彻底失败时留缺口渲染警告，绝不静默缺条。 */
 const NOTIF_PAGE_N = 10
-const NOTIF_CONC = 3
+/* v1.6.0：并发 3→2——10 连发经蓝牙代理打到 GitHub 易触发二级限流（403
+ * abuse detection），用户体感即「响应数据不完整」；2 并发总耗时仅多 ~1.2s */
+const NOTIF_CONC = 2
 
 /** 通知逻辑页大小（notifications.ux 的 hasMore 判断依据） */
 export function notifPageSize() {
@@ -1434,7 +1444,7 @@ async function notifDl(url) {
   if (_token) header['Authorization'] = 'Bearer ' + _token
   const text = await dlFetchText(url, header, NOTIF_DL_T)
   const cleaned = String(text).replace(/^\uFEFF/, '').trim()
-  if (!cleaned) throw { status: 200, incomplete: true, message: '下载器空响应' }
+  if (!cleaned) throw { status: 200, incomplete: true, message: '通知下载器空响应' }
   try {
     return JSON.parse(cleaned)
   } catch (e) {
@@ -2229,26 +2239,43 @@ const COPILOT_API_FALLBACK = 'https://api.githubcopilot.com'
 /* Copilot CLI 身份（2026 Copilot CLI 同款；Copilot Free 账号 cli_enabled=true）。
  * 交换与调用阶段的身份头必须一致，否则 403 token not authorized for this
  * integration（会话凭据按交换时声明的 integration 鉴权）。 */
-const CP_UA = 'copilot/1.0.82'
-const CP_API_VERSION = '2026-08-01'
+/* v1.6.0：身份头改为两条独立第三方生产实证栈（真机 403 主嫌疑是旧自创栈）：
+ *  交换段 cpExchHeaders（copilot_internal/v2/token）：LiteLLM authenticator.py
+ *    生产验证组合 GithubCopilot/1.155.0 + vscode/1.85.1 + copilot/1.155.0；
+ *  调用段 cpIdentityHeaders（chat/completions /models）：LiteLLM
+ *    common_utils.get_copilot_default_headers 千级用户验证组合
+ *    GitHubCopilotChat/0.26.7 + vscode/1.95.0 + copilot-chat/0.26.7 +
+ *    vscode-chat + conversation-panel + 2025-04-01。
+ *  （Docker Agent 文档另证 copilot-developer-cli 亦为合法 integration id，
+ *   但其完整头栈无公开实现背书；LiteLLM 组合有源码级生产实证，取之。） */
+const CP_UA = 'GitHubCopilotChat/0.26.7'
+const CP_API_VERSION = '2025-04-01'
+
+function cpExchHeaders() {
+  return {
+    'User-Agent': 'GithubCopilot/1.155.0',
+    'Editor-Version': 'vscode/1.85.1',
+    'Editor-Plugin-Version': 'copilot/1.155.0'
+  }
+}
 
 function cpIdentityHeaders() {
   return {
     'User-Agent': CP_UA,
-    'Editor-Version': CP_UA,
-    'Editor-Plugin-Version': 'copilot-cli/1.0.82',
-    'Copilot-Integration-Id': 'copilot-developer-cli',
-    'Openai-Intent': 'conversation-agent'
+    'Editor-Version': 'vscode/1.95.0',
+    'Editor-Plugin-Version': 'copilot-chat/0.26.7',
+    'Copilot-Integration-Id': 'vscode-chat',
+    'Openai-Intent': 'conversation-panel'
   }
 }
 
 /* Copilot Free 2026-10 主力模型（兜底清单；真实列表以 GET /models 动态刷新） */
 const AI_MODELS = [
+  'gpt-4o-mini',
+  'gpt-4.1-mini',
   'gpt-5-mini',
   'claude-haiku-4.5',
   'gemini-3-flash',
-  'gpt-4.1-mini',
-  'gpt-4o-mini',
   'grok-code-fast-1'
 ]
 const AI_MAX_TOKENS = 700
@@ -2337,13 +2364,15 @@ async function copilotSession(force) {
   if (!_aiTok) {
     throw { status: 0, needCopilot: true, message: '需要 Copilot 设备授权：点「Copilot 授权」一键完成（免打字）' }
   }
+  /* v1.6.0：交换段用 LiteLLM 实证头（GithubCopilot/1.155.0 + vscode/1.85.1），
+   * 不再复用调用段 vscode-chat 头；403/5xx 属通道级失败，标 exchangeFail
+   * 让 aiChat 立即透出——换模型对交换失败无解，旧版白耗 2 轮模型循环。 */
   const header = {
-    'User-Agent': CP_UA,
     Accept: 'application/json',
     Authorization: 'token ' + _aiTok
   }
-  const idh = cpIdentityHeaders()
-  for (const hk in idh) header[hk] = idh[hk]
+  const eh = cpExchHeaders()
+  for (const hk in eh) header[hk] = eh[hk]
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -2351,15 +2380,18 @@ async function copilotSession(force) {
       break
     } catch (e) { res = null }
   }
-  if (!res) throw { status: 0, message: 'Copilot 凭据交换网络失败，请检查手表网络' }
+  if (!res) throw { status: 0, message: '[交换] Copilot 凭据网络失败，请检查手表网络' }
   const code = Number(res.code) || 0
   const d = jsonMaybe(res)
   if (!d || !d.token) {
     const raw = typeof res.data === 'string' ? String(res.data).trim().slice(0, 120) : ''
     if (code === 401 || code === 404) {
-      throw { status: code, needCopilot: true, message: 'Copilot 凭据交换被拒（' + code + '）：请重新 Copilot 授权' }
+      throw { status: code, needCopilot: true, message: '[交换] Copilot 凭据被拒（' + code + '）：请点紫卡重新 Copilot 授权' }
     }
-    throw { status: code, message: 'Copilot 凭据交换失败（HTTP ' + code + '）' + (raw ? '：' + raw : '') }
+    if (code === 403) {
+      throw { status: code, exchangeFail: true, message: '[交换] Copilot 凭据被拒（403）' + (raw ? '：' + raw : '') + ' → 点「Copilot 授权」重新授权一次' }
+    }
+    throw { status: code, exchangeFail: true, message: '[交换] Copilot 凭据失败（HTTP ' + code + '）' + (raw ? '：' + raw : '') }
   }
   const api = (d.endpoints && d.endpoints.api) || COPILOT_API_FALLBACK
   _cpSess = {
@@ -2372,7 +2404,7 @@ async function copilotSession(force) {
 
 /** AI POST（不走缓存管线）：非 2xx 一律透出响应原文片段（可自诊断）。
  *  结构化 error.message 优先，否则取原文前 120 字。 */
-async function aiPost(url, header, bodyObj) {
+async function aiPost(url, header, bodyObj, tag) {
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -2380,17 +2412,36 @@ async function aiPost(url, header, bodyObj) {
       break
     } catch (e) { res = null }
   }
-  if (!res) throw { status: 0, message: 'AI 网络失败，请检查手表网络' }
+  const tg = tag ? ('[' + tag + '] ') : ''
+  if (!res) throw { status: 0, message: tg + 'AI 网络失败，请检查手表网络' }
   const code = Number(res.code) || 0
   if (code >= 200 && code < 300) {
     const d = jsonMaybe(res)
-    if (!d) throw { status: code, message: 'AI 通道 2xx 但响应非 JSON' }
+    if (!d) throw { status: code, message: tg + 'AI 通道 2xx 但响应非 JSON' }
     return d
   }
   const dErr = jsonMaybe(res)
   const em = dErr && dErr.error && dErr.error.message
   const raw = typeof res.data === 'string' ? String(res.data).trim().slice(0, 120) : ''
-  throw { status: code, message: em || raw || ('AI 服务 HTTP ' + code) }
+  throw { status: code, message: tg + (em || raw || ('AI 服务 HTTP ' + code)) }
+}
+
+/** /responses 响应文本抽取（output_text 直取 → output[] content[].text 拼接） */
+function respText(d) {
+  if (d && typeof d.output_text === 'string' && d.output_text.length) return d.output_text
+  if (d && Array.isArray(d.output)) {
+    let s = ''
+    for (let i = 0; i < d.output.length; i++) {
+      const c = d.output[i] && d.output[i].content
+      if (Array.isArray(c)) {
+        for (let j = 0; j < c.length; j++) {
+          if (c[j] && typeof c[j].text === 'string') s += c[j].text
+        }
+      }
+    }
+    return s
+  }
+  return ''
 }
 
 /** Copilot 对话。messages=[{role,content}]，opts: { model }。
@@ -2417,19 +2468,52 @@ export async function aiChat(messages, opts) {
       }
       const idh = cpIdentityHeaders()
       for (const hk in idh) header[hk] = idh[hk]
-      const d = await aiPost(sess.api + '/chat/completions', header,
-        { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS })
-      const ch = d.choices && d.choices[0] && d.choices[0].message
-      if (!ch || typeof ch.content !== 'string' || !ch.content.length) {
-        throw { message: 'AI 响应缺内容，请重试' }
+      let usedEp = 'chat'
+      let d = null
+      let firstErr = null
+      /* v1.6.0：gpt-5 系/Codex 系/o 系只挂 /responses（Docker 文档实证：新模型对
+       * /chat/completions 恒 400）——前缀命中直达，其余 400/404 时换端点重试一次 */
+      const respOnly = /^(gpt-5|codex|o1|o3|o4)/.test(useModel)
+      if (respOnly) {
+        usedEp = 'responses'
+        d = await aiPost(sess.api + '/responses', header,
+          { model: useModel, input: messages, max_output_tokens: AI_MAX_TOKENS }, '端点')
+      } else {
+        try {
+          d = await aiPost(sess.api + '/chat/completions', header,
+            { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS }, 'chat')
+        } catch (e1) {
+          const st1 = Number(e1 && e1.status) || 0
+          if (st1 !== 400 && st1 !== 404) throw e1
+          firstErr = e1
+          usedEp = 'responses'
+          d = await aiPost(sess.api + '/responses', header,
+            { model: useModel, input: messages, max_output_tokens: AI_MAX_TOKENS }, '端点')
+        }
       }
-      return { text: ch.content, via: 'copilot', usage: d.usage || null, model: useModel }
+      let text = ''
+      if (d && d.choices && d.choices[0] && d.choices[0].message &&
+          typeof d.choices[0].message.content === 'string') {
+        text = d.choices[0].message.content
+      } else if (d) {
+        text = respText(d)
+      }
+      if (!text.length) {
+        /* /responses 回退后仍无可取文本：回抛 chat 原始错误（信息量更大且保降级）；
+         * respOnly 直达则抛通用缺内容 */
+        throw firstErr || { message: 'AI 响应缺内容，请重试', modelErr: true }
+      }
+      return { text: text, via: 'copilot', usage: d.usage || null, model: useModel, ep: usedEp }
     } catch (e) {
-      lastErr = e
+      /* v1.6.0：降级耗尽后保留信息量最大的错误（带原文的 400/403 优先于
+       * 「缺内容」类通用噪声），用户看到的是真因 */
+      if (!lastErr || String((e && e.message) || '').length > String((lastErr && lastErr.message) || '').length) lastErr = e
+      /* 交换失败/未授权/未登录是通道级失败，立即透出（换模型无解） */
+      if (e.needCopilot || e.exchangeFail || e.needAuth) throw e
       const st = Number(e && e.status) || 0
       const msg = String((e && e.message) || '')
-      const modelErr = st === 400 || st === 403 || st === 404 || /model|access|permission|权限/i.test(msg)
-      if (e.needCopilot || !modelErr) throw e
+      const modelErr = e.modelErr || st === 400 || st === 403 || st === 404 || /model|access|permission|权限/i.test(msg)
+      if (!modelErr) throw e
     }
   }
   throw lastErr

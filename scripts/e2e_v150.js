@@ -39,8 +39,8 @@ async function main() {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json',
-        'User-Agent': 'copilot/1.0.82', 'Editor-Version': 'copilot/1.0.82',
-        'Copilot-Integration-Id': 'copilot-developer-cli', 'Openai-Intent': 'conversation-agent'
+        'User-Agent': 'GitHubCopilotChat/0.26.7', 'Editor-Version': 'vscode/1.95.0',
+        'Copilot-Integration-Id': 'vscode-chat', 'Openai-Intent': 'conversation-panel'
       },
       body: JSON.stringify({ model: 'gpt-5-mini', messages: [{ role: 'user', content: 'hi' }] })
     })

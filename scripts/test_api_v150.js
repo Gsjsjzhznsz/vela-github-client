@@ -261,6 +261,7 @@ T('通知：单条彻底失败 → gap 记录，其余 9 条照常渲染', async
 const COPILOT_EXCH_URL = 'https://api.github.com/copilot_internal/v2/token'
 const CP_API = 'https://api.individual.githubcopilot.com'
 const CHAT_URL = CP_API + '/chat/completions'
+const RESP_URL_V150 = CP_API + '/responses'
 const EXCH_RESP = JSON.stringify({
   token: 'tid=abc;exp=999999;sku=copilot_free_limit',
   endpoints: { api: CP_API },
@@ -271,7 +272,7 @@ const CHAT_OK = (model) => JSON.stringify({ model: model, choices: [{ message: {
 T('AI：2026 Copilot 兜底模型清单（6 个，无 publisher 前缀）', async () => {
   const api = apiOf(authed(() => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
-  assertEq(ms[0], 'gpt-5-mini', '首模型 gpt-5-mini（Copilot Free 主力）')
+  assertEq(ms[0], 'gpt-4o-mini', '首模型 gpt-4o-mini（v1.6.0：/chat/completions 最稳老模型先行）')
   assertEq(ms.length, 6, '6 个模型')
   assert(ms.indexOf('claude-haiku-4.5') >= 0, '含 Claude Haiku 4.5')
   assert(ms.indexOf('gemini-3-flash') >= 0, '含 Gemini 3 Flash')
@@ -299,24 +300,27 @@ T('AI：ghu_ 会话交换（URL/token 头/身份头）→ endpoints.api 直达 c
     }
     if (u === CHAT_URL) {
       seen.chat = o
-      return { code: 200, data: CHAT_OK('gpt-5-mini'), headers: {} }
+      return { code: 200, data: CHAT_OK('gpt-4o-mini'), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   }, { mainToken: TOKEN_OK, aiToken: GHU_OK })
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
+  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-4o-mini' })
   assertEq(r.text, 'cp ok', '回复内容')
   assertEq(r.via, 'copilot', 'via=copilot')
-  assertEq(r.model, 'gpt-5-mini', '模型')
+  assertEq(r.model, 'gpt-4o-mini', '模型')
   assert(seen.exch, '发起凭据交换')
   assertEq(seen.exch.header['Authorization'], 'token ' + GHU_OK, '交换用 token scheme + ghu_')
-  assertEq(seen.exch.header['Editor-Version'], 'copilot/1.0.82', '交换带 Editor-Version 身份')
-  assertEq(seen.exch.header['Copilot-Integration-Id'], 'copilot-developer-cli', '交换声明 integration')
+  assertEq(seen.exch.header['Editor-Version'], 'vscode/1.85.1', '交换 Editor-Version（LiteLLM 实证栈）')
+  assertEq(seen.exch.header['User-Agent'], 'GithubCopilot/1.155.0', '交换 UA（LiteLLM 实证栈）')
+  assert(!('Copilot-Integration-Id' in seen.exch.header), '交换段不再声明 integration（LiteLLM 交换栈无此头）')
   assertEq(seen.chat.header['Authorization'], 'Bearer tid=abc;exp=999999;sku=copilot_free_limit', 'chat 用会话凭据 Bearer')
-  assertEq(seen.chat.header['X-GitHub-Api-Version'], '2026-08-01', 'chat 带 2026-08-01 版本头')
-  assertEq(seen.chat.header['Copilot-Integration-Id'], 'copilot-developer-cli', 'chat 身份头与交换一致')
+  assertEq(seen.chat.header['X-GitHub-Api-Version'], '2025-04-01', 'chat 带 2025-04-01 版本头')
+  assertEq(seen.chat.header['Copilot-Integration-Id'], 'vscode-chat', 'chat integration=vscode-chat（LiteLLM 实证栈）')
+  assertEq(seen.chat.header['User-Agent'], 'GitHubCopilotChat/0.26.7', 'chat UA')
+  assertEq(seen.chat.header['Openai-Intent'], 'conversation-panel', 'chat Openai-Intent')
   const body = JSON.parse(seen.chat.data)
-  assertEq(body.model, 'gpt-5-mini', '请求体模型（无 publisher 前缀）')
+  assertEq(body.model, 'gpt-4o-mini', '请求体模型（无 publisher 前缀）')
 })
 
 T('AI：主 token 为 ghu_（旧设备授权）→ 直接复用为 AI token', async () => {
@@ -333,23 +337,25 @@ T('AI：主 token 为 ghu_（旧设备授权）→ 直接复用为 AI token', as
   assert(api.hasAiTok(), '复用后视为已授权')
 })
 
-T('AI：模型自动降级（首模型 400 → 下一模型成功）', async () => {
+T('AI：模型自动降级（gpt-5 系 /responses 空体 → 下一模型成功）', async () => {
   const asked = []
+  const seq = []
   const mocks = authed((i, o) => {
     const u = fetchUrl(o)
     if (u === COPILOT_EXCH_URL) return { code: 200, data: EXCH_RESP, headers: {} }
+    if (u === RESP_URL_V150) { seq.push('resp'); return { code: 200, data: '{}', headers: {} } }
     if (u === CHAT_URL) {
       const body = JSON.parse(o.data)
       asked.push(body.model)
-      if (asked.length === 1) return { code: 400, data: JSON.stringify({ error: { message: 'model_not_supported: gpt-5-mini' } }), headers: {} }
       return { code: 200, data: CHAT_OK(body.model), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   }, { aiToken: GHU_OK })
   const api = apiOf(mocks)
   const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
-  assertEq(r.model, 'claude-haiku-4.5', '降级到第二模型')
-  assertEq(asked.length, 2, '两次请求')
+  assertEq(r.model, 'claude-haiku-4.5', '降级到下一模型')
+  assertEq(asked.length, 1, 'chat 仅 1 次（gpt-5 系直达 /responses，空体降级）')
+  assertEq(seq.length, 1, '/responses 被直达 1 次')
 })
 
 T('AI：错误透出——400 文本原文进 message（不再笼统报网关异常）', async () => {

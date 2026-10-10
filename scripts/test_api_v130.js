@@ -325,8 +325,8 @@ T('aiChat ④b oauth → Copilot 优先（token 交换 + chat）', async () => {
     }
     if (u.indexOf('api.githubcopilot.com/chat/completions') >= 0) {
       assertEq(o.header.Authorization, 'Bearer tid=1;exp=9999999999;sku=copilot', 'Copilot 临时凭据')
-      assertEq(o.header['Copilot-Integration-Id'], 'copilot-developer-cli', '集成头（v1.5.0 CLI 身份）')
-      assertEq(o.header['X-GitHub-Api-Version'], '2026-08-01', 'Copilot API 版本头')
+      assertEq(o.header['Copilot-Integration-Id'], 'vscode-chat', '集成头（v1.6.0 LiteLLM 实证栈）')
+      assertEq(o.header['X-GitHub-Api-Version'], '2025-04-01', 'Copilot API 版本头')
       return { code: 200, data: JSON.stringify({ choices: [{ message: { content: 'COPILOT-OK' } }] }), headers: {} }
     }
     return { code: 404, data: '{}', headers: {} }
@@ -414,7 +414,7 @@ T('aiTokenKind/aiChannelLabel/aiModels ⑤', async () => {
   assert(a2.aiChannelLabel().indexOf('Copilot') >= 0, 'oauth label')
 
   assert(a2.aiModels().length >= 3, '预设模型 ≥3（v1.5.0 六模型清单）')
-  assertEq(a2.aiModels()[0], 'gpt-5-mini', '首模型（Copilot API id 无前缀）')
+  assertEq(a2.aiModels()[0], 'gpt-4o-mini', '首模型（v1.6.0 gpt-4o-mini 先行）')
 })
 
 /* ---------------- ⑥ device scope ---------------- */

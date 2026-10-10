@@ -371,16 +371,16 @@ T('getFileRawEx：历史截断缓存作废重拉', async () => {
 
 /* ---------------- ⑥ AI ---------------- */
 
-T('AI：2026 模型清单（首模型 gpt-5-mini，共 5 个）', async () => {
+T('AI：模型清单（v1.6.0 首模型 gpt-4o-mini，共 6 个）', async () => {
   const api = apiOf(authed({}, () => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
-  assertEq(ms[0], 'gpt-5-mini', '首模型为 GPT-5 mini（Copilot Free 主力）')
+  assertEq(ms[0], 'gpt-4o-mini', '首模型为 gpt-4o-mini（v1.6.0 安全老模型先行）')
   assertEq(ms.length, 6, '6 个模型')
   assert(ms.indexOf('claude-haiku-4.5') >= 0, '含 Claude Haiku 4.5')
   assert(ms.every((m) => m.indexOf('/') < 0), 'Copilot API id 无 publisher 前缀')
 })
 
-T('AI：aiChat 模型自动降级（400 → 下一模型成功，Copilot 通道）', async () => {
+T('AI：aiChat 模型自动降级（gpt-5 系 /responses 空体 → 下一模型，Copilot 通道）', async () => {
   let n = 0
   const models = []
   const mocks = authed({}, (i, o) => {
@@ -388,11 +388,11 @@ T('AI：aiChat 模型自动降级（400 → 下一模型成功，Copilot 通道�
     if (u.indexOf('copilot_internal/v2/token') >= 0) {
       return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=cp', endpoints: { api: 'https://api.individual.githubcopilot.com' }, expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
     }
+    if (u.indexOf('/responses') >= 0) return { code: 200, data: '{}', headers: {} }
     if (u.indexOf('chat/completions') >= 0) {
       n++
       const body = JSON.parse(o.data)
       models.push(body.model)
-      if (n === 1) return { code: 400, data: JSON.stringify({ error: { message: 'model_not_supported' } }), headers: {} }
       return { code: 200, data: JSON.stringify({ model: body.model, choices: [{ message: { content: 'ok' } }], usage: { total_tokens: 3 } }), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
@@ -401,8 +401,8 @@ T('AI：aiChat 模型自动降级（400 → 下一模型成功，Copilot 通道�
   const api = apiOf(mocks)
   const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
   assertEq(r.text, 'ok', '回复内容')
-  assertEq(r.model, 'claude-haiku-4.5', '实际用第二模型')
-  assertEq(models.length, 2, '共 2 次推理请求')
+  assertEq(r.model, 'claude-haiku-4.5', '实际用下一模型')
+  assertEq(models.length, 1, 'chat 仅 1 次（gpt-5 系直达 /responses 空体后降级）')
 })
 
 T('AI：aiChat 额度错误（429）不降级', async () => {
@@ -469,7 +469,7 @@ T('AI：copilotModels 目录拉取 + chat 过滤 + 去重', async () => {
     }
     if (u.indexOf('/models') >= 0) {
       assertEq(u, 'https://api.individual.githubcopilot.com/models', '按套餐端点拉模型目录')
-      assertEq(o.header['X-GitHub-Api-Version'], '2026-08-01', '版本头')
+      assertEq(o.header['X-GitHub-Api-Version'], '2025-04-01', '版本头（v1.6.0 LiteLLM 实证栈）')
       return { code: 200, data: JSON.stringify(catalog), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }

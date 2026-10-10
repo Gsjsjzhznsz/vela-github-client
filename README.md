@@ -116,6 +116,23 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 应用启动零网络请求，onShow 智能去重
 - v1.3.0：目录列表分页（24 条/页，深目录不再一次性渲染数百节点——OOM 死机根治）+ 会话目录缓存（返回上级零网络秒开）
 
+### v1.6.0 AI 实证头栈重构（403 根治）+ /responses 双端点 + 通知限流分级
+
+两条复现反馈的再根治（「2 个问题依旧，AI 显示 403」「通知中心依旧数据不完整」）——本版核心方法论转变：**不再自创身份头栈，全部改用第三方生产实证组合**：
+
+- **AI 403 主嫌疑：自创身份头栈**——v1.5.0 使用的 `copilot/1.0.82 + copilot-cli/1.0.82 + copilot-developer-cli + conversation-agent + 2026-08-01` 组合无任何第三方生产背书。v1.6.0 拆成两条独立实证栈：
+  - **交换段**（copilot_internal/v2/token）：`GithubCopilot/1.155.0 + vscode/1.85.1 + copilot/1.155.0`——**LiteLLM authenticator.py 生产验证组合**（千级用户）
+  - **调用段**（chat/completions、/models）：`GitHubCopilotChat/0.26.7 + vscode/1.95.0 + copilot-chat/0.26.7 + vscode-chat + conversation-panel + 2025-04-01`——**LiteLLM common_utils 生产验证组合**
+- **/responses 双端点（gpt-5 系 400 根治）**：Docker 官方文档实证——**gpt-5 系/Codex 系模型只挂 /responses，对 /chat/completions 恒 400**。v1.6.0 按模型前缀自动选端点（gpt-5/codex/o1/o3/o4 直达 /responses），其余模型 400/404 时同模型换端点重试一次；/responses 取文双路（output_text 直取 → output[].content[].text 拼接）
+- **交换失败不再空转**：凭据交换 403/5xx 标记 exchangeFail 立即透出——换模型对交换失败无解，旧版白耗 3 轮模型循环（用户只看到滞后且混淆的报错）
+- **错误保留最有信息量者**：模型降级耗尽后优先展示带响应原文的 400/403（真因），而非尾模型的「响应缺内容」噪声；错误文案统一带步骤标签 `[交换]`/`[chat]`/`[端点]`，下一轮反馈可精确定位
+- **兜底模型重排**：gpt-4o-mini 先行（/chat/completions 最稳老模型），gpt-4.1-mini 次之，gpt-5-mini 保留（/responses 路径）——默认路径永远走最成熟端点
+- **PAT 直连终局确认**：实测 copilot scope 的 classic PAT 对 /chat/completions 与 /responses 均 400 "Personal Access Tokens are not supported"（2026-10）——设备授权是唯一通路（v1.5.0 已内置一键授权）
+- **通知 403 分级文案**：认证用户（5000 次/小时）撞二级限流时不再误显「游客每小时 60 次」——改为「GitHub 限流拦截（403）：请求过于频繁，请等待 1-2 分钟后重试」
+- **通知并发 3→2**：10 连发经蓝牙代理易触发 GitHub 二级限流（abuse detection），用户体感即「数据不完整」——降并发 + friendlyMessage 分级双防护
+- **通知诊断增强**：截断报错携带残片长度与 HTTP 状态（如「代理长响应受限，残片 5632B，HTTP 200」），下一轮反馈可直接定位截断层级
+- **设置页版本号与发布同步**（旧版停在 v1.2.1 造成版本核对困难）
+
 ### v1.5.0 通知 per=1 主路根治 + AI Copilot 单通道重构（Models 退役应对）
 
 两条最新反馈的终极根治（「通知中心依旧显示响应数据不完整」「AI 依旧使用不了，我在 VS Code 都能正常使用免费模型」）：

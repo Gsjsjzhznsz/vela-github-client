@@ -67,7 +67,7 @@
   .on { color: #ffffff; background-color: #1f6feb; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 19px; height: 19px; }
-  .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
+  .pull-text { font-size: 22px; color: #8b949e; margin-left: 8px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -76,12 +76,12 @@
   .cell-icon { width: 22px; height: 22px; margin-top: 3px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 11px; }
   .cell-title { font-size: 23px; color: #e6edf3; font-weight: bold; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 19px; color: #8b949e; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
+  .cell-sub { font-size: 22px; color: #8b949e; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
   .badges { flex-direction: row; margin-top: 5px; }
-  .badge { font-size: 16px; border-radius: 8px; padding: 1px 8px; margin-right: 7px; }
+  .badge { font-size: 19px; border-radius: 8px; padding: 1px 8px; margin-right: 7px; }
   .draft { color: #d29922; background-color: #282013; }
   .merged { color: #a371f7; background-color: #241a33; }
-  .foot { font-size: 19px; color: #6e7681; text-align: center; width: 100%; padding: 8px 0; }
+  .foot { font-size: 22px; color: #6e7681; text-align: center; width: 100%; padding: 8px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 30px; }
   .state-btn { font-size: 21px; color: #58a6ff; margin-top: 14px; padding: 8px 16px; background-color: #16233a; border-radius: 12px; }

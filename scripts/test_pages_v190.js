@@ -46,9 +46,9 @@ function minFont(ux) {
 const manifest = JSON.parse(read('src/manifest.json'))
 
 /* ---------------- ① manifest ---------------- */
-T('① manifest：1.9.0/19 + interconnect feature + pulls 路由', () => {
-  assertEq(manifest.versionName, '1.9.0', 'versionName')
-  assertEq(manifest.versionCode, 19, 'versionCode')
+T('① manifest：interconnect feature + pulls 路由（版本号一致性由 v110 套件守门）', () => {
+  assert(/^\d+\.\d+\.\d+$/.test(manifest.versionName || ''), 'versionName 格式在案（具体值由最新套件断言）')
+  assert(manifest.versionCode >= 19, 'versionCode 结构在案（具体值由最新套件断言）')
   const feats = manifest.features.map((f) => f.name)
   assert(feats.indexOf('system.interconnect') >= 0, 'system.interconnect feature')
   assert(manifest.router.pages['pages/pulls'] && manifest.router.pages['pages/pulls'].component === 'pulls', 'pages/pulls 路由')

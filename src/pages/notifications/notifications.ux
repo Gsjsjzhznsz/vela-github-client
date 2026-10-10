@@ -104,7 +104,7 @@
   .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 12px; padding: 13px 14px; }
   .gh-arrow { font-size: 22px; color: #58a6ff; width: 30px; }
   .gh-repo { font-size: 22px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .gh-muted { font-size: 17px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
+  .gh-muted { font-size: 19px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
   .gh-n { font-size: 19px; color: #8b949e; margin-left: 8px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
   .unread { position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 5px; background-color: #3fb950; }
@@ -112,7 +112,7 @@
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
   .cell-title { font-size: 23px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
   .cell-meta { flex-direction: row; align-items: center; margin-top: 3px; }
-  .cell-ci { font-size: 16px; color: #d29922; padding: 1px 7px; border-radius: 7px; background-color: #282013; margin-right: 7px; }
+  .cell-ci { font-size: 18px; color: #d29922; padding: 1px 7px; border-radius: 7px; background-color: #282013; margin-right: 7px; }
   .cell-time { font-size: 19px; color: #6e7681; }
   /* v1.9.0：组内操作行——整仓已读/静音的显式入口（长按不可发现的补充） */
   .actrow { flex-direction: row; align-items: center; padding: 2px 0 6px; }

@@ -43,7 +43,7 @@
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 13px; color: #484f58; margin-top: 1px; }
+  .hd-sub { font-size: 19px; color: #484f58; margin-top: 1px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -51,15 +51,15 @@
   .li { padding: 3px 14px; }
   /* 块样式与 md.js H_TABLE 严格对齐：显式 line-height 保证高度估算确定性 */
   .b-h { font-size: 22px; line-height: 30px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
-  .b-p { font-size: 17px; line-height: 24px; color: #e6edf3; }
-  .b-c { font-size: 16px; line-height: 21px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 3px 0; }
-  .b-q { font-size: 17px; line-height: 23px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
-  .b-l { font-size: 17px; line-height: 24px; color: #e6edf3; }
-  .b-r { font-size: 14px; line-height: 18px; color: #30363d; text-align: center; }
-  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .b-p { font-size: 21px; line-height: 30px; color: #e6edf3; }
+  .b-c { font-size: 19px; line-height: 25px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 3px 0; }
+  .b-q { font-size: 21px; line-height: 28px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
+  .b-l { font-size: 21px; line-height: 30px; color: #e6edf3; }
+  .b-r { font-size: 20px; line-height: 26px; color: #30363d; text-align: center; }
+  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>

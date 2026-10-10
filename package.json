@@ -1,6 +1,6 @@
 {
   "name": "vela-github-client",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "小米 Vela 手表 GitHub 客户端（Redmi Watch 5 等 Vela OS 穿戴设备）",
   "private": true,
   "license": "AGPL-3.0-or-later",

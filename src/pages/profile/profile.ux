@@ -80,19 +80,19 @@
   .ava-big { width: 67px; height: 67px; border-radius: 34px; justify-content: center; align-items: center; }
   .ava-big-t { font-size: 35px; color: #ffffff; font-weight: bold; }
   .p-login { font-size: 24px; color: #e6edf3; font-weight: bold; margin-top: 7px; }
-  .p-name { font-size: 17px; color: #c9d1d9; margin-top: 2px; }
-  .p-bio { font-size: 16px; color: #8b949e; margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
+  .p-name { font-size: 21px; color: #c9d1d9; margin-top: 2px; }
+  .p-bio { font-size: 19px; color: #8b949e; margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
   .stats { flex-direction: row; margin-top: 12px; }
   .stat { flex: 1; background-color: #161b22; border-radius: 12px; padding: 12px 0; align-items: center; margin-right: 10px; }
   .stat-n { font-size: 24px; color: #e6edf3; font-weight: bold; }
-  .stat-l { font-size: 14px; color: #8b949e; margin-top: 2px; }
+  .stat-l { font-size: 20px; color: #8b949e; margin-top: 2px; }
   .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-top: 10px; }
   .cell-icon { width: 22px; height: 22px; }
-  .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-label { flex: 1; font-size: 22px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 17px; height: 17px; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
-  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>

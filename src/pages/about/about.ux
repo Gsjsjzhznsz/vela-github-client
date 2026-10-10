@@ -12,7 +12,7 @@
       <div class="hero">
         <image class="icon" src="/common/icons/logo.png"></image>
         <text class="app-name">GitHub for Vela</text>
-        <text class="ver">v1.9.0 · Redmi Watch 5 · AGPL-3.0</text>
+        <text class="ver">v1.10.0 · Redmi Watch 5 · AGPL-3.0</text>
       </div>
       <div class="card col">
         <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、PR、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字），支持 AstroBox 网桥为砍网机型恢复联网。</text>
@@ -57,13 +57,13 @@
   .hero { flex-direction: column; align-items: center; margin: 10px 8px 4px 8px; }
   .icon { width: 64px; height: 64px; border-radius: 16px; }
   .app-name { font-size: 22px; color: #ffffff; margin-top: 6px; font-weight: bold; }
-  .ver { font-size: 13px; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
+  .ver { font-size: 19px; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
   .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; margin: 4px 8px; padding: 10px 12px; flex-direction: column; }
   .col { flex-direction: column; }
-  .line { font-size: 14px; color: #dddddd; line-height: 20px; }
-  .k { font-size: 12px; color: rgba(255, 255, 255, 0.45); }
-  .v { font-size: 17px; color: #5b9bff; margin-top: 2px; }
-  .v2 { font-size: 15px; color: #5b9bff; margin-top: 2px; line-height: 21px; }
+  .line { font-size: 20px; color: #dddddd; line-height: 29px; }
+  .k { font-size: 18px; color: rgba(255, 255, 255, 0.45); }
+  .v { font-size: 21px; color: #5b9bff; margin-top: 2px; }
+  .v2 { font-size: 21px; color: #5b9bff; margin-top: 2px; line-height: 29px; }
 </style>
 
 <script>

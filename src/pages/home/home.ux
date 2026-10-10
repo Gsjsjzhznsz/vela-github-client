@@ -56,16 +56,16 @@
   .ava { width: 50px; height: 50px; border-radius: 25px; justify-content: center; align-items: center; }
   .ava-t { font-size: 26px; color: #ffffff; font-weight: bold; }
   .card-main { flex-direction: column; margin-left: 12px; flex: 1; }
-  .row1 { font-size: 20px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .row2 { font-size: 16px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .row3 { font-size: 14px; color: #3fb950; margin-top: 2px; }
+  .row1 { font-size: 22px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .row2 { font-size: 19px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .row3 { font-size: 20px; color: #3fb950; margin-top: 2px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 13px 12px; }
   .cell-icon { width: 26px; height: 26px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
-  .cell-label { font-size: 20px; color: #e6edf3; }
-  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-label { font-size: 22px; color: #e6edf3; }
+  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 19px; height: 19px; }
-  .foot { font-size: 13px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
 </style>
 
 <script>

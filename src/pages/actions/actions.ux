@@ -53,15 +53,15 @@
   .hd-act { width: 44px; height: 44px; }
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 14px; color: #484f58; flex: 1; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 20px; color: #484f58; flex: 1; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
   .li { padding: 4px 12px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-title { font-size: 19px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-title { font-size: 22px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 14px; height: 14px; }
   .arr-up { transform: rotate(180deg); }
   .dot { width: 14px; height: 14px; border-radius: 7px; }
@@ -71,17 +71,17 @@
   .dot-idle { background-color: #484f58; }
   .chk { flex-direction: column; background-color: #0d1117; border-radius: 10px; margin: 4px 12px 4px 36px; padding: 2px 10px; }
   .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 5px 0; }
-  .chk-name { font-size: 15px; color: #c9d1d9; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .chk-state { font-size: 14px; margin-left: 8px; }
+  .chk-name { font-size: 21px; color: #c9d1d9; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .chk-state { font-size: 20px; margin-left: 8px; }
   .st-ok { color: #3fb950; }
   .st-fail { color: #f85149; }
   .st-run { color: #d29922; }
   .st-idle { color: #484f58; }
-  .chk-empty { font-size: 14px; color: #484f58; padding: 5px 0; }
-  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .chk-empty { font-size: 20px; color: #484f58; padding: 5px 0; }
+  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>

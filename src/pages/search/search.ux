@@ -63,9 +63,9 @@
   .srow { flex-direction: row; align-items: center; padding: 2px 12px 7px; }
   /* 定宽防溢出：flex:1 + 无 max-width 的文本行在引擎里不收缩，会把 sbtn 挤出屏（实测 432 下按钮被裁） */
   .sbox { width: 296px; height: 36px; background-color: #161b22; border: 1px solid #30363d; border-radius: 18px; justify-content: center; padding: 0 12px; }
-  .stext { font-size: 17px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .stext { font-size: 21px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .ph { color: #484f58; }
-  .sbtn { font-size: 17px; color: #ffffff; background-color: #238636; border-radius: 18px; padding: 8px 14px; margin-left: 10px; }
+  .sbtn { font-size: 21px; color: #ffffff; background-color: #238636; border-radius: 18px; padding: 8px 14px; margin-left: 10px; }
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -73,19 +73,19 @@
   .li { padding: 4px 12px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
   .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 19px; color: #ffffff; font-weight: bold; }
+  .ava-t { font-size: 22px; color: #ffffff; font-weight: bold; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .cell-desc { font-size: 16px; color: #8b949e; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
+  .cell-title { font-size: 22px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .cell-desc { font-size: 19px; color: #8b949e; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 5px; }
   .dot { width: 10px; height: 10px; border-radius: 5px; margin-right: 4px; }
   .meta-ic { width: 13px; height: 13px; margin-left: 10px; margin-right: 2px; }
-  .meta-t { font-size: 14px; color: #8b949e; }
-  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .meta-t { font-size: 20px; color: #8b949e; }
+  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
   /* top 142：必须让出 srow（94~136），否则遮罩盖住搜索框吞点击 */
   .state { position: absolute; left: 0; top: 142px; right: 0; bottom: 48px; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>
 
 <script>

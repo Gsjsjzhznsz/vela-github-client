@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.9.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v1.10.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：手表直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -103,15 +103,15 @@
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 5px 12px 50px; }
   .card { background-color: #161b22; border-radius: 12px; padding: 12px; margin-bottom: 10px; flex-direction: column; }
-  .c-title { font-size: 19px; color: #e6edf3; font-weight: bold; margin-bottom: 5px; }
-  .c-row { font-size: 16px; color: #c9d1d9; }
-  .c-row2 { font-size: 14px; color: #3fb950; margin-top: 4px; }
-  .c-body { font-size: 14px; color: #8b949e; line-height: 18px; margin-top: 2px; }
+  .c-title { font-size: 22px; color: #e6edf3; font-weight: bold; margin-bottom: 5px; }
+  .c-row { font-size: 19px; color: #c9d1d9; }
+  .c-row2 { font-size: 20px; color: #3fb950; margin-top: 4px; }
+  .c-body { font-size: 20px; color: #8b949e; line-height: 26px; margin-top: 2px; }
   .warn { color: #d29922; }
-  .c-act { font-size: 14px; color: #58a6ff; margin-top: 8px; }
+  .c-act { font-size: 20px; color: #58a6ff; margin-top: 8px; }
   .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-bottom: 10px; }
   .cell-icon { width: 22px; height: 22px; }
-  .cell-label { flex: 1; font-size: 20px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-label { flex: 1; font-size: 22px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 17px; height: 17px; }
   .hl { color: #3fb950; }
 </style>

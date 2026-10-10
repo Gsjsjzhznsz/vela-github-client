@@ -27,26 +27,33 @@
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" onscroll="onListScroll"
               ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
-        <!-- v1.8.0：单层平铺列表 = 仓库分组头 + 条目卡交错（规避嵌套 for 固件坑）。
-             分组头：点击折叠/展开，长按 = 整仓已读 -->
+        <!-- v1.9.0 深度优化：单层平铺列表 = 分组头 + 条目卡 + 组操作行交错。
+             分组头：点击折叠/展开，长按 = 整仓已读；静音组自动沉底默认折叠 -->
         <div class="li" for="{{f in flat}}" tid="f.key">
           <div class="ghdr" show="{{f.hdr}}" onclick="toggleGroup(f)" onlongpress="markRepoRead(f)">
             <text class="gh-arrow">{{f.open ? '－' : '＋'}}</text>
             <text class="gh-repo">{{f.repo}}</text>
-            <text class="gh-n">{{f.unreadN > 0 ? f.unreadN + '/' : ''}}{{f.count}} 条{{f.ciN > 0 ? ' · CI ' + f.ciN : ''}}</text>
+            <text class="gh-muted" show="{{f.muted}}">已静音</text>
+            <text class="gh-n">{{f.unreadN > 0 ? f.unreadN + '/' : ''}}{{f.count}}条</text>
           </div>
-          <div class="cell" show="{{!f.hdr}}" onclick="openNotif(f)" onlongpress="markOne(f)">
+          <div class="cell" show="{{!f.hdr && !f.act}}" onclick="openNotif(f)" onlongpress="markOne(f)">
             <div class="unread" show="{{f.unread}}"></div>
             <image class="cell-icon" src="{{f.icon}}" />
             <div class="cell-main">
               <text class="cell-title" show="{{!f.aggN || f.aggN <= 1}}">{{f.title}}</text>
-              <text class="cell-title" show="{{f.aggN > 1}}">{{f.aggN}} 条 CI 通知（未读 {{f.unreadN}}）</text>
-              <text class="cell-time">{{f.time}}{{f.ci ? ' · CI' : ''}}{{f.unread ? ' · 长按标已读' : ''}}</text>
+              <text class="cell-title" show="{{f.aggN > 1}}">{{f.aggN}} 条 CI（未读 {{f.unreadN}}）</text>
+              <div class="cell-meta">
+                <text class="cell-ci" show="{{f.ci}}">CI</text>
+                <text class="cell-time">{{f.time}}{{f.unread ? ' · 长按已读' : ''}}</text>
+              </div>
             </div>
           </div>
+          <!-- v1.9.0：组内操作行（展开时可见）——整仓已读/静音的显式入口 -->
+          <div class="actrow" show="{{f.act && f.show}}">
+            <text class="actbtn" onclick="actRepoRead(f)">整仓已读</text>
+            <text class="actbtn2" onclick="actMute(f)">{{f.muted ? '取消静音' : '静音此仓库'}}</text>
+          </div>
         </div>
-        <text class="foot hint" show="{{state === 'ok' && filter === 'mine' && flat.length === 0}}">参与项已全部已读 · 右上角切「全部」看 CI</text>
-        <text class="foot hint" show="{{state === 'ok' && flat.length === 0 && filter !== 'mine' && typeFilter}}">该类型暂无通知 · 点「全部」芯片恢复</text>
         <text class="foot warn" show="{{warnText}}" onclick="doRefresh">{{warnText}}</text>
         <text class="foot" show="{{state === 'ok' && hasMore}}" onclick="loadMore">已载 {{totalN}} 条 · 点此加载更多</text>
         <text class="foot" show="{{state === 'ok' && !hasMore && itemsN > 0}}">— 已载全部 {{totalN}} 条 —</text>
@@ -70,44 +77,53 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
-  .hd-act { width: 44px; height: 44px; }
+  /* v1.9.0 深度优化：全页字号放大（designWidth 432 下 14px=7dp 肉眼难辨），
+   * 芯片行 flex-wrap 两行排布（单行 5 枚必溢出圆屏边缘），分组头/条目卡加高加大点击区 */
+  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .hd-filter { font-size: 16px; color: #58a6ff; margin-right: 12px; }
-  /* v1.8.0：类型芯片行 */
-  .chips { flex-direction: row; padding: 2px 12px 4px; }
-  .chip { font-size: 14px; color: #8b949e; border-radius: 14px; padding: 5px 13px; margin-right: 8px; background-color: #161b22; }
-  .chip-on { font-size: 14px; color: #ffffff; border-radius: 14px; padding: 5px 13px; margin-right: 8px; background-color: #1f6feb; }
-  /* v1.8.0：概览行 */
-  .sum { flex-direction: row; align-items: center; padding: 0 12px 5px; }
-  .sum-t { font-size: 13px; color: #484f58; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .sum-btn { font-size: 13px; color: #d29922; padding: 3px 9px; }
+  .hd-act-wrap { width: 72px; height: 72px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-title { font-size: 25px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-filter { font-size: 21px; color: #58a6ff; margin-right: 8px; padding: 8px 12px; background-color: #161b22; border-radius: 16px; }
+  /* v1.9.0：类型芯片行——flex-wrap 两行排布 */
+  .chips { flex-direction: row; flex-wrap: wrap; padding: 4px 14px 2px; }
+  .chip { font-size: 21px; color: #8b949e; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #161b22; }
+  .chip-on { font-size: 21px; color: #ffffff; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #1f6feb; }
+  /* v1.9.0：概览行 */
+  .sum { flex-direction: row; align-items: center; padding: 2px 14px 6px; }
+  .sum-t { font-size: 19px; color: #6e7681; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .sum-btn { font-size: 19px; color: #d29922; padding: 6px 10px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
-  .pull-icon { width: 17px; height: 17px; }
-  .pull-text { font-size: 14px; color: #8b949e; margin-left: 7px; }
+  .pull-icon { width: 19px; height: 19px; }
+  .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 3px 12px; }
-  /* v1.8.0：仓库分组头（点击折叠 / 长按整仓已读） */
-  .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 10px; padding: 9px 11px; }
-  .gh-arrow { font-size: 15px; color: #58a6ff; width: 26px; }
-  .gh-repo { font-size: 16px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .gh-n { font-size: 12px; color: #8b949e; margin-left: 7px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
-  .unread { position: absolute; left: 2px; top: 2px; width: 7px; height: 7px; border-radius: 4px; background-color: #3fb950; }
-  .cell-icon { width: 22px; height: 22px; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-title { font-size: 20px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
-  .cell-time { font-size: 13px; color: #484f58; margin-top: 2px; }
-  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .li { padding: 4px 14px; }
+  /* v1.9.0：仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
+  .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 12px; padding: 13px 14px; }
+  .gh-arrow { font-size: 22px; color: #58a6ff; width: 30px; }
+  .gh-repo { font-size: 22px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .gh-muted { font-size: 17px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
+  .gh-n { font-size: 19px; color: #8b949e; margin-left: 8px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
+  .unread { position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 5px; background-color: #3fb950; }
+  .cell-icon { width: 26px; height: 26px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
+  .cell-title { font-size: 23px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
+  .cell-meta { flex-direction: row; align-items: center; margin-top: 3px; }
+  .cell-ci { font-size: 16px; color: #d29922; padding: 1px 7px; border-radius: 7px; background-color: #282013; margin-right: 7px; }
+  .cell-time { font-size: 19px; color: #6e7681; }
+  /* v1.9.0：组内操作行——整仓已读/静音的显式入口（长按不可发现的补充） */
+  .actrow { flex-direction: row; align-items: center; padding: 2px 0 6px; }
+  .actbtn { font-size: 19px; color: #58a6ff; padding: 8px 14px; margin-right: 10px; background-color: #16233a; border-radius: 12px; }
+  .actbtn2 { font-size: 19px; color: #d29922; padding: 8px 14px; background-color: #282013; border-radius: 12px; }
+  .foot { font-size: 19px; color: #6e7681; text-align: center; width: 100%; padding: 8px 0; }
   .warn { color: #d29922; }
   .hint { color: #8b949e; padding: 14px 0; }
-  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 30px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 14px; padding: 8px 16px; background-color: #16233a; border-radius: 12px; }
 </style>
 
 <script>
@@ -128,6 +144,9 @@
    *     CI 一键已读 = 当前列表全部 CI 线程并发标已读。 */
   const CACHE_KEY = 'notif_cache_v2_'
   const CACHE_CAP = 150
+  /* v1.9.0：本地静音仓库（通知降噪第三层：分组/芯片之后的根治手段）。
+   * 静音后：分组沉底 + 默认折叠 + 摘要行计数；仅本地生效，不动 GitHub 订阅。 */
+  const MUTE_KEY = 'notif_muted_repos'
 
   const CHIPS = [
     { k: '', label: '全部' },
@@ -170,8 +189,47 @@
       this._raw = []          /* 当前过滤档的聚合后全量卡（非响应式） */
       this._lastLoad = 0      /* 上次网络成功时间（90s 去重） */
       this._fromCache = false
+      this._muted = {}        /* v1.9.0：静音仓库表 {repo: true}（非响应式） */
+      this._openOverride = {} /* v1.9.0：用户手动开合的分组状态（跨重建保留） */
       this.chips = this.buildChips()
+      this.loadMuted()
     },
+    /* ---- v1.9.0 静音仓库 ---- */
+    loadMuted() {
+      try {
+        storage.get({
+          key: MUTE_KEY,
+          success: (d) => {
+            try {
+              const arr = d ? JSON.parse(d) : null
+              const m = {}
+              if (Array.isArray(arr)) for (let i = 0; i < arr.length; i++) m[arr[i]] = true
+              this._muted = m
+            } catch (e) { this._muted = {} }
+          },
+          fail: () => { this._muted = {} }
+        })
+      } catch (e) { this._muted = {} }
+    },
+    saveMuted() {
+      try {
+        const arr = []
+        for (const k in this._muted) if (this._muted[k]) arr.push(k)
+        storage.set({ key: MUTE_KEY, value: JSON.stringify(arr) })
+      } catch (e) {}
+    },
+    isMuted(repo) { return !!(repo && this._muted && this._muted[repo]) },
+    /** 静音/取消静音（组内操作行按钮）：更新表→落盘→重建平铺 */
+    actMute(f) {
+      if (!f || !f.repo) return
+      if (this._muted[f.repo]) delete this._muted[f.repo]
+      else this._muted[f.repo] = true
+      this.saveMuted()
+      this.rebuild()
+      prompt.showToast({ message: this._muted[f.repo] ? ('已静音 ' + f.repo) : ('已取消静音 ' + f.repo), duration: 1500 })
+    },
+    /** 操作行「整仓已读」按钮（与长按分组头同效，可见可点） */
+    actRepoRead(f) { this.markRepoRead(f) },
     /* ---- v1.8.0 芯片（class 表达式固件不可靠 → 预计算 cls） ---- */
     buildChips() {
       const out = []
@@ -270,6 +328,8 @@
     },
     toggleGroup(f) {
       if (!f || !f.hdr) return
+      /* v1.9.0：记录手动开合（静音组默认折叠，手动展开后跨重建保留） */
+      this._openOverride[f.repo] = !f.open
       this.rebuildOpen(f.repo, !f.open)
     },
     /* toggleGroup 后按新 open 重建平铺（保持其余组状态） */
@@ -284,25 +344,42 @@
       }
       this.applyGroups(groups)
     },
-    /* groups → 平铺 + 统计（rebuild 与 rebuildOpen 共用尾部） */
+    /* groups → 平铺 + 统计（rebuild 与 rebuildOpen 共用尾部）。
+     * v1.9.0：静音组沉底 + 默认折叠 + 徽标；每组尾部追加操作行。 */
     applyGroups(groups) {
       const flat = []
       let ciN = 0
       let itemsN = 0
       let unreadN = 0
+      let mutedN = 0
+      /* 稳定沉底：非静音组保持原序在前，静音组追加在后 */
+      const ordered = []
+      const muted = []
       for (let i = 0; i < groups.length; i++) {
-        const g = groups[i]
+        if (this.isMuted(groups[i].repo)) muted.push(groups[i])
+        else ordered.push(groups[i])
+      }
+      for (let i = 0; i < muted.length; i++) ordered.push(muted[i])
+      for (let i = 0; i < ordered.length; i++) {
+        const g = ordered[i]
+        const mut = this.isMuted(g.repo)
+        if (mut) mutedN++
+        /* 开合态：用户手动开合 > 静音默认折叠 > 默认展开 */
+        const ov = this._openOverride[g.repo]
+        const open = ov !== undefined ? ov : (mut ? false : true)
+        g.open = open
         flat.push({
-          key: 'h' + i + '_' + g.repo, hdr: true, open: g.open,
+          key: 'h' + i + '_' + g.repo, hdr: true, open: open, muted: mut,
           repo: g.repo, count: g.count, unreadN: g.unreadN, ciN: g.ciN
         })
-        if (g.open) {
+        if (open) {
           for (let j = 0; j < g.items.length; j++) {
             const it = g.items[j]
             it.key = it.id
             flat.push(it)
           }
         }
+        flat.push({ key: 'a' + i + '_' + g.repo, act: true, show: open, repo: g.repo, muted: mut })
         ciN += g.ciN
         itemsN += g.count
         unreadN += g.unreadN
@@ -312,7 +389,7 @@
       this.ciN = ciN
       this.unreadN = unreadN
       this.totalN = itemsN
-      this.sumText = groups.length + ' 仓库 · ' + itemsN + ' 条' + (ciN > 0 ? ' · CI ' + ciN : '') + (this._fromCache ? ' · 缓存' : '')
+      this.sumText = groups.length + ' 仓库 · ' + itemsN + ' 条' + (ciN > 0 ? ' · CI ' + ciN : '') + (mutedN > 0 ? ' · 静音 ' + mutedN : '') + (this._fromCache ? ' · 缓存' : '')
     },
     /* 网络数据落地（reload/loadMore 成功后统一入口） */
     applyData() {
@@ -327,6 +404,7 @@
     },
     async reload() {
       this.syncFilterLabel()
+      this._openOverride = {} /* 新数据：重置手动开合（静音组回到默认折叠） */
       try {
         const list = await api.getNotifications(1, this.all, this.filter === 'mine')
         if (!Array.isArray(list)) {

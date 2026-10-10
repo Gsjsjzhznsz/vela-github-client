@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "1.8.0",
-  "versionCode": 18,
+  "versionName": "1.9.0",
+  "versionCode": 19,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -39,6 +39,9 @@
     },
     {
       "name": "system.vibrator"
+    },
+    {
+      "name": "system.interconnect"
     }
   ],
   "display": {
@@ -82,6 +85,10 @@
       "pages/issues": {
         "component": "issues",
         "path": "/issues"
+      },
+      "pages/pulls": {
+        "component": "pulls",
+        "path": "/pulls"
       },
       "pages/issue": {
         "component": "issue",

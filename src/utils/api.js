@@ -8,6 +8,7 @@ import storage from '@system.storage'
 import file from '@system.file'
 import downloader from '@system.request'
 import b64decode from './b64' /* v1.2.3：通道⑤ contents JSON base64 解码（默认导出） */
+import { bridgeFetch, bridgeSupported, bridgeReady, bridgeStats, bridgeKick as bridgeKick0, bridgeDiagnose as bridgeDiagnose0 } from './bridge' /* v1.9.0：AstroBox 网桥（砍网机型经手机代发 HTTP） */
 
 const API_BASE = 'https://api.github.com'
 const TOKEN_KEY = 'gh_token'
@@ -298,7 +299,36 @@ export function rateInfo() {
  * 超时按网络失败走重试/报错路径 */
 const FETCH_TIMEOUT = 25000
 
-function rawFetch(opts) {
+/* ==================== v1.9.0 AstroBox 网桥（FetchBridge）传输编排 ====================
+ * 三模式（持久化 gh_bridge_mode）：
+ *  auto（默认）——直连优先；直连失败（无网/机型砍网）且网桥就绪 → 网桥重试；
+ *              网桥成功后置 _bridgeSticky，后续请求网桥优先（省去每次先失败等超时）
+ *  direct ——强制直连（行为与 v1.8 完全一致）
+ *  bridge ——强制网桥（砍网机型在设置里选它，直连栈完全不参与）
+ * 网桥故障（未连接/超时）在 auto 下自动回落直连，不阻塞原有链路。 */
+const BRIDGE_MODE_KEY = 'gh_bridge_mode'
+let _bridgeMode = 'auto'
+let _bridgeModeLoaded = false
+let _bridgeSticky = false
+
+stGet(BRIDGE_MODE_KEY).then((v) => {
+  if (v === 'auto' || v === 'direct' || v === 'bridge') {
+    _bridgeMode = v
+    _bridgeModeLoaded = true
+  }
+}).catch(() => {})
+
+function bridgeMode() { return _bridgeMode }
+
+function setBridgeMode(m) {
+  if (m !== 'auto' && m !== 'direct' && m !== 'bridge') return
+  _bridgeMode = m
+  _bridgeModeLoaded = true
+  _bridgeSticky = false
+  stSet(BRIDGE_MODE_KEY, m).catch(() => {})
+}
+
+function directFetch(opts) {
   return new Promise((resolve, reject) => {
     let done = false
     const timer = setTimeout(() => {
@@ -320,6 +350,59 @@ function rawFetch(opts) {
       })
     } catch (e) { if (!done) { done = true; clearTimeout(timer); reject(e) } }
   })
+}
+
+async function rawFetch(opts) {
+  const mode = _bridgeMode
+  if (mode === 'bridge') return bridgeFetch(opts)
+  if (mode === 'auto' && (bridgeReady() || _bridgeSticky)) {
+    /* 网桥优先（就绪或已粘性）：失败静默回落直连 */
+    try {
+      const r = await bridgeFetch(opts)
+      _bridgeSticky = true
+      return r
+    } catch (e) { _bridgeSticky = false }
+  }
+  try {
+    return await directFetch(opts)
+  } catch (e) {
+    /* 直连失败且网桥就绪 → 网桥重试一次（砍网机型的根救路径） */
+    if (mode === 'auto' && !_bridgeSticky && bridgeReady()) {
+      try {
+        const r = await bridgeFetch(opts)
+        _bridgeSticky = true
+        return r
+      } catch (e2) { /* 网桥也失败：抛直连原始错误 */ }
+    }
+    throw e
+  }
+}
+
+/* ---- v1.9.0 网桥管理（设置页消费；export {} 语法本工具链不可靠 → 包装函数） ---- */
+export function bridgeInfo() {
+  const st = bridgeStats()
+  return {
+    mode: _bridgeMode,
+    modeLoaded: _bridgeModeLoaded,
+    supported: bridgeSupported(),
+    ready: bridgeReady(),
+    sticky: _bridgeSticky,
+    neg: st.neg,
+    stat: st.stat
+  }
+}
+export function bridgeSetMode(m) {
+  setBridgeMode(m)
+  return bridgeInfo()
+}
+/** 主动补发握手 + 返回状态（设置页「检测网桥」） */
+export function bridgeDetect() {
+  bridgeKick0()
+  return bridgeInfo()
+}
+/** 手机端宿主连接诊断（0 OK / 204 超时 / 1001 未安装 AstroBox） */
+export function bridgeDiagnoseHost(timeout) {
+  return bridgeDiagnose0(timeout)
 }
 
 /* ================= v1.2.1 内存缓存 + 单飞去重 + ETag 条件请求 =================
@@ -2150,6 +2233,52 @@ export function getUser(login) {
   return request('/users/' + encodeURIComponent(login))
 }
 
+/* ================= v1.9.0 新功能：PR 列表 / 订阅管理 / Issue 状态切换 =================
+ * PR 对象带 head/base 全家桶（单条 5-8KB），per_page=10 必超蓝牙截断阈值 →
+ * 走 requestAdaptive 自适应缩页（与 releases REST 同型）。 */
+
+/** 仓库 PR 列表（state: open|closed|all） */
+export function getRepoPulls(full, page, state) {
+  return requestAdaptive('pulls|' + full + '|' + (state || 'open'),
+    (per) => '/repos/' + full + '/pulls' + qs({ state: state || 'open', per_page: per, page: page || 1 }),
+    page || 1)
+}
+
+/** 订阅态查询：off（未订阅/404）| on（subscribed）| ignore（忽略通知）。
+ *  与通知降噪联动：在手表上直接把噪音仓库设为 ignore，源头不再进通知列表。 */
+export async function getRepoSubscription(full) {
+  if (!_token) return { state: 'off' }
+  try {
+    const s = await request('/repos/' + full + '/subscription')
+    return { state: s && s.ignored ? 'ignore' : 'on' }
+  } catch (e) {
+    if (e && e.status === 404) return { state: 'off' }
+    throw e
+  }
+}
+
+/** 订阅态切换（三态循环 off → on → ignore → off）；完成后作废订阅缓存 */
+export async function setRepoSubscription(full, state) {
+  let r
+  if (state === 'off') {
+    r = await request('/repos/' + full + '/subscription', { method: 'DELETE' })
+  } else {
+    r = await request('/repos/' + full + '/subscription', {
+      method: 'PUT',
+      body: { subscribed: state === 'on', ignored: state === 'ignore' }
+    })
+  }
+  clearCache('/repos/' + full + '/subscription')
+  return r
+}
+
+/** Issue 关闭/重开（state: 'closed' | 'open'）；完成后作废该 issue 缓存 */
+export async function patchIssueState(full, n, state) {
+  const r = await request('/repos/' + full + '/issues/' + n, { method: 'PATCH', body: { state: state } })
+  clearCache('/repos/' + full + '/issues/' + n)
+  return r
+}
+
 /* ================= v1.2.3 Actions（commit CI 历史）新功能 =================
  * 用户未读通知 200+ 条中 99% 为 ci_activity（CheckSuite CI 通知，实测）——
  * 通知聚合卡点开的落点就是「看看哪次构建挂了」。
@@ -2732,6 +2861,8 @@ export default {
   getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree, getTreeEx,
   getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser,
+  getRepoPulls, getRepoSubscription, setRepoSubscription, patchIssueState,
+  bridgeInfo, bridgeSetMode, bridgeDetect, bridgeDiagnoseHost,
   deviceFlowStart, deviceFlowPoll, utf8DecodeChunk,
   getCommitChecks, markThreadsRead,
   loadAiTok, saveAiTok, hasAiTok,

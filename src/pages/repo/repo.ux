@@ -55,9 +55,19 @@
             <image class="gicon" src="{{starred ? '/common/icons/star-fill.png' : '/common/icons/star.png'}}" />
             <text class="glabel">{{starred ? '已 Star' : 'Star'}}</text>
           </div>
+          <!-- v1.9.0 新功能：PR 列表 + 订阅三态（off→on→ignore，配合通知降噪） -->
+          <div class="gcell" onclick="goPulls">
+            <image class="gicon" src="/common/icons/pull.png" />
+            <text class="glabel">PR</text>
+          </div>
+          <div class="gcell" onclick="toggleSub">
+            <image class="gicon" src="/common/icons/bell.png" />
+            <text class="glabel">{{subState === 'on' ? '已订阅' : (subState === 'ignore' ? '已忽略' : '订阅')}}</text>
+          </div>
         </div>
 
         <text class="hint" show="{{starHint}}">Star 需登录 Token</text>
+        <text class="hint" show="{{subHint}}">订阅需登录 Token</text>
       </div>
     </scroll>
     </div>
@@ -122,6 +132,8 @@
       updated: '',
       starred: false,
       starHint: false,
+      subState: 'off',
+      subHint: false,
       state: 'loading',
       errMsg: ''
     },
@@ -150,6 +162,7 @@
         this.updated = '更新于 ' + relTime(r.pushed_at)
         this.state = 'ok'
         this.checkStar()
+        this.checkSub()
       } catch (e) {
         this.state = 'error'
         this.errMsg = (e && e.message) || '加载失败'
@@ -162,6 +175,36 @@
         this.starred = await api.isStarred(this.full)
       } catch (e) {
         // 忽略 Star 状态查询失败
+      }
+    },
+    /* ---- v1.9.0：订阅三态（off→on→ignore→off）——在手表上直接关掉噪音仓库通知 ---- */
+    async checkSub() {
+      if (!api.hasToken()) return
+      try {
+        const s = await api.getRepoSubscription(this.full)
+        this.subState = (s && s.state) || 'off'
+      } catch (e) {
+        // 忽略订阅态查询失败
+      }
+    },
+    async toggleSub() {
+      await api.loadToken()
+      if (!api.hasToken()) {
+        this.subHint = true
+        prompt.showToast({ message: '订阅需登录 Token', duration: 1500 })
+        return
+      }
+      try {
+        const order = ['off', 'on', 'ignore']
+        const next = order[(order.indexOf(this.subState) + 1) % order.length]
+        await api.setRepoSubscription(this.full, next)
+        this.subState = next
+        prompt.showToast({
+          message: next === 'on' ? '已订阅通知' : (next === 'ignore' ? '已忽略此仓库通知' : '已取消订阅'),
+          duration: 1600
+        })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
       }
     },
     async toggleStar() {
@@ -187,6 +230,11 @@
     goIssues() {
       this.$app.$def.hook = { full: this.full }
       router.push({ uri: 'pages/issues' })
+    },
+    /* v1.9.0：PR 列表页 */
+    goPulls() {
+      this.$app.$def.hook = { full: this.full }
+      router.push({ uri: 'pages/pulls' })
     },
     goCode() {
       this.$app.$def.hook = { full: this.full }

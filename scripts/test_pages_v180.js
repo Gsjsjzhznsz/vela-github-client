@@ -64,7 +64,8 @@ T('① gh.js 桥三件套：Proxy 转发 + 时序安全注释 + 无 impl 兜底'
 
 T('② about.ux BandQQ 同构：hero + 卡片 + 剪贴板', () => {
   assert(ABOUT_UX.indexOf('GitHub for Vela') >= 0, '应用名')
-  assert(ABOUT_UX.indexOf('v1.8.0') >= 0, '版本号与发布同步')
+  /* v1.9.0：版本断言改为与 manifest 一致性校验（避免每版改钉死字符串） */
+  assert(ABOUT_UX.indexOf('v' + MANIFEST.versionName) >= 0, '版本号与发布同步（' + MANIFEST.versionName + '）')
   assert(ABOUT_UX.indexOf('@system.clipboard') >= 0, 'clipboard 引入')
   assert(ABOUT_UX.indexOf('copyRepo') >= 0 && ABOUT_UX.indexOf('copyIssues') >= 0, '复制仓库/反馈链接')
   assert(ABOUT_UX.indexOf('band-qq') < 0 && ABOUT_UX.indexOf('BandQQ v2.28.2 演示') < 0, '无 BandQQ 专属残留')
@@ -72,16 +73,16 @@ T('② about.ux BandQQ 同构：hero + 卡片 + 剪贴板', () => {
   assert(ABOUT_UX.indexOf('body-wrap') >= 0 && ABOUT_UX.indexOf("scroll-y=\"true\"") >= 0, 'RW5 同构布局（wrap+absolute）')
 })
 
-T('② manifest：about 路由 + clipboard feature + 版本 1.8.0', () => {
+T('② manifest：about 路由 + clipboard feature + 版本演进', () => {
   assert(MANIFEST.router.pages['pages/about'] && MANIFEST.router.pages['pages/about'].path === '/about', 'about 路由注册')
   const feats = MANIFEST.features.map((f) => f.name)
   assert(feats.indexOf('system.clipboard') >= 0, 'system.clipboard feature 声明')
-  assert(MANIFEST.versionName === '1.8.0' && MANIFEST.versionCode === 18, '版本 1.8.0/18')
+  assert(MANIFEST.versionCode >= 18 && /^\d+\.\d+\.\d+$/.test(MANIFEST.versionName), '版本号 ≥1.8.0 且格式合法（' + MANIFEST.versionName + '/' + MANIFEST.versionCode + '）')
 })
 
 T('② settings.ux：关于入口行 + 版本文案同步', () => {
   assert(SETTINGS_UX.indexOf('goAbout') >= 0 && SETTINGS_UX.indexOf("router.push({ uri: 'pages/about' })") >= 0, '关于入口跳转')
-  assert(SETTINGS_UX.indexOf('v1.8.0') >= 0, '设置页版本号同步')
+  assert(SETTINGS_UX.indexOf('v' + MANIFEST.versionName) >= 0, '设置页版本号同步（' + MANIFEST.versionName + '）')
 })
 
 /* ---------------- ③ AI 思考过程 ---------------- */

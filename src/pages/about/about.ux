@@ -12,13 +12,22 @@
       <div class="hero">
         <image class="icon" src="/common/icons/logo.png"></image>
         <text class="app-name">GitHub for Vela</text>
-        <text class="ver">v1.8.0 · Redmi Watch 5 · AGPL-3.0</text>
+        <text class="ver">v1.9.0 · Redmi Watch 5 · AGPL-3.0</text>
       </div>
       <div class="card col">
-        <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字）。</text>
+        <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、PR、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字），支持 AstroBox 网桥为砍网机型恢复联网。</text>
+      </div>
+      <!-- v1.9.0：作者/联系方式与 BandQQ 同步（同一作者同一群） -->
+      <div class="card col">
+        <text class="k">作者</text>
+        <text class="v">一秋</text>
+      </div>
+      <div class="card col">
+        <text class="k">联系方式</text>
+        <text class="v">QQ群 885186458</text>
       </div>
       <div class="card col" @click="copyIssues">
-        <text class="k">联系方式（点击复制链接）</text>
+        <text class="k">问题反馈（点击复制链接）</text>
         <text class="v">github.com/Gsjsjzhznsz/vela-github-client/issues</text>
       </div>
       <div class="card col" @click="copyRepo">
@@ -58,11 +67,10 @@
 </style>
 
 <script>
-  /* 关于页 —— 照搬 BandQQ pages/about（v2.28.2）结构与样式，仅替换本项目
-   * 相关信息（名称/版本/简介/仓库链接/致谢）：
+  /* 关于页 —— 照搬 BandQQ pages/about（v2.28.2）结构与样式，仅替换本项目相关信息：
    *  - 布局同构：78px 顶部安全区 + 标题条 + wrap/absolute 铺满 scroll（RW5 黑屏根修）
-   *  - 卡片语言：hero（图标+应用名+版本）→ 简介 → 作者 → 联系方式 → GitHub → 致谢
-   *  - 快应用无法打开系统浏览器：仓库/Issues 链接点击复制到剪贴板（BandQQ 同款方案）
+   *  - 卡片语言：hero → 简介 → 作者 → 联系方式（v1.9.0 与 BandQQ 同步：一秋/QQ群）
+   *    → 问题反馈 → GitHub → 致谢；链接点击复制到剪贴板（BandQQ 同款方案）
    *  - BandQQ 的演示模式彩蛋（连点 7 次）不适用本项目，已移除
    * 注：卡片 @click 与固件 div onclick 同义（BandQQ 原样保留，全项目混用已实证均可） */
   import router from '@system.router'

@@ -53,6 +53,21 @@
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
+        <!-- v1.9.0：网络通道（AstroBox 网桥 FetchBridge / 直连） -->
+        <div class="card" onclick="cycleBridge">
+          <div class="card-col">
+            <text class="c-title">网络通道</text>
+          <text class="c-row">当前：{{bridgeModeLabel}}</text>
+          <text class="c-row2" show="{{!!bridgeStatus}}">{{bridgeStatus}}</text>
+          <text class="c-act">点此切换：自动 → 手机网桥 → 仅直连</text>
+          </div>
+        </div>
+        <div class="cell" onclick="detectBridge">
+          <image class="cell-icon" src="/common/icons/refresh.png" />
+          <text class="cell-label">检测手机网桥（AstroBox）</text>
+          <image class="cell-arrow" src="/common/icons/chevron.png" />
+        </div>
+
         <!-- 说明 -->
         <div class="card">
           <div class="card-col">
@@ -66,16 +81,14 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.8.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v1.9.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
-          <text class="c-body">网络：经小米运动健康蓝牙代理或 eSIM 独立联网，直连 api.github.com</text>
+          <text class="c-body">网络：手表直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
           </div>
         </div>
-      </div>
     </scroll>
     </div>
-
   </div>
 </template>
 
@@ -114,7 +127,9 @@
       hasTk: false,
       tokenMask: '',
       rateText: '…',
-      diagText: ''
+      diagText: '',
+      bridgeModeLabel: '自动（直连优先，失败走网桥）',
+      bridgeStatus: ''
     },
     onInit() {
     },
@@ -126,6 +141,57 @@
       this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
       this.refreshDiag()
       this.refreshRate()
+      this.syncBridge()
+    },
+    /* ---- v1.9.0：网络通道（AstroBox 网桥） ---- */
+    syncBridge() {
+      try {
+        const info = api.bridgeInfo()
+        this.bridgeModeLabel = info.mode === 'auto'
+          ? '自动（直连优先，失败走网桥）'
+          : (info.mode === 'bridge' ? '手机网桥优先' : '仅手表直连')
+        let s = ''
+        if (!info.supported) {
+          s = '本机不支持 interconnect，网桥不可用'
+        } else if (info.ready) {
+          const neg = info.neg || {}
+          s = '网桥已连接 · 协议 v' + (neg.version || 1) +
+            (neg.chunked ? ' · 分片' + (neg.chunkSize || 0) + 'B' : '') +
+            (neg.ack ? ' · ACK流控' : '') +
+            (info.stat && info.stat.sent > 0 ? ' · 已发' + info.stat.sent + ' 成功' + info.stat.ok : '')
+        } else {
+          s = '网桥未连接（需手机端 AstroBox + FetchBridge 插件）'
+        }
+        this.bridgeStatus = s
+      } catch (e) { this.bridgeStatus = '' }
+    },
+    /** 三态循环：auto → bridge → direct → auto */
+    cycleBridge() {
+      const order = ['auto', 'bridge', 'direct']
+      const cur = api.bridgeInfo().mode
+      const next = order[(order.indexOf(cur) + 1) % order.length]
+      api.bridgeSetMode(next)
+      this.syncBridge()
+      prompt.showToast({
+        message: next === 'auto' ? '已切自动：直连优先，失败走网桥'
+          : (next === 'bridge' ? '已切手机网桥优先（砍网机型选这个）' : '已切仅直连'),
+        duration: 1800
+      })
+    },
+    /** 手动检测：补发握手 + 诊断手机端连接状态 */
+    async detectBridge() {
+      prompt.showToast({ message: '正在检测手机网桥…', duration: 1200 })
+      api.bridgeDetect()
+      try {
+        const d = await api.bridgeDiagnoseHost(8000)
+        const st = Number(d && d.status)
+        const msg = st === 0 ? '手机端连接 OK（AstroBox 就绪）'
+          : (st === 1001 ? '手机端未安装 AstroBox' : (st === 204 ? '连接超时：请打开手机端 AstroBox' : '诊断失败：' + ((d && d.message) || st)))
+        prompt.showToast({ message: msg, duration: 2500 })
+      } catch (e) {
+        prompt.showToast({ message: '诊断失败', duration: 1500 })
+      }
+      this.syncBridge()
     },
     refreshDiag() {
       if (!this.hasTk) {

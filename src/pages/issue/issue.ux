@@ -48,6 +48,14 @@
         </div>
       </div>
 
+      <!-- v1.9.0：关闭/重开（作者/协作者权限，403 由 toast 透出） -->
+      <div class="li" show="{{canCmt}}">
+        <div class="cmt-card" onclick="toggleIssueState">
+          <text class="compose-label">{{open ? '关闭此 Issue' : '重新打开此 Issue'}}{{patching ? ' · 操作中…' : ''}}</text>
+          <text class="compose-hint">{{open ? '关闭后对话保留，可随时重开' : '重开后对话继续'}}</text>
+        </div>
+      </div>
+
       <!-- 评论项 -->
       <div class="li" for="{{it in comments}}" tid="id">
         <div class="cmt-card">
@@ -163,7 +171,8 @@
       loadingComments: false,
       hasMoreComments: false,
       sending: false,
-      canCmt: false
+      canCmt: false,
+      patching: false
     },
     onInit(params) {
       const p = query(params, this)
@@ -259,6 +268,20 @@
     },
     /* ---- 评论发表（T9 拼音键盘） ---- */
     /* 写评论：跳 BandQQ compose 同构输入页（键盘常驻），onShow 消费草稿并发送 */
+    /** v1.9.0：关闭/重开 Issue（PATCH state；PR 同样适用） */
+    async toggleIssueState() {
+      if (!this.canCmt || this.patching) return
+      this.patching = true
+      try {
+        const target = this.open ? 'closed' : 'open'
+        await api.patchIssueState(this.full, this.n, target)
+        this.open = target === 'open'
+        prompt.showToast({ message: this.open ? '已重新打开' : '已关闭', duration: 1500 })
+      } catch (e) {
+        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
+      }
+      this.patching = false
+    },
     openComposer() {
       if (!api.hasToken()) {
         prompt.showToast({ message: '发表评论需登录 Token（设置页）', duration: 2000 })

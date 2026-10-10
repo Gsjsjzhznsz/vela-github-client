@@ -1,0 +1,223 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
+      <text class="hd-title">{{full}}</text>
+    </div>
+
+    <div class="tabs">
+      <text class="tab {{state === 'open' ? 'on' : ''}}" onclick="switchState('open')">开放</text>
+      <text class="tab {{state === 'closed' ? 'on' : ''}}" onclick="switchState('closed')">已关闭</text>
+    </div>
+
+    <div class="pull" style="height: {{pullY}}px">
+      <image class="pull-icon" src="/common/icons/refresh.png" />
+      <text class="pull-text">{{pullText}}</text>
+    </div>
+
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll"
+          ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
+      <div class="li" for="{{it in items}}" tid="id">
+        <div class="cell" onclick="openPull(it)">
+          <image class="cell-icon" src="/common/icons/pull.png" />
+          <div class="cell-main">
+            <text class="cell-title">{{it.title}}</text>
+            <text class="cell-sub">#{{it.num}} · {{it.author}} · {{it.time}}{{it.comments > 0 ? ' · ' + it.comments + ' 评论' : ''}}</text>
+            <div class="badges">
+              <text class="badge draft" show="{{it.draft}}">Draft</text>
+              <text class="badge merged" show="{{it.merged}}">Merged</text>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="li" show="{{loadState === 'ok' && loadingMore}}">
+        <text class="foot" onclick="loadMore">加载更多</text>
+      </div>
+      <div class="li" show="{{loadState === 'ok' && !hasMore && items.length > 0}}">
+        <text class="foot">— 到底了 —</text>
+      </div>
+    </scroll>
+    </div>
+
+    <div class="state" show="{{loadState === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" show="{{loadState === 'empty'}}">
+      <text class="state-t">没有 PR</text>
+      <text class="state-btn" onclick="doRefresh">重新加载</text>
+    </div>
+    <div class="state" show="{{loadState === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" onclick="doRefresh">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  /* v1.9.0 新增：仓库 PR 列表页（结构同 issues.ux；PR 对象大，走 api 层自适应缩页） */
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .tabs { flex-direction: row; padding: 2px 12px 7px; }
+  .tab { font-size: 21px; color: #8b949e; padding: 7px 16px; background-color: #161b22; border-radius: 14px; margin-right: 10px; }
+  .on { color: #ffffff; background-color: #1f6feb; }
+  .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
+  .pull-icon { width: 19px; height: 19px; }
+  .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
+  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .li { padding: 4px 12px; }
+  .cell { flex-direction: row; align-items: flex-start; width: 100%; background-color: #161b22; border-radius: 12px; padding: 12px 13px; }
+  .cell-icon { width: 22px; height: 22px; margin-top: 3px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 11px; }
+  .cell-title { font-size: 23px; color: #e6edf3; font-weight: bold; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 19px; color: #8b949e; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
+  .badges { flex-direction: row; margin-top: 5px; }
+  .badge { font-size: 16px; border-radius: 8px; padding: 1px 8px; margin-right: 7px; }
+  .draft { color: #d29922; background-color: #282013; }
+  .merged { color: #a371f7; background-color: #241a33; }
+  .foot { font-size: 19px; color: #6e7681; text-align: center; width: 100%; padding: 8px 0; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 30px; }
+  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 14px; padding: 8px 16px; background-color: #16233a; border-radius: 12px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+  import { relTime, truncate } from '../../utils/fmt'
+  import { query } from '../../utils/view'
+
+  /* PR 列表瘦字段映射（PR 对象带 head/base 全家桶，页面只留展示字段） */
+  function mapPull(p) {
+    if (!p || typeof p !== 'object') p = {}
+    const merged = !!p.merged_at
+    return {
+      id: String(p.id || p.number || ''),
+      num: p.number,
+      title: truncate(p.title, 60),
+      author: (p.user && p.user.login) || '',
+      time: relTime(p.updated_at || p.created_at),
+      comments: Number(p.comments) || 0,
+      draft: !!p.draft && !merged,
+      merged: merged
+    }
+  }
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      state: 'open',
+      loadState: 'loading',
+      items: [],
+      errMsg: '',
+      page: 1,
+      hasMore: true,
+      loadingMore: false,
+      refreshing: false,
+      scY: 0,
+      tY: 0,
+      pullY: 0,
+      pullText: '下拉刷新'
+    },
+    onInit(params) {
+      const p = query(params, this)
+      if (p.full) this.full = p.full
+    },
+    onShow() {
+      if (this.full && this.items.length === 0) this.reload()
+    },
+    async reload() {
+      this.loadState = 'loading'
+      try {
+        const list = await api.getRepoPulls(this.full, 1, this.state)
+        if (!Array.isArray(list)) {
+          throw { message: 'PR 列表响应不完整，请重试' }
+        }
+        this.items = list.map(mapPull)
+        this.page = 1
+        this.hasMore = list.length >= api.lastListPerPage()
+        this.loadState = this.items.length === 0 ? 'empty' : 'ok'
+      } catch (e) {
+        this.loadState = 'error'
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async loadMore() {
+      if (!this.hasMore || this.loadingMore || this.loadState !== 'ok') return
+      this.loadingMore = true
+      try {
+        const next = this.page + 1
+        const list = await api.getRepoPulls(this.full, next, this.state)
+        for (let i = 0; i < list.length; i++) this.items.push(mapPull(list[i]))
+        this.page = next
+        this.hasMore = list.length >= api.lastListPerPage()
+      } catch (e) {
+        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
+      }
+      this.loadingMore = false
+    },
+    switchState(s) {
+      if (this.state === s) return
+      this.state = s
+      this.items = []
+      this.reload()
+    },
+    /* PR 详情复用 issue 详情页（/issues/{n} 对 PR 同样返回，评论/关闭重开通用） */
+    openPull(item) {
+      if (!item) return
+      this.$app.$def.hook = { full: this.full, n: String(item.num) }
+      router.push({ uri: 'pages/issue' })
+    },
+    doRefresh() {
+      if (this.refreshing) return
+      this.refreshing = true
+      this.pullY = 60
+      this.pullText = '刷新中…'
+      this.reload().then(() => {
+        this.refreshing = false
+        this.pullY = 0
+      })
+    },
+    onListScroll(e) {
+      this.scY = (e && e.scrollY) || 0
+      if (this.loadState === 'ok' && this.hasMore && !this.loadingMore) {
+        const near = this.items.length * 130 - 420
+        if (near > 0 && this.scY >= near) this.loadMore()
+      }
+    },
+    onTouchStart(e) {
+      if (this.scY <= 0 && !this.refreshing) {
+        const t = e && e.touches && e.touches[0]
+        this.tY = (t && (t.pageY || t.clientY)) || 0
+      }
+    },
+    onTouchMove(e) {
+      if (this.refreshing || this.tY <= 0 || this.scY > 0) return
+      const t = e && e.touches && e.touches[0]
+      const y = (t && (t.pageY || t.clientY)) || 0
+      const delta = y - this.tY
+      if (delta > 0) {
+        this.pullY = Math.min(112, Math.floor(delta * 0.45))
+        this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新'
+      }
+    },
+    onTouchEnd() {
+      if (this.refreshing) return
+      if (this.pullY > 80) this.doRefresh()
+      else this.pullY = 0
+      this.tY = 0
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

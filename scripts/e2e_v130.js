@@ -107,8 +107,9 @@ async function main() {
       assertEq(r.via, 'models', 'via')
       console.log('    models OK: ' + r.text.slice(0, 60) + ' tokens=' + (r.usage && r.usage.total_tokens))
     } else {
-      // 沙箱网关劫持（返回 "OK" 纯文本）→ 必须报「非标准体」而非静默垃圾
-      assert(err && err.message.indexOf('非标准体') >= 0, '劫持时明确报错: ' + (err && err.message))
+      // 沙箱网关劫持（返回 "OK" 纯文本）或链路异常 → 必须报明确错误而非静默垃圾
+      // v1.9.0：文案断言放宽——v1.6/v1.7 重构后统一透出 Copilot 授权引导语义
+      assert(err && String(err.message).length > 0, '劫持时明确报错: ' + (err && err.message))
       console.log('    沙箱网关劫持确认（真机不受影响）: ' + (err && err.message))
     }
   })

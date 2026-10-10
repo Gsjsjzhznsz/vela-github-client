@@ -20,8 +20,15 @@ function transformEsm(src) {
   const names = []
   code = code.replace(/^import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/gm,
     (m, n, p) => `const ${n} = __req('${p}');`)
-  code = code.replace(/^import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/gm,
-    (m, names2, p) => `const {${names2}} = __req('${p}');`)
+  code = code.replace(/^import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/gm, (m, names2, p) => {
+    /* v1.9.0：支持 `import { x as y }` 别名重写（api.js 网桥导入用）——
+     * 解构语义 { x: y }，webpack 生产构建原生支持，仅测试加载器需重写 */
+    const inner = names2.split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+      const am = s.match(/^(\w+)\s+as\s+(\w+)$/)
+      return am ? am[1] + ': ' + am[2] : s
+    }).join(', ')
+    return `const {${inner}} = __req('${p}');`
+  })
   code = code.replace(/^export\s+default\s+/gm, '__exports.default = ')
   code = code.replace(/^export\s+(async\s+)?function\s+(\w+)/gm,
     (m, aw, n) => { names.push(n); return (aw || '') + 'function ' + n })
@@ -53,7 +60,7 @@ function loadModule(relPath, mocks) {
       if (n.indexOf('.') === 0) return loadReal(path.resolve(path.dirname(absPath), n) + '.js')
       throw new Error('no mock for ' + n)
     }
-    new Function('__req', '__exports', 'console', transformEsm(sub))(subReq, subExports, console)
+    new Function('__req', '__exports', 'console', 'require', transformEsm(sub))(subReq, subExports, console, subReq)
     Object.keys(subExports).forEach((k) => { realCache[absPath][k] = subExports[k] })
     return realCache[absPath]
   }
@@ -62,8 +69,8 @@ function loadModule(relPath, mocks) {
     if (name.indexOf('.') === 0) return loadReal(path.resolve(path.dirname(abs), name) + '.js')
     throw new Error('no mock for ' + name)
   }
-  const fn = new Function('__req', '__exports', 'console', code)
-  fn(req, exports, console)
+  const fn = new Function('__req', '__exports', 'console', 'require', code)
+  fn(req, exports, console, req)
   return exports
 }
 

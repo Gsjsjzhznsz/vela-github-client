@@ -102,7 +102,7 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - **通知**：三态过滤（未读 / 全部 / 仅参与）——「仅参与」服务端过滤 99% CI 噪音；点按进入对应 Issue/PR/仓库并自动标记已读；**长按不打开仅标记已读**；右上 ✓ 一键全部已读
 - **列表页**：下拉刷新 + 滚到底自动加载下一页（每页 10 条）
 - **仓库页**：README / Issues / Releases / 代码 / Actions / 问 AI / Star 六宫格操作
-- **Copilot 专区**：AI 对话（双通道自动降级）+ 六个快捷指令 + 会话历史持久化 + 上下文注入（代码页/仓库页「问 AI」）+ 模型切换
+- **Copilot 专区**：AI 对话（Copilot 通道，VS Code 同款免费模型）+ 八个快捷指令（含通道自检/刷新模型列表）+ 会话历史持久化 + 上下文注入（代码页/仓库页「问 AI」）+ 模型切换；PAT 用户点引导卡一键 Copilot 设备授权（免打字，与主登录分离）
 - **键盘**：集成 [Vela_input_method](https://github.com/NEORUAA/Vela_input_method) 组件（MIT）——T9 拼音/英文九键（搜索、写评论）+ QWERTY 全键（Token/用户名），顶部操作条提供 搜索/保存/发送/收起
 - **评论**：Issue 详情页 →「写评论」→ T9 拼音键盘输入中文/英文 → 发送（需登录）
 
@@ -115,6 +115,21 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 网络请求带 1.2s/2.4s 两级退避重试（弱网/蓝牙代理下更稳）+ 25s 显式超时（代理挂起不再卡死页面）
 - 应用启动零网络请求，onShow 智能去重
 - v1.3.0：目录列表分页（24 条/页，深目录不再一次性渲染数百节点——OOM 死机根治）+ 会话目录缓存（返回上级零网络秒开）
+
+### v1.5.0 通知 per=1 主路根治 + AI Copilot 单通道重构（Models 退役应对）
+
+两条最新反馈的终极根治（「通知中心依旧显示响应数据不完整」「AI 依旧使用不了，我在 VS Code 都能正常使用免费模型」）：
+
+- **通知 per=1 主路（确定性截断源消失）**：真机量化实锤——per=2 子页 ~12KB **恒超**蓝牙代理 8KB 截断阈值，v1.2.2-v1.4.0 的「5×per=2 子页」方案每次都触发截断→抢救→尾条补拉链路，任何一环抖动即缺条。v1.5.0 改为 **10×per=1 单页**（单页 ~5.6KB，e2e 实测最大 5556B，稳在 8KB 阈值内）并发 3 拉取——截断从「日常路径」变「罕见兜底」，请求总数与旧真机实际开销持平
+- **salvage 竞态根治（v1.4.0 缺条放大的真凶）**：抢救记录原为模块级单例，通知子页并发 3 时 A/B 相继截断抢救后记录互相覆盖，B 的 URL 顶掉 A → A 误判「非截断」跳过尾条补拉 → **静默丢一半条目**（沙箱无截断故旧 e2e 测不出）。现按 URL 记键（容量 12 的最近表），并发互不覆盖
+- **抢救残片不再毒化缓存**：v1.4.0 把抢救出的部分数组 `memSet` 进缓存——TTL 内重进页面命中残片且 salvage 记录已过期，缺条「封印」。现部分数据只经返回值即时补拉，缓存只存完整响应
+- **AI 终极根因：GitHub Models 已退役**：官方文档实证 **2026-07-30 models.github.ai 全面停止服务**（playground/catalog/inference API 全下线）——v1.3.0-v1.4.0 的 Models 通道（无论怎么修）都打在死服务上，这就是「AI 依旧使用不了」的答案
+- **AI Copilot 单通道重构（VS Code 同款链路）**：实测矩阵——PAT 直连 Copilot API → 400 "Personal Access Tokens are not supported"；OAuth App 的 gho_ → 会话交换端点拒绝（**只收 GitHub App 的 ghu_**）；`/copilot_internal/user` 探测 **PAT 可查**（旧版 `/user/copilot` 对 PAT 恒 404，把已开通 Copilot Free 的账号误报「未开通」并给出错误指引——实为 v1.4.0 最大误诊）。新链路：**Copilot 设备授权（GitHub Copilot CLI 官方 GitHub App `Iv1.b507a08c87ecfe98`）→ ghu_ → `copilot_internal/v2/token` 换 30min 会话凭据 → `endpoints.api`（按套餐定制域名）/chat/completions**（2026-08-01 版本头 + CLI 身份头，交换与调用身份一致）
+- **AI token 独立存储**：Copilot 授权与主登录分离（`gh_copilot_token` 双通道落盘）——主 token 保持 PAT 全权限不受影响；旧设备授权用户（ghu_/gho_ 主 token）自动复用直连，零迁移
+- **AI 授权一键化**：AI 页检测「PAT + 未授权」即显示紫色引导卡「检测到 Copilot Free · 点此一键授权」——设备码 8 位免打字，与 VS Code 体验对齐；通道自检改为 `/copilot_internal/user` 套餐+额度实测（如「已开通（Copilot Free · 聊天可用 · 会话额度 200/200）」）+ 凭据交换实测 + Models 退役说明
+- **模型列表动态化**：`GET /models` 实时目录（{data:[...]} / 裸数组双解析 + chat 类型过滤 + 去重），免费模型轮换不再依赖硬编码；兜底清单更新为 2026-10 Copilot Free 主力（gpt-5-mini / claude-haiku-4.5 / gemini-3-flash / gpt-4.1-mini / gpt-4o-mini / grok-code-fast-1）
+- **AI 错误全文透出**：非 2xx 一律提取 `error.message` 或响应原文前 120 字进报错文案（如 400 "model_not_supported"、429 "quota exceeded"）——不再笼统报「网关返回非标准体」，用户可自诊断
+- **设备授权 scope 收敛**：主登录回落 `repo read:user notifications`（copilot/models 不是合法 OAuth scope，旧版 FULL 首试恒被拒纯耗请求）；Copilot 授权独立 `read:user`
 
 ### v1.4.0 截断抢救 + GraphQL 目录/正文快车道 + 文件完整性守门 + AI 2026 重构
 

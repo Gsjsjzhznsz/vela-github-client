@@ -215,12 +215,12 @@ async function t_cache() {
       return { code: 204, data: null, headers: {} }
     })
     const api = loadModule('src/utils/api.js', mocks)
-    await api.getNotifications(1, true) /* 5 个 per=2 子页 */
+    await api.getNotifications(1, true) /* v1.5.0：10 个 per=1 单页 */
     await api.getNotifications(1, true) /* 命中缓存 */
-    assertEq(notifHits, 5, '二次命中缓存（v1.2.2 并行子页：每逻辑页 5 子请求）')
+    assertEq(notifHits, 10, '二次命中缓存（v1.5.0 per=1 主路：每逻辑页 10 子请求）')
     await api.markAllNotificationsRead()
     await api.getNotifications(1, true)
-    assertEq(notifHits, 10, '已读操作后缓存被清，重新拉取')
+    assertEq(notifHits, 20, '已读操作后缓存被清，重新拉取')
   })
 
   await test('saveToken 清空全部缓存（换身份后数据不可复用）', async () => {

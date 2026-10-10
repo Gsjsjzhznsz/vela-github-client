@@ -160,54 +160,55 @@ T('salvage：对象体（树）不抢救', async () => {
 
 /* ---------------- ② 通知管线 ---------------- */
 
-T('notifSubPage：per=2 截断抢救 → 仅补拉缺失尾条', async () => {
+T('notifSubPage：per=1 截断 → 下载器兜底补齐（v1.5.0 主路）', async () => {
   const n1 = { id: 101, subject: { title: 'a' } }
   const n2 = { id: 102, subject: { title: 'b' } }
   const seen = []
-  const mocks = authed({}, (i, o) => {
+  const mocks = authed({
+    'https://api.github.com/notifications?page=1&per_page=1&all=true': JSON.stringify([n1])
+  }, (i, o) => {
     const u = fetchUrl(o)
     if (u.indexOf('/notifications') < 0) return { code: 200, data: '{}', headers: {} }
     seen.push(u)
-    if (u.indexOf('per_page=2') >= 0 && u.indexOf('page=1&') >= 0) {
-      return { code: 200, data: JSON.stringify([n1, n2]).slice(0, -8), headers: {} } /* 仅子页 1 截断 */
+    /* 页 1 fetch 截断（单条对象不完整 → 抢救无门）→ notifDl 兜底供全文 */
+    if (u.indexOf('per_page=1') >= 0 && u.indexOf('?page=1&') >= 0) {
+      return { code: 200, data: JSON.stringify([n1]).slice(0, -6), headers: {} }
     }
-    if (u.indexOf('per_page=2') >= 0) return { code: 200, data: '[]', headers: {} } /* 子页 2-5 空页 */
-    if (u.indexOf('per_page=1') >= 0 && u.indexOf('page=2') >= 0) {
+    if (u.indexOf('per_page=1') >= 0 && u.indexOf('?page=2&') >= 0) {
       return { code: 200, data: JSON.stringify([n2]), headers: {} }
     }
     return { code: 200, data: '[]', headers: {} }
   })
   const api = apiOf(mocks)
   const list = await api.getNotifications(1, true)
-  assertEq(list.length, 2, '抢救 1 条 + 补拉尾条 1 条')
-  assertEq(list[0].id, 101, '前导条目')
-  assertEq(list[1].id, 102, '补拉尾条')
-  const per1 = seen.filter((u) => u.indexOf('per_page=1') >= 0).length
-  assertEq(per1, 1, '只补拉 1 次 per=1（而非 2 次）')
+  assertEq(list.length, 2, '页 1 下载器兜底 + 页 2 正常')
+  assertEq(list[0].id, 101, '页 1 条目（下载器全文）')
+  assertEq(list[1].id, 102, '页 2 条目')
+  assertEq(api.lastNotifGaps().length, 0, '双通道兜底后无缺口')
 })
 
-T('notifSubPage：列表尾短页（无 salvage）零补拉', async () => {
+T('notifSubPage：快速路径零下载器调用（v1.5.0 per=1 契约）', async () => {
   const n1 = { id: 201, subject: { title: 'only' } }
   const seen = []
   const mocks = authed({}, (i, o) => {
     const u = fetchUrl(o)
     if (u.indexOf('/notifications') < 0) return { code: 200, data: '{}', headers: {} }
     seen.push(u)
-    if (u.indexOf('per_page=2') >= 0) return { code: 200, data: JSON.stringify([n1]), headers: {} }
+    if (u.indexOf('per_page=1') >= 0) return { code: 200, data: JSON.stringify([n1]), headers: {} }
     return { code: 200, data: '[]', headers: {} }
   })
   const api = apiOf(mocks)
   const list = await api.getNotifications(1, true)
-  assertEq(list.length, 5, '5 个子页各 1 条（列表尾）')
-  const per1 = seen.filter((u) => u.indexOf('per_page=1') >= 0).length
-  assertEq(per1, 0, '合法短页不触发补拉')
+  assertEq(list.length, 10, '10 个单页各 1 条')
+  assertEq(seen.filter((u) => u.indexOf('per_page=2') >= 0).length, 0, '不再有 per=2 请求')
+  assertEq(api.lastNotifGaps().length, 0, '无缺口')
 })
 
-T('notifDl：下载器截断体同样抢救', async () => {
+T('notifDl：下载器截断体同样抢救（per=1 双条数组）', async () => {
   const n1 = { id: 301, subject: { title: 'x' } }
   const n2 = { id: 302, subject: { title: 'y' } }
   const mocks = authed({
-    'https://api.github.com/notifications?page=1&per_page=2': JSON.stringify([n1, n2])
+    'https://api.github.com/notifications?page=1&per_page=1&all=true': JSON.stringify([n1])
   }, () => ({ code: 200, data: JSON.stringify([n1, n2]).slice(0, -10), headers: {} }))
   const api = apiOf(mocks)
   const list = await api.getNotifications(1, true)
@@ -373,94 +374,136 @@ T('getFileRawEx：历史截断缓存作废重拉', async () => {
 T('AI：2026 模型清单（首模型 gpt-5-mini，共 5 个）', async () => {
   const api = apiOf(authed({}, () => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
-  assertEq(ms[0], 'openai/gpt-5-mini', '首模型为 GPT-5 mini（Copilot Free 主力）')
-  assertEq(ms.length, 5, '5 个模型')
-  assert(ms.indexOf('anthropic/claude-haiku-4') >= 0, '含 Claude Haiku 4')
+  assertEq(ms[0], 'gpt-5-mini', '首模型为 GPT-5 mini（Copilot Free 主力）')
+  assertEq(ms.length, 6, '6 个模型')
+  assert(ms.indexOf('claude-haiku-4.5') >= 0, '含 Claude Haiku 4.5')
+  assert(ms.every((m) => m.indexOf('/') < 0), 'Copilot API id 无 publisher 前缀')
 })
 
-T('AI：aiChat 模型自动降级（403 → 下一模型成功）', async () => {
+T('AI：aiChat 模型自动降级（400 → 下一模型成功，Copilot 通道）', async () => {
   let n = 0
   const models = []
   const mocks = authed({}, (i, o) => {
     const u = fetchUrl(o)
-    if (u.indexOf('models.github.ai/inference') >= 0) {
+    if (u.indexOf('copilot_internal/v2/token') >= 0) {
+      return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=cp', endpoints: { api: 'https://api.individual.githubcopilot.com' }, expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
+    }
+    if (u.indexOf('chat/completions') >= 0) {
       n++
       const body = JSON.parse(o.data)
       models.push(body.model)
-      if (n === 1) return { code: 403, data: JSON.stringify({ error: { message: 'No access to model' } }), headers: {} }
+      if (n === 1) return { code: 400, data: JSON.stringify({ error: { message: 'model_not_supported' } }), headers: {} }
       return { code: 200, data: JSON.stringify({ model: body.model, choices: [{ message: { content: 'ok' } }], usage: { total_tokens: 3 } }), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   })
+  mocks['@system.storage']._map['gh_copilot_token'] = 'ghu_' + 'c'.repeat(36)
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'openai/gpt-5-mini' })
+  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
   assertEq(r.text, 'ok', '回复内容')
-  assertEq(r.model, 'anthropic/claude-haiku-4', '实际用第二模型')
+  assertEq(r.model, 'claude-haiku-4.5', '实际用第二模型')
   assertEq(models.length, 2, '共 2 次推理请求')
 })
 
 T('AI：aiChat 额度错误（429）不降级', async () => {
   let n = 0
   const mocks = authed({}, (i, o) => {
-    if (fetchUrl(o).indexOf('models.github.ai') >= 0) { n++; return { code: 429, data: '{}', headers: {} } }
+    const u = fetchUrl(o)
+    if (u.indexOf('copilot_internal/v2/token') >= 0) {
+      return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=cp', endpoints: { api: 'https://api.individual.githubcopilot.com' }, expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
+    }
+    if (u.indexOf('chat/completions') >= 0) { n++; return { code: 429, data: '{}', headers: {} } }
     return { code: 200, data: '{}', headers: {} }
   })
+  mocks['@system.storage']._map['gh_copilot_token'] = 'ghu_' + 'c'.repeat(36)
   const api = apiOf(mocks)
   let err = null
-  try { await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'openai/gpt-5-mini' }) } catch (e) { err = e }
+  try { await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' }) } catch (e) { err = e }
   assert(err && err.status === 429, '429 直抛')
-  assertEq(n, 1, '仅 1 次请求')
+  assertEq(n, 1, '仅 1 次推理请求（429 不换模型）')
 })
 
-T('AI：aiProbe 端点与文案（Copilot 404 + Models 403）', async () => {
+T('AI：aiProbe（/copilot_internal/user 404 + PAT 未授权 + Models 退役）', async () => {
   const mocks = authed({}, (i, o) => {
     const u = fetchUrl(o)
-    if (u === 'https://api.github.com/user/copilot') return { code: 404, data: JSON.stringify({ message: 'Not Found' }), headers: {} }
-    if (u.indexOf('models.github.ai/inference') >= 0) return { code: 403, data: JSON.stringify({ error: { message: 'models:read required' } }), headers: {} }
+    if (u === 'https://api.github.com/copilot_internal/user') return { code: 404, data: JSON.stringify({ message: 'Not Found' }), headers: {} }
     return { code: 200, data: '{}', headers: {} }
   })
   const api = apiOf(mocks)
   const p = await api.aiProbe()
-  assertEq(p.copilot, '未开通', 'seat 404 → 未开通')
+  assertEq(p.copilot, '未开通', 'internal/user 404 → 未开通')
   assert(String(p.copilotHint).indexOf('settings/copilot') >= 0, '指引含开通入口')
-  assertEq(p.models, '无权限（403）', 'Models 403 文案')
-  assert(String(p.modelsHint).indexOf('models') >= 0, '指引含 scope 说明')
+  assertEq(p.exchange, '未授权', 'PAT 未做 Copilot 授权')
+  assert(String(p.copilotHint).indexOf('授权') >= 0, '指引一键授权')
+  assert(String(p.models).indexOf('退役') >= 0, 'Models 退役说明（不再发请求）')
+  const urls = mocks['@system.fetch'].calls.map(fetchUrl)
+  assert(urls.every((u) => u.indexOf('models.github.ai') < 0), 'Models 零请求')
 })
 
-T('AI：aiModelsRemote 目录拉取 + id 提取', async () => {
-  const catalog = [
-    { id: 'openai/gpt-5-mini', name: 'GPT-5 mini' },
-    { id: 'openai/gpt-4.1', name: 'GPT-4.1' },
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'bad', name: 'no slash' }
-  ]
+T('AI：aiProbe PAT 可查 /copilot_internal/user（free_limited 不再误报）', async () => {
   const mocks = authed({}, (i, o) => {
-    assertEq(fetchUrl(o), 'https://models.github.ai/catalog/models', 'catalog 端点')
-    assertEq(o.header['Accept-Encoding'], 'identity', 'identity 头')
-    return { code: 200, data: JSON.stringify(catalog), headers: {} }
+    const u = fetchUrl(o)
+    if (u === 'https://api.github.com/copilot_internal/user') {
+      return { code: 200, data: JSON.stringify({ access_type_sku: 'free_limited_copilot', chat_enabled: true, quota_snapshots: { chat: { remaining: 187, entitlement: 200 } } }), headers: {} }
+    }
+    return { code: 200, data: '{}', headers: {} }
   })
   const api = apiOf(mocks)
-  const ids = await api.aiModelsRemote()
-  assertEq(ids.length, 3, '过滤无斜杠项')
-  assertEq(ids[0], 'openai/gpt-5-mini', 'id 提取')
+  const p = await api.aiProbe()
+  assert(String(p.copilot).indexOf('已开通') >= 0, '不再误报未开通：' + p.copilot)
+  assert(String(p.copilot).indexOf('Copilot Free') >= 0, '套餐名')
+  assertEq(p.quotaChat, '187/200', '会话额度')
 })
 
-T('AI：aiModelsRemote 截断目录抢救', async () => {
-  const catalog = JSON.stringify([{ id: 'openai/gpt-5-mini' }, { id: 'openai/gpt-4.1' }, { id: 'meta/l' }])
-  const mocks = authed({}, () => ({ code: 200, data: catalog.slice(0, -12), headers: {} }))
+T('AI：copilotModels 目录拉取 + chat 过滤 + 去重', async () => {
+  const catalog = { data: [
+    { id: 'gpt-5-mini', capabilities: { type: 'chat' } },
+    { id: 'claude-haiku-4.5', capabilities: { type: 'chat' } },
+    { id: 'text-embedding-3-small', capabilities: { type: 'embeddings' } },
+    { id: 'gpt-5-mini' }
+  ] }
+  const mocks = authed({}, (i, o) => {
+    const u = fetchUrl(o)
+    if (u.indexOf('copilot_internal/v2/token') >= 0) {
+      return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=cp', endpoints: { api: 'https://api.individual.githubcopilot.com' }, expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
+    }
+    if (u.indexOf('/models') >= 0) {
+      assertEq(u, 'https://api.individual.githubcopilot.com/models', '按套餐端点拉模型目录')
+      assertEq(o.header['X-GitHub-Api-Version'], '2026-08-01', '版本头')
+      return { code: 200, data: JSON.stringify(catalog), headers: {} }
+    }
+    return { code: 200, data: '{}', headers: {} }
+  })
+  mocks['@system.storage']._map['gh_copilot_token'] = 'ghu_' + 'c'.repeat(36)
   const api = apiOf(mocks)
-  const ids = await api.aiModelsRemote()
-  assert(ids.length >= 2, '截断目录抢救出前导 id：' + ids.join(','))
+  const ids = await api.copilotModels()
+  assertEq(ids.length, 2, '只留 chat 且去重')
+  assertEq(ids[0], 'gpt-5-mini', 'id 提取')
+})
+
+T('AI：copilotModels 截断响应抢救', async () => {
+  const catalog = JSON.stringify([{ id: 'gpt-5-mini' }, { id: 'claude-haiku-4.5' }, { id: 'meta/l' }])
+  const mocks = authed({}, (i, o) => {
+    const u = fetchUrl(o)
+    if (u.indexOf('copilot_internal/v2/token') >= 0) {
+      return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=cp', endpoints: { api: 'https://api.individual.githubcopilot.com' }, expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
+    }
+    if (u.indexOf('/models') >= 0) return { code: 200, data: catalog.slice(0, -12), headers: {} }
+    return { code: 200, data: '{}', headers: {} }
+  })
+  mocks['@system.storage']._map['gh_copilot_token'] = 'ghu_' + 'c'.repeat(36)
+  const api = apiOf(mocks)
+  const ids = await api.copilotModels()
+  assert(ids.length >= 1, '截断响应经 salvage 抢救：' + ids.join(','))
 })
 
 /* ---------------- ⑦ device scope ---------------- */
 
-T('deviceFlowStart：FULL scope（含 models）被拒 → 回退基础 scope', async () => {
+T('deviceFlowStart：login 收敛基础 scope；copilot 模式 Iv1 client', async () => {
   const scopes = []
   const mocks = authed({}, (i, o) => {
     if (fetchUrl(o) === 'https://github.com/login/device/code') {
       scopes.push(String(o.data))
-      if (scopes.length === 1) return { code: 200, data: '{"error":"invalid scope"}', headers: {} }
       return { code: 200, data: JSON.stringify({ device_code: 'dc', user_code: 'ABCD-1234', verification_uri: 'https://github.com/login/device', interval: 5 }), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
@@ -468,8 +511,11 @@ T('deviceFlowStart：FULL scope（含 models）被拒 → 回退基础 scope', a
   const api = apiOf(mocks)
   const d = await api.deviceFlowStart()
   assertEq(d.userCode, 'ABCD-1234', 'user code')
-  assert(scopes[0].indexOf('models') >= 0, '首试含 models scope')
-  assert(scopes[1].indexOf('models') < 0, '回退不含 models')
+  assertEq(scopes.length, 1, 'v1.5.0：单 scope 一次发起（非法 scope 首试已移除）')
+  assert(scopes[0].indexOf('models') < 0 && scopes[0].indexOf('copilot') < 0, 'login scope 不含 models/copilot')
+  await api.deviceFlowStart('copilot')
+  assert(scopes[1].indexOf('Iv1.b507a08c87ecfe98') >= 0, 'copilot 模式用 GitHub App client')
+  assert(scopes[1].indexOf('read%3Auser') >= 0, 'copilot scope read:user')
 })
 
 /* ---------------- ⑧ identity 头 ---------------- */

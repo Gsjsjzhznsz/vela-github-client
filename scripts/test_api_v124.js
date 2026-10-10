@@ -293,7 +293,7 @@ async function t_notif_ladder() {
     const api = loadModule('src/utils/api.js', mocks)
     const list = await api.getNotifications(1, false)
     assertEq(list.length, 0, '无数据返回（不 throw）')
-    assertEq(api.lastNotifGaps(), [1, 2, 3, 4, 5], '5 段全记 gap')
+    assertEq(api.lastNotifGaps(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'v1.5.0：10 单页全记 gap')
   })
 
   await test('部分段死 → 成功段照常返回（顺序保持），失败段记 gap 可重试', async () => {
@@ -301,20 +301,18 @@ async function t_notif_ladder() {
       const u = String(o.url)
       if (u.indexOf('/notifications') < 0) return { code: 404, data: {}, headers: {} }
       const pg = Number((u.match(/page=(\d+)/) || [0, 1])[1])
-      const per = Number((u.match(/per_page=(\d+)/) || [0, 0])[1])
-      /* 段 3 全灭：per=2 第3页 + 其降级 per=1 页5、页6；其余页按真实条号供数 */
-      if ((per === 2 && pg === 3) || (per === 1 && (pg === 5 || pg === 6))) {
+      /* v1.5.0：单页 7 全灭（截断 GARBAGE + 下载器断供）；其余单页按真实条号供数 */
+      if (pg === 7) {
         return { code: 200, data: GARBAGE, headers: {} }
       }
-      const list = []
-      for (let i = 0; i < per; i++) list.push(notifItem(per === 2 ? (pg - 1) * 2 + i + 1 : pg))
+      const list = [notifItem(pg)]
       return { code: 200, data: list, headers: {} }
     }, { breakDownload: true })
     const api = loadModule('src/utils/api.js', mocks)
     const list = await api.getNotifications(1, false)
-    assertEq(list.length, 8, '成功段 8 条照常返回（旧版整页报错丢弃）')
-    assertEq(list.map((x) => x.id), [1, 2, 3, 4, 7, 8, 9, 10], '顺序保持、缺口位置明确')
-    assertEq(api.lastNotifGaps(), [3], '仅段 3 记 gap')
+    assertEq(list.length, 9, '成功段 9 条照常返回（旧版整页报错丢弃）')
+    assertEq(list.map((x) => x.id), [1, 2, 3, 4, 5, 6, 8, 9, 10], '顺序保持、缺口位置明确')
+    assertEq(api.lastNotifGaps(), [7], '仅单页 7 记 gap')
   })
 
   await test('段 404（硬错误）→ 仍整页抛出（v1.2.2 契约保留）', async () => {

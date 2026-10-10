@@ -304,24 +304,17 @@ T('getNotifications ③b 未传 participating 时 URL 不含该参数', async ()
 
 /* ---------------- ④ aiChat 双通道 ---------------- */
 
-T('aiChat ④a PAT → Models 通道', async () => {
-  let body = null
+T('aiChat ④a PAT 未授权 → needCopilot（Models 已退役零请求）', async () => {
   const mocks = authed({}, (i, o) => {
-    const u = fetchUrl(o)
-    if (u.indexOf('models.github.ai/inference/chat/completions') >= 0) {
-      body = JSON.parse(o.data)
-      assertEq(o.header.Authorization, 'Bearer ' + TOKEN_OK, 'PAT 注入')
-      return { code: 200, data: JSON.stringify({ choices: [{ message: { content: 'PONG' } }], usage: { total_tokens: 9 } }), headers: {} }
-    }
     return { code: 404, data: '{}', headers: {} }
   })
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'ping' }], {})
-  assertEq(r.text, 'PONG', '回复')
-  assertEq(r.via, 'models', 'via models')
-  assertEq(body.model, 'openai/gpt-5-mini', '默认模型')
-  assertEq(body.max_tokens, 700, 'max_tokens')
-  assertEq(body.messages[0].role, 'user', 'messages 透传（system 由页面层构建）')
+  let err = null
+  try { await api.aiChat([{ role: 'user', content: 'ping' }], {}) } catch (e) { err = e }
+  assert(err && err.needCopilot, 'needCopilot 标志')
+  assert(String(err.message).indexOf('Copilot') >= 0, '文案指向 Copilot 授权')
+  const urls = mocks['@system.fetch'].calls.map(fetchUrl)
+  assert(urls.every((u) => u.indexOf('models.github.ai') < 0), 'Models 退役后零请求')
 })
 
 T('aiChat ④b oauth → Copilot 优先（token 交换 + chat）', async () => {
@@ -332,7 +325,8 @@ T('aiChat ④b oauth → Copilot 优先（token 交换 + chat）', async () => {
     }
     if (u.indexOf('api.githubcopilot.com/chat/completions') >= 0) {
       assertEq(o.header.Authorization, 'Bearer tid=1;exp=9999999999;sku=copilot', 'Copilot 临时凭据')
-      assertEq(o.header['Copilot-Integration-Id'], 'vscode-chat', '集成头')
+      assertEq(o.header['Copilot-Integration-Id'], 'copilot-developer-cli', '集成头（v1.5.0 CLI 身份）')
+      assertEq(o.header['X-GitHub-Api-Version'], '2026-08-01', 'Copilot API 版本头')
       return { code: 200, data: JSON.stringify({ choices: [{ message: { content: 'COPILOT-OK' } }] }), headers: {} }
     }
     return { code: 404, data: '{}', headers: {} }
@@ -343,31 +337,30 @@ T('aiChat ④b oauth → Copilot 优先（token 交换 + chat）', async () => {
   assertEq(r.via, 'copilot', 'via copilot')
 })
 
-T('aiChat ④c oauth 但 Copilot 凭据交换 404 → 落 Models', async () => {
+T('aiChat ④c oauth 但凭据交换 404 → needCopilot（不再落 Models）', async () => {
   const mocks = authed({}, (i, o) => {
     const u = fetchUrl(o)
     if (u.indexOf('copilot_internal/v2/token') >= 0) {
       return { code: 404, data: JSON.stringify({ message: 'Not Found' }), headers: {} }
     }
-    if (u.indexOf('models.github.ai') >= 0) {
-      return { code: 200, data: JSON.stringify({ choices: [{ message: { content: 'FALLBACK' } }] }), headers: {} }
-    }
     return { code: 404, data: '{}', headers: {} }
   }, null, 'oauth')
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'hi' }], {})
-  assertEq(r.via, 'models', '降级 models')
-  assertEq(r.text, 'FALLBACK', '兜底回复')
+  let err = null
+  try { await api.aiChat([{ role: 'user', content: 'hi' }], {}) } catch (e) { err = e }
+  assert(err && err.needCopilot, 'needCopilot（Models 已退役，无兜底）')
+  const urls = mocks['@system.fetch'].calls.map(fetchUrl)
+  assert(urls.every((u) => u.indexOf('models.github.ai') < 0), 'Models 零请求')
 })
 
-T('aiChat ④d 非JSON体（网关健康检查 "OK"）→ 明确报错', async () => {
+T('aiChat ④d 非JSON体（网关健康检查 "OK"）→ 交换失败 + 原文透出', async () => {
   const mocks = authed({}, (i, o) => {
     return { code: 200, data: 'OK', headers: {} }
-  })
+  }, null, 'oauth')
   const api = apiOf(mocks)
   let err = null
   try { await api.aiChat([{ role: 'user', content: 'hi' }], {}) } catch (e) { err = e }
-  assert(err && err.message.indexOf('非标准体') >= 0, '应报非标准体: ' + (err && err.message))
+  assert(err && (err.message.indexOf('凭据交换失败') >= 0 || err.message.indexOf('OK') >= 0), '非 JSON 体透出原文: ' + (err && err.message))
 })
 
 T('aiChat ④e 未登录 → needAuth', async () => {
@@ -387,18 +380,22 @@ T('aiChat ④e 未登录 → needAuth', async () => {
   assert(err && err.needAuth, '应抛 needAuth')
 })
 
-T('aiChat ④f Models 429 → 额度提示', async () => {
+T('aiChat ④f Copilot 429 → 状态透传 + 原文文案', async () => {
   const mocks = authed({}, (i, o) => {
-    if (fetchUrl(o).indexOf('models.github.ai') >= 0) {
-      return { code: 429, data: JSON.stringify({ error: { message: 'rate limited' } }), headers: {} }
+    const u = fetchUrl(o)
+    if (u.indexOf('copilot_internal/v2/token') >= 0) {
+      return { code: 200, data: JSON.stringify({ token: 'tid=1;exp=9999999999;sku=copilot', expires_at: Math.floor(Date.now() / 1000) + 1800 }), headers: {} }
+    }
+    if (u.indexOf('chat/completions') >= 0) {
+      return { code: 429, data: JSON.stringify({ error: { message: 'quota exceeded' } }), headers: {} }
     }
     return { code: 404, data: '{}', headers: {} }
-  })
+  }, null, 'oauth')
   const api = apiOf(mocks)
   let err = null
   try { await api.aiChat([{ role: 'user', content: 'hi' }]) } catch (e) { err = e }
   assert(err && err.status === 429, '429 透传')
-  assert(err.message.indexOf('额度') >= 0, '额度文案')
+  assert(String(err.message).indexOf('quota exceeded') >= 0, '错误原文透出')
 })
 
 /* ---------------- ⑤ AI 辅助 API ---------------- */
@@ -408,7 +405,7 @@ T('aiTokenKind/aiChannelLabel/aiModels ⑤', async () => {
   const a1 = apiOf(m1)
   await a1.loadToken()
   assertEq(a1.aiTokenKind(), 'pat', 'pat kind')
-  assert(a1.aiChannelLabel().indexOf('Models') >= 0, 'pat label')
+  assert(a1.aiChannelLabel().indexOf('Copilot') >= 0, 'pat label（v1.5.0 待授权）')
 
   const m2 = authed({}, () => ({ code: 200, data: '{}', headers: {} }), null, 'oauth')
   const a2 = apiOf(m2)
@@ -416,15 +413,17 @@ T('aiTokenKind/aiChannelLabel/aiModels ⑤', async () => {
   assertEq(a2.aiTokenKind(), 'oauth', 'oauth kind')
   assert(a2.aiChannelLabel().indexOf('Copilot') >= 0, 'oauth label')
 
-  assert(a2.aiModels().length >= 3, '预设模型 ≥3（v1.4.0 五模型清单）')
-  assertEq(a2.aiModels()[0], 'openai/gpt-5-mini', '首模型')
+  assert(a2.aiModels().length >= 3, '预设模型 ≥3（v1.5.0 六模型清单）')
+  assertEq(a2.aiModels()[0], 'gpt-5-mini', '首模型（Copilot API id 无前缀）')
 })
 
 /* ---------------- ⑥ device scope ---------------- */
 
-T('device flow scope 含 copilot ⑥', () => {
+T('device flow 双模式 ⑥', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src/utils/api.js'), 'utf8')
-  assert(/DEVICE_SCOPE\s*=\s*'[^']*copilot'/.test(src), 'scope 应含 copilot')
+  assert(/DEVICE_CLIENT_COPILOT\s*=\s*'Iv1\.b507a08c87ecfe98'/.test(src), 'Copilot CLI GitHub App client（ghu_ 可交换）')
+  assert(/DEVICE_SCOPE_COPILOT\s*=\s*'read:user'/.test(src), 'Copilot 授权 scope')
+  assert(/DEVICE_SCOPE_LOGIN\s*=\s*'repo read:user notifications'/.test(src), '主登录 scope 收敛（非法 scope 不再首试）')
 })
 
 /* ---------------- go ---------------- */

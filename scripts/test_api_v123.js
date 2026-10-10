@@ -473,7 +473,7 @@ async function t_regress() {
     assertEq(r2.via, 'cache', '二次命中磁盘缓存')
   })
 
-  await test('回归：通知正常路径仍 5×per=2 并发（noDl 不影响成功路径）', async () => {
+  await test('回归：通知正常路径 10×per=1 并发（noDl 不影响成功路径）', async () => {
     const seen = []
     const mocks = authed({}, (n, o) => {
       const u = String(o.url)
@@ -482,13 +482,13 @@ async function t_regress() {
       const per = Number((u.match(/per_page=(\d+)/) || [0, 0])[1])
       seen.push(pg + 'x' + per)
       const list = []
-      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * 2 + i + 1))
+      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * per + i + 1))
       return { code: 200, data: list, headers: {} }
     })
     const api = loadModule('src/utils/api.js', mocks)
     const list = await api.getNotifications(1, false)
     assertEq(list.length, 10, '10 条')
-    assertEq(seen.filter((s) => s.indexOf('x2') >= 0).length, 5, '5 个 per=2 子页')
+    assertEq(seen.filter((s) => s.indexOf('x1') >= 0).length, 10, '10 个 per=1 单页')
   })
 }
 

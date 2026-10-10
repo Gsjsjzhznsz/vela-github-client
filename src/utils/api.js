@@ -26,10 +26,31 @@ const H_IDENTITY = { 'Accept-Encoding': 'identity' }
  * 深扫到最后一个顶层完整 '}'，截断前缀 + ']' 解析即得部分数据。
  * 仅用于通知管线（notifSubPage 会按长度补拉尾部，部分数据优于全损）；
  * 目录/树不启用（静默缺条比报错更糟，走 getTreeEx 下载器整树）。 */
-let _lastSalvage = null
+/* v1.5.0：_lastSalvage 单例改按 URL 记键（容量 12 的最近表）——
+ * 原版是并发竞态重灾区：通知子页并发 3 拉取，A/B 相继截断抢救后
+ * _lastSalvage 只剩 B 的记录，A 的 notifSubPage 查到 B 的 URL 不匹配 →
+ * 误判「非截断」跳过尾条补拉 → 静默丢一半条目（真机「依旧不完整」主因之一）。
+ * 沙箱无截断故 e2e 测不出；真机 per=2 全部命中。 */
+const _lastSalvages = {}
 
-export function lastSalvageInfo() {
-  return _lastSalvage
+/** 无参返回最近一次抢救（旧用例兼容）；传 URL 返回该 URL 的记录 */
+export function lastSalvageInfo(url) {
+  if (url) return _lastSalvages[url] || null
+  let best = null
+  for (const k in _lastSalvages) {
+    const v = _lastSalvages[k]
+    if (!best || v.ts > best.ts) best = v
+  }
+  return best
+}
+
+function salvageMark(url, got) {
+  const keys = Object.keys(_lastSalvages)
+  if (keys.length >= 12) {
+    keys.sort((a, b) => _lastSalvages[a].ts - _lastSalvages[b].ts)
+    for (let i = 0; i < 4; i++) delete _lastSalvages[keys[i]]
+  }
+  _lastSalvages[url] = { url: url, got: got, ts: Date.now() }
 }
 
 function salvageJsonArray(s) {
@@ -836,8 +857,11 @@ async function requestGo(url, header, opt) {
       if (opt.salvage && !opt.raw && lastBody) {
         const sv = salvageJsonArray(lastBody)
         if (sv) {
-          _lastSalvage = { url: url, got: sv.arr.length, ts: Date.now() }
-          memSet(url, sv.arr, '')
+          salvageMark(url, sv.arr.length)
+          /* v1.5.0：绝不能把抢救出的部分数组写入缓存——旧版 memSet(url, sv.arr)
+           * 把残缺列表当完整结果缓存，TTL 内重进页面命中缓存直接返回残片，
+           * salvage 记录又已过期 → 静默缺条且无任何提示（真机体感「不完整」）。
+           * 部分数据只经返回值交给调用方即时补拉，缓存只存完整响应。 */
           return sv.arr
         }
       }
@@ -1230,14 +1254,18 @@ export async function getReadmeText(fullName, ref) {
  * client_id 复用 GitHub CLI 的公开 OAuth App（第三方工具通行做法），
  * 仅作 device flow 发起方，Token 由 GitHub 直接发给本机，不经过任何第三方。 */
 
-const DEVICE_CLIENT_ID = '178c6fc778ccc68e1d6a'
-/* v1.3.0：scope 追加 copilot——设备授权的 OAuth token（ghu_）可交换 Copilot
- * 临时凭据（PAT/ghp_ 永远不行，GitHub 明确拒绝 PAT 调 Copilot 端点）。
- * 已授权老用户不受影响；新授权生效后 Copilot 专区自动亮起真通道。 */
-const DEVICE_SCOPE = 'repo read:user notifications copilot'
-/* v1.4.0：scope 追加 models——Models API（models.github.ai）对 OAuth token
- * 同样按 scope 授权；发起端先试 FULL，被拒自动回退基础 scope（兜底不破坏登录） */
-const DEVICE_SCOPE_FULL = 'repo read:user notifications copilot models'
+/* v1.5.0：拆双模式——
+ *  login：主登录沿用原 OAuth App（repo/notifications 全权限）；
+ *    scope 收敛回三个基础项（copilot/models 不是合法 OAuth scope，
+ *    v1.3.0/v1.4.0 追加后 FULL 首试恒被拒，纯耗一轮请求）。
+ *  copilot：GitHub Copilot CLI 的 GitHub App（Iv1.b507a08c87ecfe98，
+ *    2026 第三方客户端通行 client），产出 ghu_——copilot_internal/v2/token
+ *    实证只收 GitHub App 用户 token（ghu_），OAuth App 的 gho_ 与 PAT 均被拒。
+ *    专用授权与主 token 分离存储，PAT 主账号不受任何影响。 */
+const DEVICE_CLIENT_LOGIN = '178c6fc778ccc68e1d6a'
+const DEVICE_CLIENT_COPILOT = 'Iv1.b507a08c87ecfe98'
+const DEVICE_SCOPE_LOGIN = 'repo read:user notifications'
+const DEVICE_SCOPE_COPILOT = 'read:user'
 const DEVICE_URL_CODE = 'https://github.com/login/device/code'
 const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token'
 
@@ -1263,14 +1291,17 @@ function formPost(url, params) {
   })
 }
 
-/** 第一步：发起 Device Flow，返回 {deviceCode,userCode,verifyUri,expiresIn,interval} */
-export async function deviceFlowStart() {
+/** 第一步：发起 Device Flow。mode='login'（主登录）| 'copilot'（AI 专用授权）。
+ *  返回 {deviceCode,userCode,verifyUri,expiresIn,interval} */
+export async function deviceFlowStart(mode) {
+  const cp = mode === 'copilot'
+  const clientId = cp ? DEVICE_CLIENT_COPILOT : DEVICE_CLIENT_LOGIN
+  const scope = cp ? DEVICE_SCOPE_COPILOT : DEVICE_SCOPE_LOGIN
   let res = null
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 1200 : 2400))
     try {
-      /* v1.4.0：首试 FULL scope（含 models），结构异常/被拒 → 回退基础 scope 重试 */
-      res = await formPost(DEVICE_URL_CODE, { client_id: DEVICE_CLIENT_ID, scope: attempt === 0 ? DEVICE_SCOPE_FULL : DEVICE_SCOPE })
+      res = await formPost(DEVICE_URL_CODE, { client_id: clientId, scope: scope })
       const dTry = jsonMaybe(res)
       if (res && Number(res.code) >= 200 && Number(res.code) < 300 && dTry && dTry.device_code) break
       res = null
@@ -1293,11 +1324,12 @@ export async function deviceFlowStart() {
 
 /** 第二步：轮询一次授权状态。永不抛错（轮询失败是常态），状态机返回：
  *  ok{token} / pending / slow{interval} / expired / denied / netfail / error */
-export async function deviceFlowPoll(deviceCode, intervalSec) {
+export async function deviceFlowPoll(deviceCode, intervalSec, mode) {
+  const clientId = mode === 'copilot' ? DEVICE_CLIENT_COPILOT : DEVICE_CLIENT_LOGIN
   let res
   try {
     res = await formPost(DEVICE_URL_TOKEN, {
-      client_id: DEVICE_CLIENT_ID,
+      client_id: clientId,
       device_code: deviceCode,
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
     })
@@ -1353,31 +1385,29 @@ export function getRateLimit() {
 /* ================= v1.2.2 通知并行子页（数据不完整根治） =================
  * 量化根因（v1.2.1 后真机仍不完整）：/notifications 单条 ~6KB——嵌入的 repository
  * 对象独占 5.5KB，REST 无法瘦身字段、GraphQL 又没有通知 API（schema 实证 Query
- * 根无 notifications）。per=10 → 60KB 必截断；v1.2.1 自适应降到 per=1 后逐条串行，
- * 一页要 3 次阶梯尝试，列表条数少且龟速，用户感知即「数据不完整」。
- * 方案：逻辑页 = 10 条 = 5 个 per_page=2 子页（各 ~12.6KB，低于 14.3KB 实测下限）
- * 并发 3 并行拉取后按序拼接。子页仍截断 → 降级为两个 per=1（各 ~6.3KB）补齐。
- * 全有或全无：任一子页彻底失败整页抛错（页面有重试），绝不静默缺条造成跳条。 */
-const NOTIF_SUB_PER = 2
-const NOTIF_SUBS = 5
+ * 根无 notifications）。
+ * v1.2.2-v1.4.0 方案（5 个 per=2 子页）在真机被证伪：per=2 ~12KB 恒超蓝牙代理
+ * 8KB 截断阈值 → 每次都靠抢救+尾条补拉凑齐，任意一环抖动就缺条。
+ * v1.5.0 改为 per=1 主路（10 个单页，各 ~5.6KB，稳在 8KB 阈值内）并发 3 拉取：
+ * 确定性截断源直接消失，salvage/下载器降级为罕见兑底而非日常路径；
+ * 请求总数与旧真机实际开销（5 次 per=2 截断 + 5 次 per=1 补拉）持平。
+ * gap 机制保留：单页彻底失败时留缺口渲染警告，绝不静默缺条。 */
+const NOTIF_PAGE_N = 10
 const NOTIF_CONC = 3
 
 /** 通知逻辑页大小（notifications.ux 的 hasMore 判断依据） */
 export function notifPageSize() {
-  return NOTIF_SUBS * NOTIF_SUB_PER
+  return NOTIF_PAGE_N
 }
 
-/** 单个子页请求（fetch 通道）：noDl（截断不挂 28s 默认下载器）。
- *  v1.2.4：useDl 仅在 per=1 降级阶段开启——per=2 截断先快速降级 per=1（秒级），
- *  per=1 也截断（真机残存案例）才动用原生下载器兜底（收紧超时 ~22s），
- *  保住快速路径「下载器零调用」的老契约。 */
-async function notifOnce(pathUrl, useDl) {
+/** 单条通知请求（fetch 主通道）：salvage 开启（截断残片抢救为罕见兜底）。
+ *  v1.5.0：per=1 单条 ~5.6KB 稳在 8KB 阈值内，不再需要 per=2→per=1 分级；
+ *  截断仍发生时请求层自动重试 1 次，仍失败走原生下载器（notifDl ~40s 判死）。 */
+async function notifOnce(pathUrl) {
   try {
-    // v1.4.0：salvage 开启——截断响应抢救前导完整条目（per=2 断在尾部仍得 1 条），
-    // notifSubPage 按已得条数只补拉缺失尾部，不再整段作废重拉
     return await request(pathUrl, { noDl: true, salvage: true })
   } catch (e) {
-    if (!e || !e.incomplete || !useDl) throw e
+    if (!e || !e.incomplete) throw e
     try {
       return await notifDl(API_BASE + pathUrl)
     } catch (e2) {
@@ -1411,58 +1441,25 @@ async function notifDl(url) {
     // v1.4.0：下载器截断同样可抢救（通知管线按长度补拉尾部）
     const sv = salvageJsonArray(cleaned)
     if (sv) {
-      _lastSalvage = { url: url, got: sv.arr.length, ts: Date.now() }
+      salvageMark(url, sv.arr.length)
       return sv.arr
     }
     throw { status: 200, incomplete: true, message: '下载器响应不是有效 JSON' }
   }
 }
 
-/** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接）。
- *  v1.2.3：子页请求一律 noDl —— 截断时若先走下载器兜底（真机挂起最坏 28s）再
- *  降级，一个子页要 ~35s、整页 5 子页并发 3 也要 70s+，用户体感即「拉不全/拉不动」。
- *  v1.2.4：per=1 之上再叠下载器兜底（notifOnce 内置）——单条 ~6KB 截断概率趋零，
- *  但真机实测仍存在；下载器是最后防线，双通道全灭才真正判死该段。 */
-/* v1.3.0：participating 过滤——未读通知 99% 是 ci_activity 噪音（用户 200+ 条），
- *  participating=true 只留「我参与的对话」（issue/PR 评论、mention、review），
- *  列表从百页级缩到 1-2 页，「拉不全」的体感直接消失。三态：未读/全部/仅参与。 */
+/** 通知 URL（per=1 单条；all=全部、participating=仅参与）。
+ *  v1.3.0：participating 过滤——未读通知 99% 是 ci_activity 噪音（用户 200+ 条），
+ *  participating=true 只留「我参与的对话」，列表从百页级缩到 1-2 页。 */
 function notifUrl1(page, all, participating, per) {
   return '/notifications' + qs({ page: page, per_page: per || 1, all: !!all, participating: participating ? true : undefined })
 }
 
-/* v1.4.0：子页缺口最小化补拉——per=2 截断被抢救后仍持前导条目（长度 < per），
- * 只对缺失的尾部逐条 per=1 补拉（原来无条件 2 次全拉）。列表尾短页（长度<per
- * 但并非截断）不补拉——以 lastSalvageInfo 命中本子页 URL 为准，零浪费。
- * 单条仍可叠下载器兜底。 */
+/** v1.5.0：单页直拉（per=1）——不再有 per=2 整段→per=1 降级树。
+ *  salvage 命中按 URL 记键（并发互不覆盖）；残片（长度<1）即空数组，
+ *  直接交 getNotifications 的 gap 机制处理。 */
 async function notifSubPage(sp, all, participating) {
-  const urlSp = notifUrl1(sp, all, participating, NOTIF_SUB_PER)
-  try {
-    const r = await notifOnce(urlSp, false)
-    if (Array.isArray(r) && r.length < NOTIF_SUB_PER) {
-      const sv = lastSalvageInfo()
-      const salvaged = !!(sv && sv.url === API_BASE + urlSp && Date.now() - sv.ts < 5000)
-      if (salvaged) {
-        const tail = []
-        for (let p = 2 * sp - 1 + r.length; p <= 2 * sp; p++) {
-          try {
-            const t = await notifOnce(notifUrl1(p, all, participating, 1), true)
-            if (Array.isArray(t)) for (let i = 0; i < t.length; i++) tail.push(t[i])
-          } catch (e2) {
-            if (!notifGapable(e2)) throw e2
-            /* 尾条可降级失败：留空（getNotifications gap 机制兜底） */
-          }
-        }
-        return r.concat(tail)
-      }
-    }
-    return r
-  } catch (e) {
-    if (!e || !e.incomplete) throw e
-    /* 整段失败 → per=1 逐条全拉（开下载器兜底） */
-    const a = await notifOnce(notifUrl1(2 * sp - 1, all, participating, 1), true)
-    const b = await notifOnce(notifUrl1(2 * sp, all, participating, 1), true)
-    return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
-  }
+  return notifOnce(notifUrl1(sp, all, participating, 1))
 }
 
 /** 该段失败是否可「留缺口继续」：incomplete（含下载器兜底失败）/ 超时可降级为
@@ -1484,10 +1481,10 @@ export function lastNotifGaps() {
 export async function getNotifications(page, all, participating) {
   await loadToken()
   const pg = Math.max(1, page)
-  const base = (pg - 1) * NOTIF_SUBS + 1
+  const base = (pg - 1) * NOTIF_PAGE_N + 1
   const subs = []
-  for (let i = 0; i < NOTIF_SUBS; i++) subs.push(base + i)
-  const parts = new Array(NOTIF_SUBS)
+  for (let i = 0; i < NOTIF_PAGE_N; i++) subs.push(base + i)
+  const parts = new Array(NOTIF_PAGE_N)
   const failed = []
   const first = await mapLimit(subs, NOTIF_CONC, (sp) =>
     notifSubPage(sp, all, participating)
@@ -1514,7 +1511,7 @@ export async function getNotifications(page, all, participating) {
   }
   const out = []
   _lastNotifGaps = []
-  for (let i = 0; i < NOTIF_SUBS; i++) {
+  for (let i = 0; i < NOTIF_PAGE_N; i++) {
     if (parts[i] === undefined) { _lastNotifGaps.push(subs[i]); continue }
     const arr = parts[i]
     for (let j = 0; j < arr.length; j++) out.push(arr[j])
@@ -2210,37 +2207,102 @@ export async function getCommitChecks(fullName, branch, page) {
   return { commits: commits, total: h.totalCount || commits.length, hasNext: !!(h.pageInfo && h.pageInfo.hasNextPage) }
 }
 
-/* ================= v1.3.0 Copilot 专区（AI 双通道） =================
- *  通道A GitHub Models（models.github.ai）：PAT 直接可用、无需 Copilot 订阅，
- *    OpenAI 兼容 chat/completions，免费额度按模型/日计。
- *  通道B Copilot Chat（api.githubcopilot.com）：需 Copilot 订阅 + 设备授权
- *    token（ghu_/gho_，scope 含 copilot）——先 copilot_internal/v2/token 换
- *    ~30min 临时凭据再调 chat/completions；PAT 恒不可用（GitHub 明确拒绝，
- *    2026-10 沙箱实测 bad request: Personal Access Tokens are not supported）。
- *  代理网络返回非 JSON 体（健康检查 "OK"/HTML）一律识别为通道失败并降级。 */
-const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
+/* ================= v1.5.0 Copilot 专区（AI 单通道重构） =================
+ *  2026-07-30 GitHub Models（models.github.ai）全面退役（官方 docs 实证：
+ *  playground/catalog/inference API 全部下线）——v1.3.0-v1.4.0 的 Models 兜底
+ *  通道打在死服务上，即「AI 依旧使用不了」的终极根因。
+ *  Copilot Chat API 是唯一存活的内置模型通道（VS Code 免费模型同款链路）：
+ *    设备授权（GitHub App Iv1.b507a08c87ecfe98 → ghu_）
+ *    → GET api.github.com/copilot_internal/v2/token 换 ~30min 会话凭据
+ *    → POST {endpoints.api}/chat/completions（2026-08-01 版本头 + CLI 身份头）
+ *  实测矩阵（2026-10 沙箱）：
+ *    · PAT 直连 Copilot API → 400 "Personal Access Tokens are not supported"
+ *    · gho_（OAuth App 设备授权）→ 会话交换端点拒绝（只收 GitHub App ghu_）
+ *    · /copilot_internal/user 探测 PAT 可查（plan/quota/端点全量返回）
+ *  → PAT 主账号需做一次「Copilot 设备授权」（免打字，独立存储不影响主 token）；
+ *  旧版设备授权 gho_ 直连 Bearer 仍可用 GA 模型（opencode 实证），保留兼容。
+ *  模型列表动态拉取 GET /models（免费模型轮换不再依赖硬编码）；所有非 2xx
+ *  错误透出响应原文片段（不再笼统报「网关异常」，用户可自诊断）。 */
 const COPILOT_TOK_URL = 'https://api.github.com/copilot_internal/v2/token'
-const COPILOT_CHAT_URL = 'https://api.githubcopilot.com/chat/completions'
-/* v1.4.0：模型清单更新至 2026-10——Copilot Free 当前主力（GPT-5 mini /
- * Claude Haiku 4 系列）在前，老模型殿后；远程目录刷新可整表替换。
- * 单模型失效由 aiChat 自动降级兜底，不再「一个模型 403 就全军覆没」。 */
+const COPILOT_USER_URL = 'https://api.github.com/copilot_internal/user'
+const COPILOT_API_FALLBACK = 'https://api.githubcopilot.com'
+/* Copilot CLI 身份（2026 Copilot CLI 同款；Copilot Free 账号 cli_enabled=true）。
+ * 交换与调用阶段的身份头必须一致，否则 403 token not authorized for this
+ * integration（会话凭据按交换时声明的 integration 鉴权）。 */
+const CP_UA = 'copilot/1.0.82'
+const CP_API_VERSION = '2026-08-01'
+
+function cpIdentityHeaders() {
+  return {
+    'User-Agent': CP_UA,
+    'Editor-Version': CP_UA,
+    'Editor-Plugin-Version': 'copilot-cli/1.0.82',
+    'Copilot-Integration-Id': 'copilot-developer-cli',
+    'Openai-Intent': 'conversation-agent'
+  }
+}
+
+/* Copilot Free 2026-10 主力模型（兜底清单；真实列表以 GET /models 动态刷新） */
 const AI_MODELS = [
-  'openai/gpt-5-mini',
-  'anthropic/claude-haiku-4',
-  'openai/gpt-4.1-mini',
-  'openai/gpt-4o-mini',
-  'xai/grok-3-mini'
+  'gpt-5-mini',
+  'claude-haiku-4.5',
+  'gemini-3-flash',
+  'gpt-4.1-mini',
+  'gpt-4o-mini',
+  'grok-code-fast-1'
 ]
 const AI_MAX_TOKENS = 700
 let _aiModels = AI_MODELS.slice()
 let _aiRemoteTs = 0
-let _cpTok = null /* { token, exp(ms) }，提前 2min 判过期 */
+let _cpSess = null /* { token, api, exp(ms) }，提前 2min 判过期 */
+
+/* ---------------- AI 专用 token（ghu_，与主 token 分离存储） ---------------- */
+const AI_TOK_KEY = 'gh_copilot_token'
+const AI_TOK_FILE = 'internal://files/gh_copilot_token.txt'
+let _aiTok = ''
+let _aiTokReady = null
+
+/** 读取 AI token：独立授权优先；无则主 token 为 ghu_/gho_ 时直接复用（旧用户兼容） */
+export function loadAiTok(force) {
+  if (force) _aiTokReady = null
+  if (_aiTokReady) return _aiTokReady
+  _aiTokReady = (async () => {
+    let v = await stGet(AI_TOK_KEY)
+    if (!v || typeof v !== 'string' || !v.length) v = await fileGet(AI_TOK_FILE)
+    _aiTok = typeof v === 'string' ? v : ''
+    if (!_aiTok) {
+      await loadToken()
+      if (aiTokenKind() === 'oauth') _aiTok = String(_token)
+    }
+    return _aiTok
+  })()
+  return _aiTokReady
+}
+
+/** 保存/清除 AI token（双通道与主 token 同款），并作废会话凭据缓存 */
+export async function saveAiTok(token) {
+  _aiTok = (token || '').trim()
+  if (_aiTok) {
+    try { await stSet(AI_TOK_KEY, _aiTok) } catch (e) {}
+    try { await fileSet(AI_TOK_FILE, _aiTok) } catch (e) {}
+  } else {
+    try { await stRemove(AI_TOK_KEY) } catch (e) {}
+    try { await fileRemove(AI_TOK_FILE) } catch (e) {}
+  }
+  _cpSess = null
+  _aiTokReady = Promise.resolve(_aiTok)
+  return _aiTok
+}
+
+export function hasAiTok() {
+  return !!_aiTok
+}
 
 export function aiModels() {
   return _aiModels
 }
 
-/** 远程模型表替换（aiModelsRemote 成功后由页面调用） */
+/** 远程模型表替换（copilotModels 刷新成功后由页面调用） */
 export function aiModelsSetRemote(ids) {
   if (Array.isArray(ids) && ids.length) {
     _aiModels = ids.slice(0, 12)
@@ -2249,7 +2311,7 @@ export function aiModelsSetRemote(ids) {
   return false
 }
 
-/** token 形态：pat（ghp_/github_pat_）| oauth（设备授权 ghu_/gho_）| none */
+/** 主 token 形态：pat（ghp_/github_pat_）| oauth（ghu_/gho_）| none */
 export function aiTokenKind() {
   if (!_token) return 'none'
   const t = String(_token)
@@ -2259,21 +2321,57 @@ export function aiTokenKind() {
 
 /** 通道可用性标签（AI 页状态行） */
 export function aiChannelLabel() {
-  const k = aiTokenKind()
-  if (k === 'oauth') return 'Copilot + Models 双通道'
-  if (k === 'pat') return 'GitHub Models（PAT 可用）'
+  if (aiTokenKind() === 'oauth') return 'Copilot · 主token直连'
+  if (_aiTok) return 'Copilot · 已授权'
+  if (aiTokenKind() === 'pat') return 'Copilot · 待授权'
   return '需登录 Token'
 }
 
-async function copilotToken(force) {
-  if (_cpTok && !force && _cpTok.exp - Date.now() > 120000) return _cpTok.token
-  const d = await request(COPILOT_TOK_URL, { noCache: true })
-  if (!d || !d.token) throw { status: 0, message: 'Copilot 凭据交换失败' }
-  _cpTok = { token: d.token, exp: (d.expires_at || 0) * 1000 }
-  return _cpTok.token
+/** 会话凭据交换：GET copilot_internal/v2/token（Authorization: token <ghu_>）。
+ *  2026 实证：只收 GitHub App 用户 token（ghu_）；响应 endpoints.api 为按
+ *  套餐定制的 API 域名（individual 账号实测 api.individual.githubcopilot.com），
+ *  后续 chat/models 一律走该端点（api.githubcopilot.com 作兜底）。 */
+async function copilotSession(force) {
+  if (_cpSess && !force && _cpSess.exp - Date.now() > 120000) return _cpSess
+  await loadAiTok()
+  if (!_aiTok) {
+    throw { status: 0, needCopilot: true, message: '需要 Copilot 设备授权：点「Copilot 授权」一键完成（免打字）' }
+  }
+  const header = {
+    'User-Agent': CP_UA,
+    Accept: 'application/json',
+    Authorization: 'token ' + _aiTok
+  }
+  const idh = cpIdentityHeaders()
+  for (const hk in idh) header[hk] = idh[hk]
+  let res = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await rawFetch({ url: COPILOT_TOK_URL, method: 'GET', header: header })
+      break
+    } catch (e) { res = null }
+  }
+  if (!res) throw { status: 0, message: 'Copilot 凭据交换网络失败，请检查手表网络' }
+  const code = Number(res.code) || 0
+  const d = jsonMaybe(res)
+  if (!d || !d.token) {
+    const raw = typeof res.data === 'string' ? String(res.data).trim().slice(0, 120) : ''
+    if (code === 401 || code === 404) {
+      throw { status: code, needCopilot: true, message: 'Copilot 凭据交换被拒（' + code + '）：请重新 Copilot 授权' }
+    }
+    throw { status: code, message: 'Copilot 凭据交换失败（HTTP ' + code + '）' + (raw ? '：' + raw : '') }
+  }
+  const api = (d.endpoints && d.endpoints.api) || COPILOT_API_FALLBACK
+  _cpSess = {
+    token: String(d.token),
+    api: String(api).replace(/\/+$/, ''),
+    exp: (Number(d.expires_at) || 0) * 1000
+  }
+  return _cpSess
 }
 
-/** AI POST（不走 request 缓存管线）：重试 1 次；非 JSON 体 = 通道不可用特征 */
+/** AI POST（不走缓存管线）：非 2xx 一律透出响应原文片段（可自诊断）。
+ *  结构化 error.message 优先，否则取原文前 120 字。 */
 async function aiPost(url, header, bodyObj) {
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -2284,138 +2382,127 @@ async function aiPost(url, header, bodyObj) {
   }
   if (!res) throw { status: 0, message: 'AI 网络失败，请检查手表网络' }
   const code = Number(res.code) || 0
-  const d = jsonMaybe(res)
-  if (!d) throw { status: code, message: 'AI 通道响应异常（网关返回非标准体），请稍后重试' }
-  if (code === 401 || code === 403) throw { status: code, message: 'AI 授权失败（' + code + '）：请确认登录与订阅状态' }
-  if (code === 429) throw { status: 429, message: 'AI 额度用尽或限流，请稍后再试或切换模型' }
-  if (code < 200 || code >= 300) {
-    const m = d && d.error && d.error.message
-    throw { status: code, message: m || ('AI 服务 HTTP ' + code) }
+  if (code >= 200 && code < 300) {
+    const d = jsonMaybe(res)
+    if (!d) throw { status: code, message: 'AI 通道 2xx 但响应非 JSON' }
+    return d
   }
-  return d
+  const dErr = jsonMaybe(res)
+  const em = dErr && dErr.error && dErr.error.message
+  const raw = typeof res.data === 'string' ? String(res.data).trim().slice(0, 120) : ''
+  throw { status: code, message: em || raw || ('AI 服务 HTTP ' + code) }
 }
 
-/** AI 对话（Copilot 专区核心）。messages=[{role:'user'|'assistant'|'system',content}]。
- *  oauth token → 先 Copilot Chat（真 Copilot），失败自动落 Models；
- *  pat → 仅 Models。opts: { model, forceModels }。返回 {text, via, usage}。 */
+/** Copilot 对话。messages=[{role,content}]，opts: { model }。
+ *  模型级失败（400/403/404：模型下线/无权限）自动降级下一模型，最多 3 个；
+ *  429（额度）/needCopilot（未授权）等通道级失败直接透出（换模型无解）。 */
 export async function aiChat(messages, opts) {
   await loadToken()
   if (!_token) throw { status: 0, needAuth: true, message: 'AI 功能需登录 Token' }
   const o = opts || {}
-  const model = o.model || AI_MODELS[0]
-  if (aiTokenKind() === 'oauth' && !o.forceModels) {
-    try {
-      const ct = await copilotToken()
-      const d = await aiPost(COPILOT_CHAT_URL, {
-        'User-Agent': 'vela-github-client',
-        Authorization: 'Bearer ' + ct,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Copilot-Integration-Id': 'vscode-chat',
-        'Openai-Intent': 'conversation-panel'
-      }, { messages: messages, model: 'gpt-4o', max_tokens: AI_MAX_TOKENS })
-      const ch = d.choices && d.choices[0] && d.choices[0].message
-      if (ch && typeof ch.content === 'string' && ch.content.length) {
-        return { text: ch.content, via: 'copilot', usage: d.usage || null }
-      }
-      throw { message: 'Copilot 响应缺内容' }
-    } catch (e) {
-      /* Copilot 通道失败（无订阅/凭据交换失败/网络）→ 自动落 Models 兜底 */
-    }
-  }
-  /* v1.4.0：模型自动降级——请求模型不可用（400/403/404/无权限类报错）时
-   * 依次尝试清单内下一个，最多 3 个；额度/网络类错误不降级（换模型无解）。 */
   const list = aiModels()
+  const model = o.model && list.indexOf(o.model) >= 0 ? o.model : list[0]
   const start = Math.max(0, list.indexOf(model))
   let lastErr = null
-  for (let t = 0; t < 3; t++) {
+  for (let t = 0; t < Math.min(3, list.length); t++) {
     const useModel = list[(start + t) % list.length]
     try {
-      const d = await aiPost(MODELS_URL, {
-        'User-Agent': 'vela-github-client',
-        Authorization: 'Bearer ' + _token,
+      const sess = await copilotSession()
+      const header = {
+        'User-Agent': CP_UA,
+        Authorization: 'Bearer ' + sess.token,
         'Content-Type': 'application/json',
-        Accept: 'application/json'
-      }, { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS })
+        Accept: 'application/json',
+        'X-GitHub-Api-Version': CP_API_VERSION
+      }
+      const idh = cpIdentityHeaders()
+      for (const hk in idh) header[hk] = idh[hk]
+      const d = await aiPost(sess.api + '/chat/completions', header,
+        { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS })
       const ch = d.choices && d.choices[0] && d.choices[0].message
       if (!ch || typeof ch.content !== 'string' || !ch.content.length) {
         throw { message: 'AI 响应缺内容，请重试' }
       }
-      return { text: ch.content, via: 'models', usage: d.usage || null, model: useModel }
+      return { text: ch.content, via: 'copilot', usage: d.usage || null, model: useModel }
     } catch (e) {
       lastErr = e
       const st = Number(e && e.status) || 0
       const msg = String((e && e.message) || '')
       const modelErr = st === 400 || st === 403 || st === 404 || /model|access|permission|权限/i.test(msg)
-      if (!modelErr) throw e
+      if (e.needCopilot || !modelErr) throw e
     }
   }
   throw lastErr
 }
 
-/** v1.4.0：通道自检——AI 页「通道自检」指令调用。
- *  Copilot seat：GET /user/copilot（404 = 未开通，含免费版未启用）；
- *  Models：1-token 微推理实测（403 = Token 缺 models 权限，给出可行动指引）。 */
+/** 通道自检（AI 页「通道自检」）：
+ *  ① Copilot 状态：GET /copilot_internal/user——v1.5.0 沙箱实证 PAT 也可查
+ *    （套餐/聊天额度/端点全量返回）。旧版用 /user/copilot，对 PAT 恒 404，
+ *    把已开通 Copilot Free 的账号误报成「未开通」并给出错误指引。
+ *  ② 凭据交换实测：有 ghu_ 时真刀真枪换一次会话凭据。
+ *  ③ Models：2026-07-30 已退役，静态说明（不再发无谓请求）。 */
 export async function aiProbe() {
   await loadToken()
-  const out = { kind: aiTokenKind(), copilot: '', copilotHint: '', models: '', modelsHint: '' }
+  const out = { kind: aiTokenKind(), copilot: '', copilotHint: '', models: '', modelsHint: '', plan: '', quotaChat: '', exchange: '' }
   if (!_token) {
     out.copilot = out.models = '未登录'
     return out
   }
   try {
-    const seat = await request('/user/copilot', { noCache: true, noDl: true })
-    const s = seat && seat.seat
-    out.copilot = '已开通' + (s && s.plan_type ? '（' + s.plan_type + '）' : '')
-  } catch (e) {
-    if (e && e.status === 404) {
-      out.copilot = '未开通'
-      out.copilotHint = '电脑浏览器打开 github.com/settings/copilot 免费开通 Copilot，然后在设置页重新设备授权'
+    const u = await request(COPILOT_USER_URL, { noCache: true, noDl: true })
+    const sku = u && u.access_type_sku
+    const q = u && u.quota_snapshots && u.quota_snapshots.chat
+    out.plan = sku || ''
+    if (sku) {
+      out.copilot = '已开通（' + (sku === 'free_limited_copilot' ? 'Copilot Free' : sku) + (u.chat_enabled ? ' · 聊天可用' : '') + '）'
+      if (q && typeof q.entitlement === 'number' && q.entitlement > 0) {
+        out.quotaChat = (q.remaining || 0) + '/' + q.entitlement
+        out.copilot += ' · 会话额度 ' + out.quotaChat
+      }
     } else {
-      out.copilot = '查询失败（' + ((e && e.status) || 0) + '）'
+      out.copilot = '已登录（账号未关联 Copilot）'
+      out.copilotHint = '电脑浏览器打开 github.com/settings/copilot 免费开通'
     }
-  }
-  try {
-    const d = await aiPost(MODELS_URL, {
-      'User-Agent': 'vela-github-client',
-      Authorization: 'Bearer ' + _token,
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    }, { messages: [{ role: 'user', content: 'hi' }], model: aiModels()[0], max_tokens: 1 })
-    out.models = '可用' + (d && d.model ? '（' + d.model + '）' : '')
   } catch (e) {
     const st = Number(e && e.status) || 0
-    if (st === 403) {
-      out.models = '无权限（403）'
-      out.modelsHint = '当前 Token 无 Models 权限：电脑上 github.com/settings/tokens 编辑该 Token 勾选 models，或新建细粒度 PAT 勾选 Models:Read'
-    } else if (st === 401) {
-      out.models = '授权失败（401）'
-      out.modelsHint = 'Token 无效或已过期，请在设置页更新'
-    } else {
-      out.models = '不可达' + (st ? '（' + st + '）' : '')
-      out.modelsHint = '设备网络可能未放行 models.github.ai，请稍后重试'
-    }
+    out.copilot = st === 404 ? '未开通' : '查询失败（' + st + '）'
+    if (st === 404) out.copilotHint = '电脑浏览器打开 github.com/settings/copilot 免费开通 Copilot'
   }
+  await loadAiTok()
+  if (_aiTok && String(_aiTok).indexOf('ghu_') === 0) {
+    try {
+      const sess = await copilotSession(true)
+      out.exchange = '成功 · 端点 ' + sess.api.replace('https://', '')
+    } catch (e) {
+      out.exchange = '失败：' + ((e && e.message) || '')
+    }
+  } else {
+    out.exchange = '未授权'
+    const authHint = '当前 PAT 不能直连 Copilot（GitHub 限制）：点「Copilot 授权」一键设备授权，免打字，不影响已登录状态'
+    out.copilotHint = out.copilotHint ? (out.copilotHint + '\n' + authHint) : authHint
+  }
+  out.models = '2026-07-30 已退役'
+  out.modelsHint = 'models.github.ai 已停止服务（官方文档实证）；免费模型统一走 Copilot 通道（VS Code 同款）'
   return out
 }
 
-/** v1.4.0：远程模型目录刷新（models.github.ai/catalog/models）。
- *  响应 20-40KB 截断风险高：identity 头 + 数组抢救解析双保险；
- *  成功返回 id 列表（供 aiModelsSetRemote 整表替换），失败返回空数组。 */
-export async function aiModelsRemote() {
-  await loadToken()
-  if (!_token) return []
-  if (_aiRemoteTs && Date.now() - _aiRemoteTs < 600000) return aiModels().slice()
+/** Copilot /models 动态目录（免费模型轮换不依赖硬编码）。
+ *  响应 {data:[...]} 或 [...]；id 形如 gpt-5-mini / claude-haiku-4.5。
+ *  截断风险低（瘦字段列表）仍挂 salvage 兜底；失败返回空数组。 */
+export async function copilotModels() {
+  const sess = await copilotSession()
   const header = {
-    'User-Agent': 'vela-github-client',
-    Accept: 'application/vnd.github+json'
+    'User-Agent': CP_UA,
+    Accept: 'application/json',
+    Authorization: 'Bearer ' + sess.token,
+    'X-GitHub-Api-Version': CP_API_VERSION
   }
-  for (const hk in H_IDENTITY) header[hk] = H_IDENTITY[hk]
-  header['Authorization'] = 'Bearer ' + _token
+  const idh = cpIdentityHeaders()
+  for (const hk in idh) header[hk] = idh[hk]
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      res = await rawFetch({ url: 'https://models.github.ai/catalog/models', method: 'GET', header: header })
+      res = await rawFetch({ url: sess.api + '/models', method: 'GET', header: header })
       break
     } catch (e) { res = null }
   }
@@ -2423,7 +2510,7 @@ export async function aiModelsRemote() {
   const code = Number(res.code) || 0
   if (code < 200 || code >= 300) return []
   const d = jsonMaybe(res)
-  let arr = Array.isArray(d) ? d : null
+  let arr = Array.isArray(d) ? d : (d && Array.isArray(d.data) ? d.data : null)
   if (!arr && typeof res.data === 'string') {
     const sv = salvageJsonArray(String(res.data).replace(/^\uFEFF/, '').trim())
     if (sv) arr = sv.arr
@@ -2431,8 +2518,11 @@ export async function aiModelsRemote() {
   if (!arr) return []
   const ids = []
   for (let i = 0; i < arr.length; i++) {
-    const id = arr[i] && (arr[i].id || arr[i].name)
-    if (typeof id === 'string' && id.indexOf('/') > 0 && ids.indexOf(id) < 0) ids.push(id)
+    const m = arr[i] || {}
+    const id = m.id || m.model || m.name
+    const cap = m.capabilities || {}
+    const isChat = !cap.type || cap.type === 'chat'
+    if (typeof id === 'string' && id.length && isChat && ids.indexOf(id) < 0) ids.push(id)
   }
   if (ids.length) _aiRemoteTs = Date.now()
   return ids
@@ -2460,6 +2550,7 @@ export default {
   isStarred, setStarred, getUser,
   deviceFlowStart, deviceFlowPoll, utf8DecodeChunk,
   getCommitChecks, markThreadsRead,
-  aiChat, aiModels, aiModelsSetRemote, aiModelsRemote, aiProbe, aiTokenKind, aiChannelLabel,
+  loadAiTok, saveAiTok, hasAiTok,
+  aiChat, aiModels, aiModelsSetRemote, copilotModels, aiProbe, aiTokenKind, aiChannelLabel,
   getDirList, ghqlBlob, lastSalvageInfo
 }

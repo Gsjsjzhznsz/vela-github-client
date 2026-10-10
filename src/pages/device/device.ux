@@ -2,7 +2,7 @@
   <div class="page">
     <div class="hd">
       <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
-      <text class="hd-title">扫码登录</text>
+      <text class="hd-title">{{mode === 'copilot' ? 'Copilot 授权' : '扫码登录'}}</text>
     </div>
 
     <!-- BandQQ v2.9.6 同构：wrap flex:1 + scroll absolute 铺满 -->
@@ -10,11 +10,12 @@
       <scroll class="body" scroll-y="true">
         <!-- 阶段一：发起中 -->
         <div class="center" show="{{state === 'starting'}}">
-          <text class="hint">正在生成登录码…</text>
+          <text class="hint">正在生成{{mode === 'copilot' ? '授权码' : '登录码'}}…</text>
         </div>
 
         <!-- 阶段二：展示用户码 + 轮询 -->
         <div class="center" show="{{state === 'code' || state === 'saving'}}">
+          <text class="hint" show="{{mode === 'copilot'}}">为 AI 功能授权 Copilot（免打字，不影响已登录账号）</text>
           <text class="hint">在手机或电脑浏览器打开</text>
           <text class="uri">{{verifyUri}}</text>
           <text class="hint2">输入以下代码并授权</text>
@@ -22,7 +23,7 @@
             <text class="code">{{userCode}}</text>
           </div>
           <text class="status" show="{{state === 'code'}}">{{statusText}}</text>
-          <text class="status ok" show="{{state === 'saving'}}">授权成功，正在保存登录…</text>
+          <text class="status ok" show="{{state === 'saving'}}">{{mode === 'copilot' ? '授权成功，正在保存…' : '授权成功，正在保存登录…'}}</text>
           <!-- v1.2.1：手动刷新——不想干等轮询时点此立即检查授权结果 -->
           <text class="check" onclick="manualCheck">手动检查授权状态</text>
           <text class="cancel" onclick="cancel">取消</text>
@@ -66,6 +67,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import api from '../../utils/api'
+  import { query } from '../../utils/view'
 
   export default {
     private: {
@@ -73,9 +75,16 @@
       userCode: '',
       verifyUri: 'github.com/login/device',
       statusText: '等待授权…',
-      errMsg: ''
+      errMsg: '',
+      mode: 'login' /* v1.5.0：login（主登录）| copilot（AI 专用授权） */
     },
-    onInit() {
+    onInit(params) {
+      /* v1.5.0：mode=copilot → AI 专用授权（Copilot CLI GitHub App），
+       * 成功后存独立 AI token，不动主登录 */
+      try {
+        const p = query(params, this)
+        this.mode = p.mode === 'copilot' ? 'copilot' : 'login'
+      } catch (e) { this.mode = 'login' }
       this._dc = ''
       this._interval = 5
       this._deadline = 0
@@ -98,7 +107,7 @@
     },
     async _startOnce() {
       try {
-        const r = await api.deviceFlowStart()
+        const r = await api.deviceFlowStart(this.mode)
         if (this._destroyed) return
         this._dc = r.deviceCode
         this._interval = r.interval
@@ -139,7 +148,7 @@
         this.errMsg = '登录码已过期，请重新开始'
         return
       }
-      const r = await api.deviceFlowPoll(this._dc, this._interval)
+      const r = await api.deviceFlowPoll(this._dc, this._interval, this.mode)
       if (this._destroyed || this.state !== 'code') return
       if (r.state === 'ok') {
         await this.finish(r.token)
@@ -179,15 +188,21 @@
     async finish(token) {
       this.state = 'saving'
       try {
-        await api.saveToken(token)
-        await api.verifyPersisted()
-        prompt.showToast({ message: '登录成功，已保存本机', duration: 2000 })
+        if (this.mode === 'copilot') {
+          /* v1.5.0：AI 专用 token 落盘（独立于主登录），并立即验证凭据可交换 */
+          await api.saveAiTok(token)
+          prompt.showToast({ message: 'Copilot 授权成功，已保存本机', duration: 2000 })
+        } else {
+          await api.saveToken(token)
+          await api.verifyPersisted()
+          prompt.showToast({ message: '登录成功，已保存本机', duration: 2000 })
+        }
         setTimeout(() => {
           if (!this._destroyed) router.back()
         }, 900)
       } catch (e) {
         this.state = 'error'
-        this.errMsg = '登录成功但保存失败：' + ((e && e.message) || '')
+        this.errMsg = '授权成功但保存失败：' + ((e && e.message) || '')
       }
     },
     cancel() {

@@ -145,7 +145,7 @@ function authed(contentByUrl, fetchHandler, dlOpts) {
 /* ---------------- 1. 通知并行子页 ---------------- */
 
 async function t_notif_parallel() {
-  await test('通知 page1：5 个 per_page=2 子页并行，按序拼接 10 条无缺口', async () => {
+  await test('通知 page1：10 个 per_page=1 单页并行，按序拼接 10 条无缺口', async () => {
     const seen = []
     const mocks = authed({}, (n, o) => {
       const u = String(o.url)
@@ -154,18 +154,18 @@ async function t_notif_parallel() {
       const per = Number((u.match(/per_page=(\d+)/) || [0, 0])[1])
       seen.push(pg + 'x' + per)
       const list = []
-      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * 2 + i + 1))
+      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * per + i + 1))
       return { code: 200, data: list, headers: {} }
     })
     const api = loadModule('src/utils/api.js', mocks)
     const list = await api.getNotifications(1, false)
     assertEq(list.length, 10, '拼得 10 条')
     assertEq(list.map((x) => x.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '顺序无缺口')
-    assertEq(seen.filter((s) => s.indexOf('x2') >= 0).length, 5, '恰好 5 个 per=2 子页')
+    assertEq(seen.filter((s) => s.indexOf('x1') >= 0).length, 10, '恰好 10 个 per=1 单页')
     assertEq(api.notifPageSize(), 10, 'notifPageSize()=10')
   })
 
-  await test('通知 page2：子页号 6-10（逻辑页偏移正确）', async () => {
+  await test('通知 page2：单页号 11-20（逻辑页偏移正确）', async () => {
     const pages = []
     const mocks = authed({}, (n, o) => {
       const u = String(o.url)
@@ -174,14 +174,14 @@ async function t_notif_parallel() {
       const per = Number((u.match(/per_page=(\d+)/) || [0, 0])[1])
       pages.push(pg)
       const list = []
-      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * 2 + i + 1))
+      for (let i = 0; i < per; i++) list.push(notifItem((pg - 1) * per + i + 1))
       return { code: 200, data: list, headers: {} }
     })
     const api = loadModule('src/utils/api.js', mocks)
     const list = await api.getNotifications(2, true)
     assertEq(list.map((x) => x.id), [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], '第二逻辑页=第 11-20 条')
     pages.sort((a, b) => a - b)
-    assertEq(pages, [6, 7, 8, 9, 10], '子页号 6-10')
+    assertEq(pages, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], '单页号 11-20')
   })
 
   await test('子页截断 → 自动降级 per=1 两页补齐，无缺口', async () => {

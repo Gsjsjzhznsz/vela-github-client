@@ -24,6 +24,12 @@
           <text class="quick-note dim">模型回复由 GitHub AI 提供，回答仅供参考</text>
         </div>
 
+        <!-- v1.5.0：Copilot 授权引导（PAT 不能直连 Copilot，一次点击免打字完成） -->
+        <div class="cp-cta" show="{{needCp}}" onclick="goCopilotAuth">
+          <text class="cp-t">检测到 Copilot Free · 点此一键授权开启 AI</text>
+          <text class="cp-d">免打字设备授权 · 不影响已登录账号 · VS Code 同款免费模型</text>
+        </div>
+
         <!-- 会话气泡 -->
         <div class="li" for="{{m in msgs}}" tid="m.id">
           <div class="row-u" show="{{m.role === 'user'}}">
@@ -81,6 +87,10 @@
   .q-t { font-size: 16px; color: #d2a8ff; }
   .quick-note { font-size: 13px; color: #58a6ff; margin-top: 10px; text-align: center; padding: 0 18px; }
   .quick-note.dim { color: #484f58; margin-top: 5px; }
+  /* v1.5.0：Copilot 授权引导卡 */
+  .cp-cta { flex-direction: column; align-items: center; background-color: #1f1325; border: 1px solid #8957e5; border-radius: 14px; padding: 13px 10px; margin: 10px 12px; }
+  .cp-t { font-size: 17px; color: #d2a8ff; font-weight: bold; text-align: center; }
+  .cp-d { font-size: 13px; color: #8b949e; margin-top: 5px; text-align: center; padding: 0 8px; }
   .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 92px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 16px; }
   .in-ic { width: 26px; height: 26px; }
   .in-ph { font-size: 17px; color: #484f58; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
@@ -95,11 +105,10 @@
   import storage from '@system.storage'
   import api from '../../utils/api'
 
-  /* v1.3.0 Copilot 专区：
-   *  双通道（api.aiChat）：设备授权 token → Copilot Chat 优先、Models 兜底；
-   *  PAT → GitHub Models（无需 Copilot 订阅）。
-   *  会话持久化 storage（40 条上限）；上下文注入（代码页/仓库页「问 AI」）；
-   *  打字机分帧渲染（弦电子书限量思路，避免长文本一次性入列）。 */
+  /* v1.5.0 Copilot 专区（单通道重构）：
+   *  Copilot Chat 唯一通道（Models 2026-07-30 已退役）；PAT 用户点卡片一键
+   *  设备授权（独立 ghu_，与主登录分离）。会话持久化 storage（40 条上限）；
+   *  上下文注入（代码页/仓库页「问 AI」）；打字机分帧渲染。 */
   const HIST_KEY = 'ai_hist_v1'
   const HIST_CAP = 40
   const QUICKS = [
@@ -112,6 +121,7 @@
     { id: 'q7', label: '通道自检', prompt: null },
     { id: 'q8', label: '刷新模型列表', prompt: null }
   ]
+  /* v1.5.0：系统提示语随通道更新（Models 已退役，统一 Copilot） */
   const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。'
 
   export default {
@@ -124,7 +134,8 @@
       chan: '',
       modelShort: '',
       ctxHint: '提示：在代码页/仓库页点「问 AI」可附加上下文',
-      state: 'ok'
+      state: 'ok',
+      needCp: false /* v1.5.0：PAT 且未 Copilot 授权 → 显示授权引导卡 */
     },
     onInit() {
       this._model = api.aiModels()[0]
@@ -139,6 +150,8 @@
         return
       }
       this.state = 'ok'
+      await api.loadAiTok()
+      this.needCp = api.aiTokenKind() === 'pat' && !api.hasAiTok()
       this.chan = api.aiChannelLabel()
       this.syncModelLabel()
       // 消费代码页/仓库页注入的上下文
@@ -214,17 +227,23 @@
       if (q.id === 'q8') { this.refreshModels(); return }
       this.send(q.prompt)
     },
-    /* v1.4.0：通道自检——Copilot 订阅状态 + Models 微推理，结果以消息卡片呈现 */
+    /* v1.5.0：通道自检——/copilot_internal/user 套餐/额度 + 凭据交换实测 +
+     * Models 退役说明，结果以消息卡片呈现（旧版 /user/copilot 对 PAT 恒 404
+     * 误报「未开通」的误导性结论不再出现） */
     async runProbe() {
       if (!api.hasToken()) { this.state = 'needauth'; return }
       this.busy = true
       this.pushMsg('user', '通道自检')
       try {
         const p = await api.aiProbe()
-        let txt = '自检结果：\n· Copilot 订阅：' + p.copilot +
-          '\n· Models 通道：' + p.models
+        let txt = '自检结果：\n· Copilot：' + p.copilot + '\n· 凭据交换：' + (p.exchange || '未测') + '\n· Models 通道：' + p.models
+        if (p.quotaChat) txt += '\n· 会话额度：' + p.quotaChat
         if (p.copilotHint) txt += '\n· ' + p.copilotHint
         if (p.modelsHint) txt += '\n· ' + p.modelsHint
+        if (p.copilot && p.copilot.indexOf('已开通') >= 0 && p.exchange === '未授权') {
+          this.needCp = true
+          txt += '\n→ 点顶部紫色卡片一键授权后即可对话（同 VS Code 免费模型）'
+        }
         this.pushMsg('ai', txt, '诊断')
       } catch (e) {
         this.pushMsg('ai', '自检失败：' + ((e && e.message) || '网络异常'))
@@ -232,24 +251,31 @@
       this.busy = false
       this.scrollBottom()
     },
-    /* v1.4.0：远程模型目录刷新——成功后整表替换可循环模型 */
+    /* v1.5.0：模型列表动态刷新——Copilot /models 实时目录（免费轮换不依赖硬编码） */
     async refreshModels() {
       if (!api.hasToken()) { this.state = 'needauth'; return }
       this.busy = true
       try {
-        const ids = await api.aiModelsRemote()
+        const ids = await api.copilotModels()
         if (ids.length && api.aiModelsSetRemote(ids)) {
           if (api.aiModels().indexOf(this._model) < 0) this._model = api.aiModels()[0]
           this.syncModelLabel()
           this.pushMsg('ai', '模型列表已刷新（' + ids.length + ' 个）：' + ids.slice(0, 6).join('、') + (ids.length > 6 ? ' 等' : ''), '目录')
         } else {
-          this.pushMsg('ai', '模型目录拉取失败（响应不完整或未放行），继续使用内置列表；可点顶部模型行切换', '目录')
+          this.pushMsg('ai', '模型目录拉取失败（需先完成 Copilot 授权或网络受限），继续使用内置列表', '目录')
         }
       } catch (e) {
-        this.pushMsg('ai', '模型目录刷新失败：' + ((e && e.message) || '网络异常'))
+        const em = (e && e.message) || '网络异常'
+        if (e && e.needCopilot) this.needCp = true
+        this.pushMsg('ai', '模型目录刷新失败：' + em)
       }
       this.busy = false
       this.scrollBottom()
+    },
+    /* v1.5.0：一键 Copilot 设备授权（独立于主登录，免打字） */
+    goCopilotAuth() {
+      this.$app.$def.hook = { mode: 'copilot' }
+      router.push({ uri: 'pages/device', params: { mode: 'copilot' } })
     },
     openInput() {
       if (this.busy) return
@@ -277,7 +303,7 @@
       try {
         const r = await api.aiChat(this.buildMessages(t), { model: this._model })
         const um = r.model || this._model
-        const meta = (r.via === 'copilot' ? 'Copilot' : 'Models · ' + um) +
+        const meta = 'Copilot · ' + um +
           (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '')
         const m = this.pushMsg('ai', '', meta)
         if (r.model && r.model !== this._model) {
@@ -290,8 +316,10 @@
         const em = (e && e.message) || 'AI 请求失败'
         const st = (e && e.status) || 0
         let tip = ''
-        if (st === 403) tip = ' · 建议点「通道自检」查看解法'
-        else if (em.indexOf('登录') >= 0) tip = '（首页 → 设置）'
+        if (e && e.needCopilot) {
+          this.needCp = true
+          tip = '\n→ 点顶部紫色卡片「一键授权」即可开启'
+        } else if (st === 429) tip = ' · 会话额度用尽，下月刷新或切模型'
         else tip = ' · 可点顶部模型行切换重试'
         this.pushMsg('ai', em + tip)
         this.scrollBottom()

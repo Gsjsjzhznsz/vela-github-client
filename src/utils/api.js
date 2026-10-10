@@ -738,10 +738,14 @@ async function requestGo(url, header, opt) {
           d = JSON.parse(s)
         } catch (e) {
           // 截断的 JSON：绝不能把残缺文本当数据返回给页面。
-          // v1.2.3：同样属确定性截断，快速终止重试
+          // v1.2.4：截断/垃圾 JSON 属「歧义失败」——真机实测同一 URL 重试偶发可过
+          //（蓝牙代理偶发吐半截/垃圾体），v1.2.3 的 1 次快速终止把可恢复故障变成
+          // 硬错误，是通知页「响应数据不完整」高频复现的共因。给 1 次重试再判死；
+          // raw content-length 实证截断（下方独立分支）仍是确定性截断，1 次终止。
           lastErr = { incomplete: true }
           res = null
-          break
+          if (attempt >= 1) break
+          continue
         }
       } else {
         d = null
@@ -1279,36 +1283,111 @@ export function notifPageSize() {
   return NOTIF_SUBS * NOTIF_SUB_PER
 }
 
+/** 单个子页请求（fetch 通道）：noDl（截断不挂 28s 默认下载器）。
+ *  v1.2.4：useDl 仅在 per=1 降级阶段开启——per=2 截断先快速降级 per=1（秒级），
+ *  per=1 也截断（真机残存案例）才动用原生下载器兜底（收紧超时 ~22s），
+ *  保住快速路径「下载器零调用」的老契约。 */
+async function notifOnce(pathUrl, useDl) {
+  try {
+    return await request(pathUrl, { noDl: true })
+  } catch (e) {
+    if (!e || !e.incomplete || !useDl) throw e
+    try {
+      return await notifDl(API_BASE + pathUrl)
+    } catch (e2) {
+      throw { status: 0, incomplete: true, message: '通知响应不完整（fetch+下载器双通道均失败）' }
+    }
+  }
+}
+
+/** v1.2.4：通知下载器兜底 —— 真机实测 per=1 单条 ~6.3KB 响应仍偶发被代理截断
+ *  （「响应数据不完整」残存案例），fetch 与原生下载器不同路（v1.2.2 大文件管线
+ *  实证可靠）。超时收紧 6/12/4s：单条 JSON 极小，正常秒回，最坏 ~22s 判死。 */
+const NOTIF_DL_T = { download: 6000, complete: 12000, read: 4000 }
+
+async function notifDl(url) {
+  const header = {
+    'User-Agent': 'vela-github-client',
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+  if (_token) header['Authorization'] = 'Bearer ' + _token
+  const text = await dlFetchText(url, header, NOTIF_DL_T)
+  const cleaned = String(text).replace(/^\uFEFF/, '').trim()
+  if (!cleaned) throw { status: 200, incomplete: true, message: '下载器空响应' }
+  return JSON.parse(cleaned)
+}
+
 /** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接）。
  *  v1.2.3：子页请求一律 noDl —— 截断时若先走下载器兜底（真机挂起最坏 28s）再
  *  降级，一个子页要 ~35s、整页 5 子页并发 3 也要 70s+，用户体感即「拉不全/拉不动」。
- *  noDl 后截断立即降级 per=1（~6KB/条，远低于任何实测阈值），整页最坏 <30s。
- *  per=1 降级同样 noDl（6KB 截断概率趋零，真挂了走全有或全无报错重试）。 */
+ *  v1.2.4：per=1 之上再叠下载器兜底（notifOnce 内置）——单条 ~6KB 截断概率趋零，
+ *  但真机实测仍存在；下载器是最后防线，双通道全灭才真正判死该段。 */
 async function notifSubPage(sp, all) {
   try {
-    return await request('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }), { noDl: true })
+    return await notifOnce('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }), false)
   } catch (e) {
     if (!e || !e.incomplete) throw e
-    /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页 */
-    const a = await request('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }), { noDl: true })
-    const b = await request('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }), { noDl: true })
+    /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页（开下载器兜底） */
+    const a = await notifOnce('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }), true)
+    const b = await notifOnce('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }), true)
     return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
   }
 }
 
-/** 通知列表（需登录）：并行子页拼接，返回最多 notifPageSize() 条的数组 */
+/** 该段失败是否可「留缺口继续」：incomplete（含下载器兜底失败）/ 超时可降级为
+ *  gap；404/401/403 等硬错误必须整页抛出（v1.2.2 契约：绝不静默缺条）。 */
+function notifGapable(e) {
+  return !!(e && (e.incomplete || e.timeout))
+}
+
+/** 通知列表（需登录）：并行子页拼接，返回最多 notifPageSize() 条的数组。
+ *  v1.2.4：截断族失败的段不再让整页报错——记入 gap 并对失败段低并发重试一轮，
+ *  仍失败的段透传给页面（lastNotifGaps）渲染「部分加载」警告 + 定向重试入口；
+ *  成功段照常按子页序拼接，绝不因单段故障丢弃其余 4 段数据。 */
+let _lastNotifGaps = []
+
+export function lastNotifGaps() {
+  return _lastNotifGaps
+}
+
 export async function getNotifications(page, all) {
   await loadToken()
-  const base = (Math.max(1, page) - 1) * NOTIF_SUBS + 1
+  const pg = Math.max(1, page)
+  const base = (pg - 1) * NOTIF_SUBS + 1
   const subs = []
   for (let i = 0; i < NOTIF_SUBS; i++) subs.push(base + i)
-  const parts = await mapLimit(subs, NOTIF_CONC, (sp) => notifSubPage(sp, all))
-  const out = []
-  for (let i = 0; i < parts.length; i++) {
-    const arr = parts[i]
-    if (Array.isArray(arr)) {
-      for (let j = 0; j < arr.length; j++) out.push(arr[j])
+  const parts = new Array(NOTIF_SUBS)
+  const failed = []
+  const first = await mapLimit(subs, NOTIF_CONC, (sp) =>
+    notifSubPage(sp, all)
+      .then((arr) => ({ ok: true, arr: arr }))
+      .catch((e) => ({ ok: false, err: e }))
+  )
+  for (let i = 0; i < first.length; i++) {
+    const r = first[i]
+    if (r.ok) parts[i] = r.arr
+    else if (notifGapable(r.err)) failed.push(i)
+    else throw r.err
+  }
+  /* 失败段低并发（2）重试一轮：蓝牙代理瞬时故障大概率此轮恢复 */
+  if (failed.length) {
+    const second = await mapLimit(failed, 2, (i) =>
+      notifSubPage(subs[i], all)
+        .then((arr) => ({ ok: true, arr: arr }))
+        .catch((e) => ({ ok: false, err: e }))
+    )
+    for (let i = 0; i < second.length; i++) {
+      const r = second[i]
+      if (r.ok) parts[failed[i]] = r.arr
     }
+  }
+  const out = []
+  _lastNotifGaps = []
+  for (let i = 0; i < NOTIF_SUBS; i++) {
+    if (parts[i] === undefined) { _lastNotifGaps.push(subs[i]); continue }
+    const arr = parts[i]
+    for (let j = 0; j < arr.length; j++) out.push(arr[j])
   }
   return out
 }
@@ -1756,7 +1835,14 @@ export function getUser(login) {
  * （schema 实证 undefinedField），但 Commit.history + statusCheckRollup 可用，
  * 瘦字段每条 ~370B，10 条 ~3KB 一页安全到达。游客/GraphQL 全灭 → 抛需登录提示。 */
 
-const GQL_COMMITS_Q = 'query($o:String!,$n:String!,$branch:String!,$first:Int!,$after:String){repository(owner:$o,name:$n){ref(qualifiedName:$branch){target{... on Commit{history(first:$first,after:$after){pageInfo{hasNextPage endCursor}totalCount nodes{oid committedDate messageHeadline statusCheckRollup{state contexts(first:4){nodes{... on CheckRun{name conclusion status}... on StatusContext{state context}}}}}}}}}}}'
+/* v1.2.4 根修「显示我无ci」：无分支参数时旧版拼 refs/heads/HEAD —— 沙箱实测
+ * GitHub 返回 ref:null（HEAD 不是合法 qualifiedName），CI 历史页从通知聚合卡/
+ * 仓库页进入（均不传分支）必然报「分支不存在」。现拆两条查询：
+ *  - 无分支：defaultBranchRef{target} 直达默认分支头提交，零额外请求；
+ *  - 有分支：ref(qualifiedName:'refs/heads/<branch>') 原路径保留。 */
+const GQL_COMMITS_REF_Q = 'query($o:String!,$n:String!,$branch:String!,$first:Int!,$after:String){repository(owner:$o,name:$n){ref(qualifiedName:$branch){target{... on Commit{history(first:$first,after:$after){pageInfo{hasNextPage endCursor}totalCount nodes{oid committedDate messageHeadline statusCheckRollup{state contexts(first:4){nodes{... on CheckRun{name conclusion status}... on StatusContext{state context}}}}}}}}}}}'
+
+const GQL_COMMITS_DEF_Q = 'query($o:String!,$n:String!,$first:Int!,$after:String){repository(owner:$o,name:$n){defaultBranchRef{target{... on Commit{history(first:$first,after:$after){pageInfo{hasNextPage endCursor}totalCount nodes{oid committedDate messageHeadline statusCheckRollup{state contexts(first:4){nodes{... on CheckRun{name conclusion status}... on StatusContext{state context}}}}}}}}}}}'
 
 /** commit CI 历史瘦映射：rollup state + 前 4 个 check run/context */
 function gqlCommitToRest(n) {
@@ -1781,23 +1867,32 @@ function gqlCommitToRest(n) {
 
 /** commit 历史 + CI 状态（需登录）：
  *  返回 {commits, total, hasNext}；游客抛 {needAuth:true}，GraphQL 网络失败/限流
- *  重试后仍失败 → 抛错（REST /actions/runs 单条 17.7KB 恒超截断阈值，无回退通道）。 */
+ *  重试后仍失败 → 抛错（REST /actions/runs 单条 17.7KB 恒超截断阈值，无回退通道）。
+ *  v1.2.4：branch 为空走 defaultBranchRef（旧版 refs/heads/HEAD 实测 ref:null，
+ *  是 CI 页「显示我无ci」的直接根因）。 */
 export async function getCommitChecks(fullName, branch, page) {
   await loadToken()
   if (!_token) throw { status: 0, needAuth: true, message: '查看 CI 状态需登录 Token（设置 → 填入/登录）' }
   const parts = fullName.split('/')
   if (parts.length !== 2) throw { status: 404, message: '仓库地址无效' }
-  const key = 'cc|' + fullName + '|' + (branch || 'HEAD')
+  const useBranch = branch || ''
+  const key = 'cc|' + fullName + '|' + (useBranch || 'DEFAULT')
   const after = cursorFor(key, page || 1)
   if ((page || 1) > 1 && after === undefined) throw { status: 0, message: '分页游标断链，请从第一页重试' }
-  const d = await ghql(GQL_COMMITS_Q, {
-    o: parts[0], n: parts[1],
-    branch: 'refs/heads/' + (branch || 'HEAD'),
-    first: 10, after: after === null ? undefined : after
-  })
-  const ref = dig(d, ['repository', 'ref'])
-  if (!ref || !ref.target) throw { status: 404, message: '分支不存在（' + (branch || 'HEAD') + '）' }
-  const h = ref.target.history
+  const vars = { o: parts[0], n: parts[1], first: 10, after: after === null ? undefined : after }
+  let d = null
+  if (useBranch) {
+    d = await ghql(GQL_COMMITS_REF_Q, Object.assign(vars, { branch: 'refs/heads/' + useBranch }))
+  } else {
+    d = await ghql(GQL_COMMITS_DEF_Q, vars)
+  }
+  const target = useBranch
+    ? dig(d, ['repository', 'ref', 'target'])
+    : dig(d, ['repository', 'defaultBranchRef', 'target'])
+  if (!target) {
+    throw { status: 404, message: useBranch ? '分支不存在（' + useBranch + '）' : '仓库为空或无默认分支' }
+  }
+  const h = target.history
   if (!h || !Array.isArray(h.nodes)) throw { status: 0, message: '提交历史为空' }
   if ((page || 1) >= 1) cursorSave(key, page || 1, h.pageInfo)
   const commits = []
@@ -1823,7 +1918,7 @@ export async function markThreadsRead(threadUrls) {
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
-  getRateLimit, getNotifications, notifPageSize, markAllNotificationsRead, markThreadRead, getSubject,
+  getRateLimit, getNotifications, notifPageSize, lastNotifGaps, markAllNotificationsRead, markThreadRead, getSubject,
   getMyRepos, getUserRepos, searchRepos, getTrending,
   getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,

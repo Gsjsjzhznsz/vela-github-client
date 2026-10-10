@@ -206,7 +206,7 @@ async function t_url_jitter() {
 /* ---------------- 2. 确定性截断快速终止 ---------------- */
 
 async function t_fast_incomplete() {
-  await test('JSON 截断（确定性）→ 恰 1 次请求即抛 incomplete（不再 3 连重试）', async () => {
+  await test('JSON 截断（歧义）→ 2 次请求（1 次重试）即抛 incomplete（v1.2.4 弹性策略）', async () => {
     let n = 0
     const mocks = authed({}, () => {
       n++
@@ -216,7 +216,9 @@ async function t_fast_incomplete() {
     let err = null
     try { await api.request('/repos/o/r/issues?per_page=10', { noDl: true }) } catch (e) { err = e }
     assert(err && err.incomplete, 'incomplete 抛出')
-    assertEq(n, 1, '仅 1 次请求（旧版 3 次）')
+    /* v1.2.4：截断/垃圾 JSON 属歧义失败（真机重试偶发可过），给 1 次重试再判死；
+     * raw content-length 实证截断仍是 1 次快速终止（见下方确定性用例） */
+    assertEq(n, 2, '恰 2 次请求（v1.2.3 为 1 次，v1.1.x 为 3 次）')
   })
 
   await test('空体 200（瞬时丢失）→ 仍保留重试语义', async () => {
@@ -304,19 +306,21 @@ async function t_channel5_b64() {
 /* ---------------- 5. Actions：GraphQL commit CI 历史快车道 ---------------- */
 
 async function t_actions() {
-  await test('getCommitChecks GraphQL：history+rollup 瘦映射 + 分页游标', async () => {
+  await test('getCommitChecks GraphQL：history+rollup 瘦映射 + 分页游标（v1.2.4 默认分支走 defaultBranchRef）', async () => {
     const mocks = authed({}, (n, o) => {
       const u = String(o.url)
       if (u.indexOf('/graphql') >= 0) {
         const body = JSON.parse(o.data)
         assert(body.query.indexOf('history') >= 0 && body.query.indexOf('statusCheckRollup') >= 0, '查询 history+rollup')
-        assertEq(body.variables.branch, 'refs/heads/HEAD', '分支参数 refs/heads/ 前缀')
+        /* v1.2.4：无分支不再拼非法 refs/heads/HEAD（实测 ref:null），改走 defaultBranchRef */
+        assert(body.query.indexOf('defaultBranchRef') >= 0, '无分支查询走 defaultBranchRef')
+        assert(body.query.indexOf('refs/heads/HEAD') < 0, '不再拼 refs/heads/HEAD')
         return {
           code: 200,
           data: {
             data: {
               repository: {
-                ref: {
+                defaultBranchRef: {
                   target: {
                     history: {
                       pageInfo: { hasNextPage: true, endCursor: 'CC1' },
@@ -355,7 +359,7 @@ async function t_actions() {
         sentAfter = body.variables.after
         return {
           code: 200,
-          data: { data: { repository: { ref: { target: { history: { pageInfo: sentAfter === undefined ? { hasNextPage: true, endCursor: 'CC9' } : { hasNextPage: false, endCursor: '' }, totalCount: 4075, nodes: [] } } } } } },
+          data: { data: { repository: { defaultBranchRef: { target: { history: { pageInfo: sentAfter === undefined ? { hasNextPage: true, endCursor: 'CC9' } : { hasNextPage: false, endCursor: '' }, totalCount: 4075, nodes: [] } } } } } },
           headers: {}
         }
       }

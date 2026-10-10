@@ -114,6 +114,16 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 网络请求带 1.2s/2.4s 两级退避重试（弱网/蓝牙代理下更稳）+ 25s 显式超时（代理挂起不再卡死页面）
 - 应用启动零网络请求，onShow 智能去重
 
+### v1.2.4 CI 默认分支根修 + 通知弹性阶梯 + 多语言代码高亮
+
+真机三项反馈的根治与一项新功能（「显示我无ci」「通知依旧响应数据不完整」「多语言代码高亮显示器」）：
+
+- **CI「无 CI」根修**：无分支参数时旧版拼 `refs/heads/HEAD` —— 沙箱实测 GitHub 返回 `ref: null`（HEAD 不是合法 qualifiedName），CI 历史页从通知聚合卡/仓库页进入（均不传分支）必然报「分支不存在」。现拆两条查询：无分支走 `defaultBranchRef{target}` 直达默认分支头提交（零额外请求），显式分支保留 `ref(qualifiedName)` 原路径；BandQQ 实测 checkRuns（如「rpk 四分支打包 SUCCESS」）正常渲染
+- **通知弹性阶梯（响应数据不完整再根治）**：真机实测 `per=1` 单条 ~6.3KB 响应仍偶发被蓝牙代理截断——v1.2.3 的「1 次快速终止」把可恢复故障变成硬错误。现改为：①歧义截断（JSON 解析失败/空体）给 1 次重试再判死（content-length 实证截断仍 1 次终止）；②`per=1` 之上叠加**原生下载器兜底**（收紧超时 6/12/4s，与 fetch 不同路）；③失败段不再整页报错——低并发重试一轮后仍失败的段记入 gap，**成功段照常渲染**，列表尾部黄色警告行「有 N 段未载入 · 点此重试」定向恢复（404 等硬错误仍整页抛出，绝不静默缺条）
+- **通知计数对齐 GitHub**：标题未读数从「卡片数」改为「底层通知条数」（聚合卡按条数累计），与 GitHub 网页徽标一致；列表脚注显示「已载 N 条」，聚合折叠不再造成「数据不完整」体感
+- **新功能：多语言代码高亮**（`utils/hl.js`，零依赖零正则引擎）：JS/TS、Java、C/C++、C#、Go、Rust、Kotlin、Swift、PHP、Python、Shell、JSON、CSS、HTML/XML、YAML/TOML、SQL、Markdown、Diff 共 18+ 语言家族；GitHub Dark 色板（关键字红/字符串蓝/数字天蓝/注释灰/函数紫/类型橙/键名绿）；弦电子书式限量渲染——跨行块注释/围栏状态载入时一次预计算，翻页时仅对当页 18 行分词（毫秒级），单行 token 封顶 24 个、拼接无损
+- **仓库 CI（GitHub Actions）**：新增 `.github/workflows/build-release.yml`——tag 推送（`v*`）自动 `npm ci → aiot build` 构建 rpk（debug 签名与本地一致）+ 打 src 源码包，双附件自动附到 GitHub Release（workflow_dispatch 支持手动触发）
+
 ### v1.2.3 通知 CI 聚合 + 文件五级通道 + CI 历史页（真机实测驱动）
 
 真机实测用户数据后的三大根治（通知 200+ 未读中 99% 为 CheckSuite CI 通知；文件分块第 2 块起必失败）：

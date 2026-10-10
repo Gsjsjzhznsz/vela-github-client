@@ -1,0 +1,51 @@
+# CI：tag 推送自动构建 rpk 并附到 Release（workflow_dispatch 支持手动触发）
+# 产物：dist/*.rpk（debug 签名，与本地构建一致）+ src 源码包
+name: build-release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build rpk
+        run: npm run build
+
+      - name: Package sources
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          if [ "$VER" = "${GITHUB_REF_NAME}" ]; then
+            VER=$(node -p "require('./package.json').version")
+          fi
+          zip -qr "vela-github-client-src-${VER}.zip" src scripts package.json package-lock.json README.md LICENSE ARCHITECTURE.md
+          echo "SRCZIP=vela-github-client-src-${VER}.zip" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vela-github-client-rpk
+          path: dist/*.rpk
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.rpk
+            ${{ env.SRCZIP }}

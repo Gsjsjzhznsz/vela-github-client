@@ -10,8 +10,8 @@
 
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" scroll-top="{{scrollTop}}">
-      <!-- 固件 elif 不可靠：四种 kind 分支全部 show 预渲染（BandQQ v2.9.6 同款安全形态） -->
-      <div class="{{it.kind === 'line' ? 'li-code' : 'li'}}" for="{{it in items}}" tid="id">
+      <!-- 固件 elif 不可靠：分支全部 show 预渲染（BandQQ v2.9.6 同款安全形态） -->
+      <div class="{{it.kind === 'line' ? 'li-code' : (it.kind === 'cline' ? 'li-code' : 'li')}}" for="{{it in items}}" tid="id">
         <div class="cell" show="{{it.kind === 'up'}}" onclick="goUp">
           <image class="cell-icon" src="/common/icons/back.png" />
           <text class="cell-name muted">返回上级</text>
@@ -21,6 +21,13 @@
           <text class="cell-name">{{it.name}}</text>
           <text class="cell-size" show="{{it.size}}">{{it.size}}</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" show="{{it.isDir}}" />
+        </div>
+        <!-- v1.2.4：多语言语法高亮行（token 着色，纯 text 无 span，快客安全形态） -->
+        <div class="code-row" show="{{it.kind === 'cline'}}">
+          <text class="ln">{{it.n}}</text>
+          <div class="code-toks">
+            <text class="tk tk-{{tk.c}}" for="{{tk in it.toks}}" tid="tk.i">{{tk.s}}</text>
+          </div>
         </div>
         <text class="code-line" show="{{it.kind === 'line'}}">{{it.n}}  {{it.s}}</text>
         <!-- 弦电子书式翻页器：每页固定行数，上一页/下一页 + 页码指示 -->
@@ -70,6 +77,23 @@
   .cell-size { font-size: 13px; color: #484f58; }
   .cell-arrow { width: 14px; height: 14px; margin-left: 5px; }
   .code-line { font-size: 14px; color: #c9d1d9; line-height: 18px; }
+  /* v1.2.4 语法高亮：token 着色（GitHub Dark 色板），行号列 + token 行内流式排布 */
+  .code-row { flex-direction: row; width: 100%; align-items: flex-start; }
+  .ln { width: 48px; font-size: 12px; color: #484f58; text-align: right; margin-right: 9px; line-height: 18px; }
+  .code-toks { flex: 1; flex-direction: row; flex-wrap: wrap; align-items: flex-start; overflow: hidden; }
+  .tk { font-size: 14px; line-height: 18px; color: #c9d1d9; }
+  .tk-kw { color: #ff7b72; }
+  .tk-str { color: #a5d6ff; }
+  .tk-num { color: #79c0ff; }
+  .tk-com { color: #6e7681; }
+  .tk-fn { color: #d2a8ff; }
+  .tk-ty { color: #ffa657; }
+  .tk-key { color: #7ee787; }
+  .tk-tag { color: #7ee787; }
+  .tk-pun { color: #8b949e; }
+  .tk-add { color: #3fb950; background-color: rgba(46, 160, 67, 0.15); }
+  .tk-del { color: #f85149; background-color: rgba(248, 81, 73, 0.15); }
+  .tk-pl { color: #c9d1d9; }
   .pager { flex-direction: row; align-items: center; justify-content: center; width: 100%; padding: 8px 12px; }
   .pager-btn { font-size: 17px; color: #58a6ff; padding: 6px 14px; }
   .pager-info { font-size: 14px; color: #8b949e; margin: 0 10px; }
@@ -86,6 +110,7 @@
   import api from '../../utils/api'
   import { compact } from '../../utils/fmt'
   import { query } from '../../utils/view'
+  import { detectLang, buildBlockState, tokenizeLine } from '../../utils/hl'
 
   /* v1.2.1：大文件上限 200KB → 1MB（raw Range 分块引擎同步升级到 1MB）；
    * 超限不再直接拒绝——上限内全部可开，超过才提示。
@@ -119,6 +144,8 @@
       this._filePath = ''      // 当前文件路径
       this._fileName = ''
       this._allLines = []      // v1.2.2：文件全量行（分页渲染源）
+      this._lang = 'plain'     // v1.2.4：语法高亮语言（按文件名探测）
+      this._block = []         // v1.2.4：跨行块注释/围栏状态表（载入时一次预计算）
       this._totalPages = 1
       this._capped = false
       this._scrollTick = 0
@@ -266,6 +293,10 @@
         const lines = text.replace(/\r/g, '').split('\n')
         if (lines.length > MAX_LINES) lines.length = MAX_LINES
         this._allLines = lines
+        // v1.2.4：语法高亮 —— 语言探测 + 跨行块状态一次预计算（弦电子书式
+        // 限量渲染：翻页时只对当页 18 行分词，全程毫秒级）
+        this._lang = detectLang(this._fileName)
+        this._block = this._lang === 'plain' ? [] : buildBlockState(lines, this._lang)
         this._capped = !!r.capped
         this._totalPages = Math.max(1, Math.ceil(lines.length / PAGE_SIZE))
         this.mode = 'file'
@@ -279,18 +310,26 @@
         this.progressText = ''
       }
     },
-    /* ---- v1.2.2 弦电子书式分页渲染 ---- */
+    /* ---- v1.2.2 弦电子书式分页渲染 + v1.2.4 按页语法高亮 ---- */
     renderFilePage(n) {
       const start = (n - 1) * PAGE_SIZE
       const slice = this._allLines.slice(start, start + PAGE_SIZE)
+      const hl = this._lang !== 'plain'
       const out = []
       for (let i = 0; i < slice.length; i++) {
-        out.push({
-          id: 'l' + start + '_' + i,
-          kind: 'line',
-          n: start + i + 1,
-          s: slice[i].length > 160 ? slice[i].slice(0, 160) + '…' : slice[i]
-        })
+        const raw = slice[i]
+        const s = raw.length > 160 ? raw.slice(0, 160) + '…' : raw
+        if (hl) {
+          const bs = this._block[start + i] || { inb: false, lg: this._lang }
+          out.push({
+            id: 'l' + start + '_' + i,
+            kind: 'cline',
+            n: start + i + 1,
+            toks: tokenizeLine(s, bs.lg, bs.inb)
+          })
+        } else {
+          out.push({ id: 'l' + start + '_' + i, kind: 'line', n: start + i + 1, s: s })
+        }
       }
       out.push({
         id: 'pager',

@@ -37,7 +37,7 @@
       <text class="state-t">加载中…</text>
     </div>
     <div class="state" show="{{state === 'empty'}}">
-      <text class="state-t">该分支还没有提交</text>
+      <text class="state-t">还没有任何提交</text>
     </div>
     <div class="state" show="{{state === 'error'}}">
       <text class="state-t">{{errMsg}}</text>

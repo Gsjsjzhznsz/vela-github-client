@@ -261,7 +261,7 @@ async function t_fcache() {
     const r2 = await api.getFileRawEx('o/r', 'a.txt', '', null)
     assertEq(r2.via, 'cache', '二次命中磁盘缓存')
     assertEq(r2.text, 'file-body-123', '缓存内容一致')
-    assertEq(mocks['@system.request'].downloaded.length, 1, '仅一次真实下载')
+    assertEq(mocks['@system.request'].downloaded.length, 2, 'v1.4.0 双域下载器：api 域探测 + raw 域成功，共 2 次调用')
   })
 
   await test('fcache LRU：第 7 个文件挤掉最旧一个（容量 6）', async () => {

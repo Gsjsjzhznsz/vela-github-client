@@ -319,8 +319,8 @@ T('aiChat ④a PAT → Models 通道', async () => {
   const r = await api.aiChat([{ role: 'user', content: 'ping' }], {})
   assertEq(r.text, 'PONG', '回复')
   assertEq(r.via, 'models', 'via models')
-  assertEq(body.model, 'openai/gpt-4o-mini', '默认模型')
-  assertEq(body.max_tokens, 900, 'max_tokens')
+  assertEq(body.model, 'openai/gpt-5-mini', '默认模型')
+  assertEq(body.max_tokens, 700, 'max_tokens')
   assertEq(body.messages[0].role, 'user', 'messages 透传（system 由页面层构建）')
 })
 
@@ -416,8 +416,8 @@ T('aiTokenKind/aiChannelLabel/aiModels ⑤', async () => {
   assertEq(a2.aiTokenKind(), 'oauth', 'oauth kind')
   assert(a2.aiChannelLabel().indexOf('Copilot') >= 0, 'oauth label')
 
-  assertEq(a2.aiModels().length, 3, '3 个预设模型')
-  assertEq(a2.aiModels()[0], 'openai/gpt-4o-mini', '首模型')
+  assert(a2.aiModels().length >= 3, '预设模型 ≥3（v1.4.0 五模型清单）')
+  assertEq(a2.aiModels()[0], 'openai/gpt-5-mini', '首模型')
 })
 
 /* ---------------- ⑥ device scope ---------------- */

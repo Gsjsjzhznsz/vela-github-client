@@ -116,6 +116,21 @@ npx aiot start                  # 启动模拟器并安装运行本应用
 - 应用启动零网络请求，onShow 智能去重
 - v1.3.0：目录列表分页（24 条/页，深目录不再一次性渲染数百节点——OOM 死机根治）+ 会话目录缓存（返回上级零网络秒开）
 
+### v1.4.0 截断抢救 + GraphQL 目录/正文快车道 + 文件完整性守门 + AI 2026 重构
+
+真机四项反馈的根治（「通知中心依旧数据不完整」「深层文件夹/指定 .py 文件报不存在」「账号没一个 AI 能用」「AI 模型是好久之前的免费模型」）：
+
+- **真机数据实锤（诊断驱动）**：实测单条通知 JSON 5931B（内嵌完整 repository 对象 ~4.5KB，REST 无法瘦身）；MC 启动器 `scripts/` 目录 contents 列表 **279KB**（60+ 条目 × 全量字段）；用户指定 `scripts/patch_angle_surface_freeze.py` **实际存在**（9735B，contents JSON 形态 14.5KB 恰在截断阈值边缘）——「文件不存在」实为截断/通道全灭后的误报，而非 404
+- **Accept-Encoding: identity（截断阈值抬升尝试）**：真机实测截断只出现在 api.github.com 的分块/压缩流（6.3KB 通知偶断），而 content-length 明确的 identity 流（README 14.3KB、下载器整文件）远超 8KB 可达——REST/GraphQL/下载器全部请求显式带 `identity` 头，让 JSON 响应与下载器同形态；代理尊重则阈值直接抬到 14KB+
+- **截断 JSON 抢救解析（salvage）**：蓝牙代理截断长数组时尾部半截、JSON.parse 整体失败原版全弃——现深扫最后一个顶层完整 `}` 恢复前导完整条目；通知管线按已得条数**只补拉缺失尾条**（per=2 截断得 1 条 → 仅 1 次 per=1 补齐，不再整段作废重拉）；下载器截断体同样抢救；列表尾短页零浪费（以 salvage 命中记录门控）
+- **GraphQL 目录快车道（getDirList）**：REST 目录列表单条目 300-500B，GraphQL 只取渲染所需瘦字段单条目 ~70B——同目录响应缩 4-7 倍，中型目录（≤100 条）在截断阈值内直达；`scripts` 60 条目实测一次拉全。失败（游客/限流/网络/路径是文件）回落 REST 阶梯（contents → trees → 下载器整树），功能不倒退
+- **GraphQL Blob 正文直读（ghqlBlob）**：新增文件通道——`object(expression:"ref:path"){text}` 返回 UTF-8 原文，无 base64 膨胀无元数据噪声（响应 ≈ 文件字节 + 300B），≤11KB 小文件配 identity 头在阈值内；实测 `patch_angle_surface_freeze.py` 9735B 完整取回（e2e）
+- **文件完整性守门（expectedSize）**：目录项自带字节数传入文件管线作基准——六通道取回正文与基准不符即判截断/污染，不缓存、直接落下一通道；历史截断缓存（旧版「8KB 后内容为空」毒化产物）命中即作废重拉。「静默截断渲染半截文件」类故障的终极守门员
+- **下载器双域**：文件原生下载通道 api.github.com raw 主域优先（代理可达性已被全部 JSON 请求实证），raw.githubusercontent.com 副域兜底——单域 404/不可达不再全灭
+- **AI 2026 重构**：①模型清单更新——Copilot Free 当前主力 **GPT-5 mini / Claude Haiku 4** 领衔共 5 模型（老模型殿后）；②**模型自动降级**——请求模型 400/403/404（无权限类）自动切下一模型（额度/网络错误不降级），单模型失效不再全军覆没；③**通道自检**——Copilot 订阅状态（404=未开通，附 github.com/settings/copilot 开通指引）+ Models 微推理实测（403=Token 缺 models 权限，附 scope 编辑指引），AI 页「通道自检」快捷指令一键诊断；④**远程模型目录刷新**——models.github.ai/catalog/models 拉取真实现可用模型（identity + 抢救解析双保险），成功整表替换循环列表；⑤设备授权 scope 追加 `models`（发起端被拒自动回退基础 scope，不破坏登录）
+- **404 文案增强**：统一附「GitHub 路径区分大小写」提示（实测 `javaapp` ≠ `JavaApp`，网页 URL 大小写不敏感而 API 严格区分——用户路径混淆的直接解药）
+- **测试与验证**：新增 66 项（抢救解析/salvage 门控补拉/GraphQL 目录映射与 404/Blob 直读/expectedSize 守门/坏缓存作废/AI 降级与自检/scope 回退/identity 断言），历史套件断言同步；e2e 真实 API：MC 启动器根树+`JavaApp/src`+`scripts` 大目录 GraphQL 直达、小写路径 404 实证、目标 .py 文件 9735B 完整取回、通知 participating 无 gap、aiProbe 双通道真实诊断（seat 404=未开通）；全量 **473 绿**
+
 ### v1.3.0 通知详情三通道 + 深目录死机根治 + Copilot 专区
 
 真机反馈四项的响应（「通知依旧响应数据不完整」「代码区访问深一点的文件夹响应数据不完整或者死机重启」「添加 Copilot 专区，功能尽量多」「性能问题太严重」）：

@@ -13,6 +13,53 @@ const API_BASE = 'https://api.github.com'
 const TOKEN_KEY = 'gh_token'
 const TOKEN_FILE = 'internal://files/gh_token.txt'
 const PER_PAGE = 10
+/* v1.4.0：Accept-Encoding: identity —— 真机实测截断只出现在 api.github.com 的
+ * 分块/压缩流（通知 per=1 6.3KB 偶断、目录 6KB 偶断），而 content-length 明确的
+ * identity 流（README 14.3KB、下载器整文件）可达远超 8KB。显式要 identity 让
+ * JSON 响应带上确定长度，与下载器同形态——若代理尊重此头，截断阈值直接抬到
+ * 14KB+（README 实证）；不尊重则无害回退原形态。 */
+const H_IDENTITY = { 'Accept-Encoding': 'identity' }
+
+/* ---------------- v1.4.0：截断 JSON 抢救解析 ----------------
+ * 蓝牙代理对长数组响应确定性截断（尾部半截），JSON.parse 整体失败 →
+ * 原版丢弃全部数据重拉。实际上截断点之前的前导完整对象可无损恢复：
+ * 深扫到最后一个顶层完整 '}'，截断前缀 + ']' 解析即得部分数据。
+ * 仅用于通知管线（notifSubPage 会按长度补拉尾部，部分数据优于全损）；
+ * 目录/树不启用（静默缺条比报错更糟，走 getTreeEx 下载器整树）。 */
+let _lastSalvage = null
+
+export function lastSalvageInfo() {
+  return _lastSalvage
+}
+
+function salvageJsonArray(s) {
+  try {
+    if (s.charAt(0) !== '[') return null
+    let depth = 0
+    let inStr = false
+    let esc = false
+    let last = -1
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charAt(i)
+      if (inStr) {
+        if (esc) { esc = false; continue }
+        if (c === '\\') { esc = true; continue }
+        if (c === '"') inStr = false
+        continue
+      }
+      if (c === '"') { inStr = true; continue }
+      if (c === '{') { depth++; continue }
+      if (c === '}') {
+        depth--
+        if (depth === 0) last = i
+        if (depth < 0) return null
+      }
+    }
+    if (last <= 0) return null
+    const arr = JSON.parse(s.slice(0, last + 1) + ']')
+    return Array.isArray(arr) && arr.length ? { arr: arr, partial: true } : null
+  } catch (e) { return null }
+}
 
 /* ---------------- 存储层（Promise 化，v1.1.4 双通道） ----------------
  * 真机（RW5）实测：storage.set 回调 success 后，另页 context 读不到、大退后丢失
@@ -374,6 +421,19 @@ async function fcachePut(url, text) {
   } catch (e) { /* 缓存写失败不影响内容返回 */ }
 }
 
+/** v1.4.0：单条缓存作废（完整性校验失败的历史截断体，重拉覆盖）；
+ *  仅删索引，孤儿文件由 LRU 自然淘汰，失败不影响主流程 */
+async function fcacheDrop(url) {
+  try {
+    const m = await fcacheLoad()
+    const rest = m.items.filter((x) => x.url !== url)
+    if (rest.length !== m.items.length) {
+      m.items = rest
+      await fcacheSave(m)
+    }
+  } catch (e) {}
+}
+
 /** 按字节上限截断字符串（UTF-8 序列完整，不切多字节字符） */
 function utf8SliceBytes(s, maxBytes) {
   let b = 0
@@ -507,6 +567,7 @@ function gqlHeaders() {
     Accept: 'application/vnd.github+json',
     'Content-Type': 'application/json'
   }
+  for (const hk in H_IDENTITY) h[hk] = H_IDENTITY[hk]
   if (_token) h['Authorization'] = 'Bearer ' + _token
   return h
 }
@@ -634,7 +695,7 @@ function dig(obj, path) {
 function friendlyMessage(status, ghMessage) {
   if (status === 401) return 'Token 无效或已过期，请在「设置」更新'
   if (status === 403) return 'GitHub 接口限流：游客每小时 60 次，建议在设置中填入 Token（5000 次/小时）'
-  if (status === 404) return '内容不存在（404）'
+  if (status === 404) return '内容不存在（404，GitHub 路径区分大小写）'
   if (status === 422) return '请求参数错误（422）'
   if (status >= 500) return 'GitHub 服务暂时不可用（' + status + '）'
   return ghMessage || ('请求失败（HTTP ' + status + '）')
@@ -658,6 +719,7 @@ export async function request(path, options) {
     Accept: opt.raw ? 'application/vnd.github.raw' : 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
   }
+  for (const hk in H_IDENTITY) header[hk] = H_IDENTITY[hk]
   if (_token) header['Authorization'] = 'Bearer ' + _token
   if (opt.method && opt.body) header['Content-Type'] = 'application/json'
 
@@ -678,6 +740,7 @@ async function requestGo(url, header, opt) {
   let data = null
   let lastErr = null
   let lastStatus = 0
+  let lastBody = '' /* v1.4.0：截断原文留存，供抢救解析 */
   // v1.2.1：ETag 条件请求 —— 缓存过期后复验，304 只回响应头
   const stale = _mem.map[url]
   // 防御性重试（模拟器实测连续请求偶发 fail；真机弱网同样受益）：1.2s / 2.4s 两次退避
@@ -742,6 +805,8 @@ async function requestGo(url, header, opt) {
           //（蓝牙代理偶发吐半截/垃圾体），v1.2.3 的 1 次快速终止把可恢复故障变成
           // 硬错误，是通知页「响应数据不完整」高频复现的共因。给 1 次重试再判死；
           // raw content-length 实证截断（下方独立分支）仍是确定性截断，1 次终止。
+          // v1.4.0：留存原文供循环结束后抢救解析（opt.salvage 开启时）。
+          lastBody = s
           lastErr = { incomplete: true }
           res = null
           if (attempt >= 1) break
@@ -766,6 +831,16 @@ async function requestGo(url, header, opt) {
   }
   if (!res) {
     if (lastErr && lastErr.incomplete) {
+      // v1.4.0：截断数组抢救（opt.salvage 开启时）——从残缺 JSON 恢复前导完整条目，
+      // 调用方（notifSubPage）按已得条数补拉尾部。部分数据优于全损且零额外耗时。
+      if (opt.salvage && !opt.raw && lastBody) {
+        const sv = salvageJsonArray(lastBody)
+        if (sv) {
+          _lastSalvage = { url: url, got: sv.arr.length, ts: Date.now() }
+          memSet(url, sv.arr, '')
+          return sv.arr
+        }
+      }
       // v1.1.4：incomplete 时先走下载通道兜底（GET 的 JSON/raw；
       // 原生下载器与 fetch 不同路，可能不受蓝牙代理截断影响；
       // v1.2.1：不带 If-None-Match，避免下载器收到 304 空文件）
@@ -1160,6 +1235,9 @@ const DEVICE_CLIENT_ID = '178c6fc778ccc68e1d6a'
  * 临时凭据（PAT/ghp_ 永远不行，GitHub 明确拒绝 PAT 调 Copilot 端点）。
  * 已授权老用户不受影响；新授权生效后 Copilot 专区自动亮起真通道。 */
 const DEVICE_SCOPE = 'repo read:user notifications copilot'
+/* v1.4.0：scope 追加 models——Models API（models.github.ai）对 OAuth token
+ * 同样按 scope 授权；发起端先试 FULL，被拒自动回退基础 scope（兜底不破坏登录） */
+const DEVICE_SCOPE_FULL = 'repo read:user notifications copilot models'
 const DEVICE_URL_CODE = 'https://github.com/login/device/code'
 const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token'
 
@@ -1191,8 +1269,11 @@ export async function deviceFlowStart() {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 1200 : 2400))
     try {
-      res = await formPost(DEVICE_URL_CODE, { client_id: DEVICE_CLIENT_ID, scope: DEVICE_SCOPE })
-      break
+      /* v1.4.0：首试 FULL scope（含 models），结构异常/被拒 → 回退基础 scope 重试 */
+      res = await formPost(DEVICE_URL_CODE, { client_id: DEVICE_CLIENT_ID, scope: attempt === 0 ? DEVICE_SCOPE_FULL : DEVICE_SCOPE })
+      const dTry = jsonMaybe(res)
+      if (res && Number(res.code) >= 200 && Number(res.code) < 300 && dTry && dTry.device_code) break
+      res = null
     } catch (e) { res = null }
   }
   if (!res) throw { status: 0, message: '网络连接失败，请检查手表网络' }
@@ -1292,7 +1373,9 @@ export function notifPageSize() {
  *  保住快速路径「下载器零调用」的老契约。 */
 async function notifOnce(pathUrl, useDl) {
   try {
-    return await request(pathUrl, { noDl: true })
+    // v1.4.0：salvage 开启——截断响应抢救前导完整条目（per=2 断在尾部仍得 1 条），
+    // notifSubPage 按已得条数只补拉缺失尾部，不再整段作废重拉
+    return await request(pathUrl, { noDl: true, salvage: true })
   } catch (e) {
     if (!e || !e.incomplete || !useDl) throw e
     try {
@@ -1317,11 +1400,22 @@ async function notifDl(url) {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
   }
+  for (const hk in H_IDENTITY) header[hk] = H_IDENTITY[hk]
   if (_token) header['Authorization'] = 'Bearer ' + _token
   const text = await dlFetchText(url, header, NOTIF_DL_T)
   const cleaned = String(text).replace(/^\uFEFF/, '').trim()
   if (!cleaned) throw { status: 200, incomplete: true, message: '下载器空响应' }
-  return JSON.parse(cleaned)
+  try {
+    return JSON.parse(cleaned)
+  } catch (e) {
+    // v1.4.0：下载器截断同样可抢救（通知管线按长度补拉尾部）
+    const sv = salvageJsonArray(cleaned)
+    if (sv) {
+      _lastSalvage = { url: url, got: sv.arr.length, ts: Date.now() }
+      return sv.arr
+    }
+    throw { status: 200, incomplete: true, message: '下载器响应不是有效 JSON' }
+  }
 }
 
 /** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接）。
@@ -1332,14 +1426,41 @@ async function notifDl(url) {
 /* v1.3.0：participating 过滤——未读通知 99% 是 ci_activity 噪音（用户 200+ 条），
  *  participating=true 只留「我参与的对话」（issue/PR 评论、mention、review），
  *  列表从百页级缩到 1-2 页，「拉不全」的体感直接消失。三态：未读/全部/仅参与。 */
+function notifUrl1(page, all, participating, per) {
+  return '/notifications' + qs({ page: page, per_page: per || 1, all: !!all, participating: participating ? true : undefined })
+}
+
+/* v1.4.0：子页缺口最小化补拉——per=2 截断被抢救后仍持前导条目（长度 < per），
+ * 只对缺失的尾部逐条 per=1 补拉（原来无条件 2 次全拉）。列表尾短页（长度<per
+ * 但并非截断）不补拉——以 lastSalvageInfo 命中本子页 URL 为准，零浪费。
+ * 单条仍可叠下载器兜底。 */
 async function notifSubPage(sp, all, participating) {
+  const urlSp = notifUrl1(sp, all, participating, NOTIF_SUB_PER)
   try {
-    return await notifOnce('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all, participating: participating ? true : undefined }), false)
+    const r = await notifOnce(urlSp, false)
+    if (Array.isArray(r) && r.length < NOTIF_SUB_PER) {
+      const sv = lastSalvageInfo()
+      const salvaged = !!(sv && sv.url === API_BASE + urlSp && Date.now() - sv.ts < 5000)
+      if (salvaged) {
+        const tail = []
+        for (let p = 2 * sp - 1 + r.length; p <= 2 * sp; p++) {
+          try {
+            const t = await notifOnce(notifUrl1(p, all, participating, 1), true)
+            if (Array.isArray(t)) for (let i = 0; i < t.length; i++) tail.push(t[i])
+          } catch (e2) {
+            if (!notifGapable(e2)) throw e2
+            /* 尾条可降级失败：留空（getNotifications gap 机制兜底） */
+          }
+        }
+        return r.concat(tail)
+      }
+    }
+    return r
   } catch (e) {
     if (!e || !e.incomplete) throw e
-    /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页（开下载器兜底） */
-    const a = await notifOnce('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all, participating: participating ? true : undefined }), true)
-    const b = await notifOnce('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all, participating: participating ? true : undefined }), true)
+    /* 整段失败 → per=1 逐条全拉（开下载器兜底） */
+    const a = await notifOnce(notifUrl1(2 * sp - 1, all, participating, 1), true)
+    const b = await notifOnce(notifUrl1(2 * sp, all, participating, 1), true)
     return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
   }
 }
@@ -1627,6 +1748,7 @@ export async function getTreeEx(fullName, sha) {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
   }
+  for (const hk in H_IDENTITY) header[hk] = H_IDENTITY[hk]
   if (_token) header['Authorization'] = 'Bearer ' + _token
   const text = await dlFetchText(API_BASE + path, header, { download: 15000, complete: 60000, read: 12000 })
   const cleaned = String(text).replace(/^\uFEFF/, '').trim()
@@ -1636,6 +1758,54 @@ export async function getTreeEx(fullName, sha) {
   return d
 }
 
+/* ================= v1.4.0：GraphQL 目录列表 / Blob 正文快车道 =================
+ * 蓝牙代理截断只看响应体大小：REST 目录列表单条目 300-500B（contents）/250B
+ * （trees），GraphQL 只取渲染所需瘦字段 → 单条目 ~70B，同目录响应缩 4-7 倍，
+ * 中型目录（≤100 条）在 8KB 分块阈值内直达；巨型目录仍走 getTreeEx 下载器。
+ * 失败（游客/限流/网络/结构）一律由页面回落 REST 阶梯，功能不倒退。 */
+const GQL_DIR_Q = 'query($o:String!,$n:String!,$e:String!){repository(owner:$o,name:$n){object(expression:$e){__typename ...on Tree{oid entries{name type oid object{...on Blob{byteSize}}}}}}}'
+
+/** 目录列表（GraphQL 瘦字段）。path 以 '' 为根；ref 空取 HEAD。
+ *  返回与 REST contents 同构的数组：{name,path,type:'dir'|'file',size,sha}。
+ *  路径不存在 → 404（GitHub 路径区分大小写，页面直接显示明确文案）。 */
+export async function getDirList(fullName, path, ref) {
+  const parts = String(fullName || '').split('/')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) throw { status: 0, gqlSkip: true, message: '仓库参数不完整' }
+  const expr = (ref || 'HEAD') + ':' + (path || '')
+  const data = await ghql(GQL_DIR_Q, { o: parts[0], n: parts[1], e: expr })
+  const obj = dig(data, ['repository', 'object'])
+  if (!obj) throw { status: 404, message: '内容不存在（404，GitHub 路径区分大小写）' }
+  if (obj.__typename === 'Blob') throw { status: 0, gqlSkip: true, message: '该路径是文件' }
+  const entries = obj.entries || []
+  const base = path ? path + '/' : ''
+  const out = []
+  for (let i = 0; i < entries.length; i++) {
+    const x = entries[i]
+    out.push({
+      name: x.name,
+      path: base + x.name,
+      type: x.type === 'tree' ? 'dir' : 'file',
+      size: (x.object && x.object.byteSize) || 0,
+      sha: x.oid || ''
+    })
+  }
+  return out
+}
+
+const GQL_BLOB_Q = 'query($o:String!,$n:String!,$e:String!){repository(owner:$o,name:$n){object(expression:$e){__typename ...on Blob{byteSize isBinary text}}}}'
+
+/** Blob 正文直读（GraphQL）：响应 ≈ 文件字节 + 300B，无 base64 膨胀，
+ *  ≤11KB 小文件配 identity 头在截断阈值内。失败抛错由调用方落下一通道。 */
+export async function ghqlBlob(fullName, path, ref) {
+  const parts = String(fullName || '').split('/')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) throw { status: 0, message: '仓库参数不完整' }
+  const expr = (ref || 'HEAD') + ':' + (path || '')
+  const data = await ghql(GQL_BLOB_Q, { o: parts[0], n: parts[1], e: expr })
+  const obj = dig(data, ['repository', 'object'])
+  if (!obj || obj.__typename !== 'Blob') throw { status: 404, message: '内容不存在（404）' }
+  return { text: typeof obj.text === 'string' ? obj.text : '', isBinary: !!obj.isBinary, byteSize: obj.byteSize || 0 }
+}
+
 /** 文件内容拉取（v1.2.2 弦电子书式重写）：
  *  ① 磁盘缓存（fcache，冷启仍有效，重进秒开零传输）；
  *  ② 原生下载器整文件落盘为主通道（绕开 fetch 蓝牙代理截断——真机实证 Range
@@ -1643,50 +1813,79 @@ export async function getTreeEx(fullName, sha) {
  *  ③ fetch Range 分块（带逐块进度，下载器不可用时的回退）；
  *  ④ REST contents raw 兜底（私有仓库 raw 404 场景）。
  *  返回 {text, full, capped, bytes, via}；capped=true 表示超 1MB 只取前 1MB。 */
-export async function getFileRawEx(fullName, path, ref, onProgress) {
+export async function getFileRawEx(fullName, path, ref, onProgress, expectedSize) {
   const url = rawFileUrl(fullName, ref || '', path)
   const prog = (a, b) => { if (typeof onProgress === 'function') { try { onProgress(a, b) } catch (e) {} } }
+  /* v1.4.0：完整性校验基准——目录项自带字节数（GraphQL/REST 列表均有）。
+   * 各通道取回正文与基准不符 → 判截断/污染 → 不缓存、直接落下一通道。
+   * 「加载 8KB 后内容为空」类静默截断的终极守门员（有基准才启用）。 */
+  const want = Number(expectedSize) > 0 ? Number(expectedSize) : 0
+  const sizeBad = (t) => !!want && utf8Len(t) !== want
 
-  /* ① 磁盘缓存命中 */
+  /* ① 磁盘缓存命中（v1.4.0：与基准不符的历史截断体作废重拉） */
   const cached = await fcacheGet(url)
   if (cached) {
-    const cb = utf8Len(cached)
-    prog(cb, cb)
-    return { text: cached, full: true, capped: false, bytes: cb, via: 'cache' }
+    if (sizeBad(cached)) {
+      await fcacheDrop(url)
+    } else {
+      const cb = utf8Len(cached)
+      prog(cb, cb)
+      return { text: cached, full: true, capped: false, bytes: cb, via: 'cache' }
+    }
   }
 
   const rawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/octet-stream' }
+  for (const hk in H_IDENTITY) rawHeader[hk] = H_IDENTITY[hk]
   if (_token) rawHeader['Authorization'] = 'Bearer ' + _token
+  /* v1.4.0：api.github.com raw 主域——代理可达性已被全部 JSON 请求实证；
+   * raw.githubusercontent.com 副域（历史主通道）。双域 = 主域 404/不可达时不死。 */
+  const apiRawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/vnd.github.raw' }
+  for (const hk in H_IDENTITY) apiRawHeader[hk] = apiRawHeader[hk]
+  if (_token) apiRawHeader['Authorization'] = 'Bearer ' + _token
+  const encPath = String(path || '').split('/').map(encodeURIComponent).join('/')
+  const apiRawUrl = API_BASE + '/repos/' + fullName + '/contents/' + encPath + qs({ ref: ref || undefined })
 
   /* ② 原生下载器主通道：一次整文件落盘（≤1MB 由页面 rawSize 守卫）。
-   *  v1.2.3：超时 30/45/10 → 45/75/15 —— 真机蓝牙代理实测下载仅数 KB/s，
-   *  几百 KB 文件 30s 内下不完即被误判失败（随后落入死路分块/raw），这是
-   *  「加载 8KB 后内容为空」故障链的第一环。 */
-  try {
-    const dl = await dlFetchText(url, rawHeader, { download: 45000, complete: 75000, read: 15000 })
-    if (typeof dl === 'string' && dl.length) {
-      if (sniffRawErrorBody(dl)) throw { status: 404, message: 'raw 下载器返回错误体，转下一通道' }
-      if (dl.slice(0, 512).indexOf('\u0000') >= 0) throw { binary: true, message: '二进制文件，暂不支持预览' }
-      let text = dl
-      let capped = false
-      if (utf8Len(text) > FILE_RAW_CAP) {
-        text = utf8SliceBytes(text, FILE_RAW_CAP)
-        capped = true
+   *  v1.2.3：超时 45/75/15 —— 真机蓝牙代理实测下载仅数 KB/s。
+   *  v1.4.0：双域逐试 + URL 扰动（绕代理同 URL 去重）+ 字节完整性校验。 */
+  const dlT = { download: 45000, complete: 75000, read: 15000 }
+  /* URL 保持原生形态（下载器管线无同 URL 去重问题，扰动属 fetch 分块专用） */
+  const dlPlans = [
+    { u: apiRawUrl, h: apiRawHeader, api: true, via: 'dl-api' },
+    { u: url, h: rawHeader, api: false, via: 'dl' }
+  ]
+  for (let di = 0; di < dlPlans.length; di++) {
+    try {
+      const dl = await dlFetchText(dlPlans[di].u, dlPlans[di].h, dlT)
+      if (typeof dl === 'string' && dl.length) {
+        if (sniffRawErrorBody(dl) ||
+            (dlPlans[di].api && dl.charAt(0) === '{' && /"message"\s*:/.test(dl.slice(0, 160)))) {
+          throw { status: 404, message: '下载器返回错误体，转下一通道' }
+        }
+        if (dl.slice(0, 512).indexOf('\u0000') >= 0) throw { binary: true, message: '二进制文件，暂不支持预览' }
+        let text = dl
+        let capped = false
+        if (utf8Len(text) > FILE_RAW_CAP) {
+          text = utf8SliceBytes(text, FILE_RAW_CAP)
+          capped = true
+        }
+        if (!capped && sizeBad(text)) throw { status: 200, incomplete: true, message: '下载器响应不完整，转下一通道' }
+        await fcachePut(url, text)
+        const nb = utf8Len(text)
+        prog(nb, nb)
+        return { text: text, full: true, capped: capped, bytes: nb, via: dlPlans[di].via }
       }
-      await fcachePut(url, text)
-      const nb = utf8Len(text)
-      prog(nb, nb)
-      return { text: text, full: true, capped: capped, bytes: nb, via: 'dl' }
+    } catch (e) {
+      if (e && e.binary) throw e
+      /* 该域失败 → 下一域/分块通道 */
     }
-  } catch (e) {
-    if (e && e.binary) throw e
-    /* 下载器不可用（固件不支持/超时/404）→ 落到分块通道 */
   }
 
-  /* ③ fetch Range 分块（逐块进度） */
+  /* ③ fetch Range 分块（逐块进度；v1.4.0 补完整性校验） */
   try {
     const r = await fetchRawChunked(url, onProgress)
     if (typeof r.text === 'string' && r.text.length) {
+      if (!r.capped && sizeBad(r.text)) throw { status: 200, incomplete: true, message: '分块响应不完整' }
       await fcachePut(url, r.text)
       return { text: r.text, full: !!r.full, capped: !!r.capped, bytes: utf8Len(r.text), via: 'chunk' }
     }
@@ -1704,18 +1903,37 @@ export async function getFileRawEx(fullName, path, ref, onProgress) {
   try {
     const text4 = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
     const t4 = String(text4 == null ? '' : text4)
-    if (t4 && !sniffRawErrorBody(t4)) {
+    if (t4 && !sniffRawErrorBody(t4) && !sizeBad(t4)) {
       await fcachePut(url, t4)
       return { text: t4, full: true, capped: false, bytes: utf8Len(t4), via: 'rest' }
     }
-    via4 = t4 ? 'error-body' : 'empty'
+    via4 = sizeBad(t4) ? 'truncated' : (t4 ? 'error-body' : 'empty')
   } catch (e) {
     if (e && e.binary) throw e
     via4 = (e && e.message) || 'fail'
     inc4 = !!(e && e.incomplete)
   }
 
-  /* ⑤ v1.2.3 contents JSON base64 终备通道：
+  /* ⑤ v1.4.0 GraphQL Blob 直读（≤11KB 小文件的最稳通道）：
+   *  object(expression:"ref:path"){...on Blob{text}} 返回 UTF-8 原文——无 base64
+   *  膨胀、无元数据噪声（响应 ≈ 文件字节 + 300B），配 identity 头在 14.3KB 实证
+   *  阈值内。失败（游客/限流/结构/网关）静默落 ⑥ base64 终备。 */
+  try {
+    const g5 = await ghqlBlob(fullName, path, ref)
+    if (g5 && typeof g5.text === 'string' && g5.text.length) {
+      if (g5.isBinary) throw { binary: true, message: '二进制文件，暂不支持预览' }
+      if (sizeBad(g5.text)) throw { status: 200, incomplete: true }
+      await fcachePut(url, g5.text)
+      const nb5 = utf8Len(g5.text)
+      prog(nb5, nb5)
+      return { text: g5.text, full: true, capped: false, bytes: nb5, via: 'gql' }
+    }
+  } catch (e5) {
+    if (e5 && e5.binary) throw e5
+    /* 落 base64 终备 */
+  }
+
+  /* ⑥ v1.2.3 contents JSON base64 终备通道：
    *  与 raw 完全不同的响应形态（api.github.com JSON，代理处理最成熟的形态）。
    *  JSON 体 ≈ 元数据 700B + base64×1.37 → 文件 ≤9.5KB 时整响应 <14.3KB 截断下限，
    *  可靠到达；>9.5KB 的 JSON 必截断（确定性失败）→ 抛错走页面重试提示。
@@ -2003,12 +2221,32 @@ export async function getCommitChecks(fullName, branch, page) {
 const MODELS_URL = 'https://models.github.ai/inference/chat/completions'
 const COPILOT_TOK_URL = 'https://api.github.com/copilot_internal/v2/token'
 const COPILOT_CHAT_URL = 'https://api.githubcopilot.com/chat/completions'
-const AI_MODELS = ['openai/gpt-4o-mini', 'openai/gpt-4.1-mini', 'xai/grok-3-mini']
-const AI_MAX_TOKENS = 900
+/* v1.4.0：模型清单更新至 2026-10——Copilot Free 当前主力（GPT-5 mini /
+ * Claude Haiku 4 系列）在前，老模型殿后；远程目录刷新可整表替换。
+ * 单模型失效由 aiChat 自动降级兜底，不再「一个模型 403 就全军覆没」。 */
+const AI_MODELS = [
+  'openai/gpt-5-mini',
+  'anthropic/claude-haiku-4',
+  'openai/gpt-4.1-mini',
+  'openai/gpt-4o-mini',
+  'xai/grok-3-mini'
+]
+const AI_MAX_TOKENS = 700
+let _aiModels = AI_MODELS.slice()
+let _aiRemoteTs = 0
 let _cpTok = null /* { token, exp(ms) }，提前 2min 判过期 */
 
 export function aiModels() {
-  return AI_MODELS
+  return _aiModels
+}
+
+/** 远程模型表替换（aiModelsRemote 成功后由页面调用） */
+export function aiModelsSetRemote(ids) {
+  if (Array.isArray(ids) && ids.length) {
+    _aiModels = ids.slice(0, 12)
+    return true
+  }
+  return false
 }
 
 /** token 形态：pat（ghp_/github_pat_）| oauth（设备授权 ghu_/gho_）| none */
@@ -2085,17 +2323,119 @@ export async function aiChat(messages, opts) {
       /* Copilot 通道失败（无订阅/凭据交换失败/网络）→ 自动落 Models 兜底 */
     }
   }
-  const d = await aiPost(MODELS_URL, {
-    'User-Agent': 'vela-github-client',
-    Authorization: 'Bearer ' + _token,
-    'Content-Type': 'application/json',
-    Accept: 'application/json'
-  }, { messages: messages, model: model, max_tokens: AI_MAX_TOKENS })
-  const ch = d.choices && d.choices[0] && d.choices[0].message
-  if (!ch || typeof ch.content !== 'string' || !ch.content.length) {
-    throw { message: 'AI 响应缺内容，请重试' }
+  /* v1.4.0：模型自动降级——请求模型不可用（400/403/404/无权限类报错）时
+   * 依次尝试清单内下一个，最多 3 个；额度/网络类错误不降级（换模型无解）。 */
+  const list = aiModels()
+  const start = Math.max(0, list.indexOf(model))
+  let lastErr = null
+  for (let t = 0; t < 3; t++) {
+    const useModel = list[(start + t) % list.length]
+    try {
+      const d = await aiPost(MODELS_URL, {
+        'User-Agent': 'vela-github-client',
+        Authorization: 'Bearer ' + _token,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      }, { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS })
+      const ch = d.choices && d.choices[0] && d.choices[0].message
+      if (!ch || typeof ch.content !== 'string' || !ch.content.length) {
+        throw { message: 'AI 响应缺内容，请重试' }
+      }
+      return { text: ch.content, via: 'models', usage: d.usage || null, model: useModel }
+    } catch (e) {
+      lastErr = e
+      const st = Number(e && e.status) || 0
+      const msg = String((e && e.message) || '')
+      const modelErr = st === 400 || st === 403 || st === 404 || /model|access|permission|权限/i.test(msg)
+      if (!modelErr) throw e
+    }
   }
-  return { text: ch.content, via: 'models', usage: d.usage || null }
+  throw lastErr
+}
+
+/** v1.4.0：通道自检——AI 页「通道自检」指令调用。
+ *  Copilot seat：GET /user/copilot（404 = 未开通，含免费版未启用）；
+ *  Models：1-token 微推理实测（403 = Token 缺 models 权限，给出可行动指引）。 */
+export async function aiProbe() {
+  await loadToken()
+  const out = { kind: aiTokenKind(), copilot: '', copilotHint: '', models: '', modelsHint: '' }
+  if (!_token) {
+    out.copilot = out.models = '未登录'
+    return out
+  }
+  try {
+    const seat = await request('/user/copilot', { noCache: true, noDl: true })
+    const s = seat && seat.seat
+    out.copilot = '已开通' + (s && s.plan_type ? '（' + s.plan_type + '）' : '')
+  } catch (e) {
+    if (e && e.status === 404) {
+      out.copilot = '未开通'
+      out.copilotHint = '电脑浏览器打开 github.com/settings/copilot 免费开通 Copilot，然后在设置页重新设备授权'
+    } else {
+      out.copilot = '查询失败（' + ((e && e.status) || 0) + '）'
+    }
+  }
+  try {
+    const d = await aiPost(MODELS_URL, {
+      'User-Agent': 'vela-github-client',
+      Authorization: 'Bearer ' + _token,
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    }, { messages: [{ role: 'user', content: 'hi' }], model: aiModels()[0], max_tokens: 1 })
+    out.models = '可用' + (d && d.model ? '（' + d.model + '）' : '')
+  } catch (e) {
+    const st = Number(e && e.status) || 0
+    if (st === 403) {
+      out.models = '无权限（403）'
+      out.modelsHint = '当前 Token 无 Models 权限：电脑上 github.com/settings/tokens 编辑该 Token 勾选 models，或新建细粒度 PAT 勾选 Models:Read'
+    } else if (st === 401) {
+      out.models = '授权失败（401）'
+      out.modelsHint = 'Token 无效或已过期，请在设置页更新'
+    } else {
+      out.models = '不可达' + (st ? '（' + st + '）' : '')
+      out.modelsHint = '设备网络可能未放行 models.github.ai，请稍后重试'
+    }
+  }
+  return out
+}
+
+/** v1.4.0：远程模型目录刷新（models.github.ai/catalog/models）。
+ *  响应 20-40KB 截断风险高：identity 头 + 数组抢救解析双保险；
+ *  成功返回 id 列表（供 aiModelsSetRemote 整表替换），失败返回空数组。 */
+export async function aiModelsRemote() {
+  await loadToken()
+  if (!_token) return []
+  if (_aiRemoteTs && Date.now() - _aiRemoteTs < 600000) return aiModels().slice()
+  const header = {
+    'User-Agent': 'vela-github-client',
+    Accept: 'application/vnd.github+json'
+  }
+  for (const hk in H_IDENTITY) header[hk] = H_IDENTITY[hk]
+  header['Authorization'] = 'Bearer ' + _token
+  let res = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await rawFetch({ url: 'https://models.github.ai/catalog/models', method: 'GET', header: header })
+      break
+    } catch (e) { res = null }
+  }
+  if (!res) return []
+  const code = Number(res.code) || 0
+  if (code < 200 || code >= 300) return []
+  const d = jsonMaybe(res)
+  let arr = Array.isArray(d) ? d : null
+  if (!arr && typeof res.data === 'string') {
+    const sv = salvageJsonArray(String(res.data).replace(/^\uFEFF/, '').trim())
+    if (sv) arr = sv.arr
+  }
+  if (!arr) return []
+  const ids = []
+  for (let i = 0; i < arr.length; i++) {
+    const id = arr[i] && (arr[i].id || arr[i].name)
+    if (typeof id === 'string' && id.indexOf('/') > 0 && ids.indexOf(id) < 0) ids.push(id)
+  }
+  if (ids.length) _aiRemoteTs = Date.now()
+  return ids
 }
 
 /** 批量标记通知线程已读（v1.2.3 CI 聚合卡长按用）：mapLimit 限并发 3，
@@ -2120,5 +2460,6 @@ export default {
   isStarred, setStarred, getUser,
   deviceFlowStart, deviceFlowPoll, utf8DecodeChunk,
   getCommitChecks, markThreadsRead,
-  aiChat, aiModels, aiTokenKind, aiChannelLabel
+  aiChat, aiModels, aiModelsSetRemote, aiModelsRemote, aiProbe, aiTokenKind, aiChannelLabel,
+  getDirList, ghqlBlob, lastSalvageInfo
 }

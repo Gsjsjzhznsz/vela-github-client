@@ -108,7 +108,9 @@
     { id: 'q3', label: '写 commit 信息', prompt: '请根据附加上下文的代码变更/文件内容，用约定式提交（Conventional Commits）风格写一条简短 commit message。' },
     { id: 'q4', label: '找潜在 Bug', prompt: '请检查附加上下文里的代码，指出潜在 bug 或风险点，用中文简要列出。' },
     { id: 'q5', label: '写 README 草稿', prompt: '请为附加上下文的仓库/文件写一段简短的 README 介绍草稿（中文）。' },
-    { id: 'q6', label: '生成 Issue 回复', prompt: '请针对附加上下文里的讨论内容，用中文起草一条礼貌、专业的 Issue/PR 回复。' }
+    { id: 'q6', label: '生成 Issue 回复', prompt: '请针对附加上下文里的讨论内容，用中文起草一条礼貌、专业的 Issue/PR 回复。' },
+    { id: 'q7', label: '通道自检', prompt: null },
+    { id: 'q8', label: '刷新模型列表', prompt: null }
   ]
   const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。'
 
@@ -208,7 +210,46 @@
     },
     quickAsk(q) {
       if (this.busy) return
+      if (q.id === 'q7') { this.runProbe(); return }
+      if (q.id === 'q8') { this.refreshModels(); return }
       this.send(q.prompt)
+    },
+    /* v1.4.0：通道自检——Copilot 订阅状态 + Models 微推理，结果以消息卡片呈现 */
+    async runProbe() {
+      if (!api.hasToken()) { this.state = 'needauth'; return }
+      this.busy = true
+      this.pushMsg('user', '通道自检')
+      try {
+        const p = await api.aiProbe()
+        let txt = '自检结果：\n· Copilot 订阅：' + p.copilot +
+          '\n· Models 通道：' + p.models
+        if (p.copilotHint) txt += '\n· ' + p.copilotHint
+        if (p.modelsHint) txt += '\n· ' + p.modelsHint
+        this.pushMsg('ai', txt, '诊断')
+      } catch (e) {
+        this.pushMsg('ai', '自检失败：' + ((e && e.message) || '网络异常'))
+      }
+      this.busy = false
+      this.scrollBottom()
+    },
+    /* v1.4.0：远程模型目录刷新——成功后整表替换可循环模型 */
+    async refreshModels() {
+      if (!api.hasToken()) { this.state = 'needauth'; return }
+      this.busy = true
+      try {
+        const ids = await api.aiModelsRemote()
+        if (ids.length && api.aiModelsSetRemote(ids)) {
+          if (api.aiModels().indexOf(this._model) < 0) this._model = api.aiModels()[0]
+          this.syncModelLabel()
+          this.pushMsg('ai', '模型列表已刷新（' + ids.length + ' 个）：' + ids.slice(0, 6).join('、') + (ids.length > 6 ? ' 等' : ''), '目录')
+        } else {
+          this.pushMsg('ai', '模型目录拉取失败（响应不完整或未放行），继续使用内置列表；可点顶部模型行切换', '目录')
+        }
+      } catch (e) {
+        this.pushMsg('ai', '模型目录刷新失败：' + ((e && e.message) || '网络异常'))
+      }
+      this.busy = false
+      this.scrollBottom()
     },
     openInput() {
       if (this.busy) return
@@ -235,14 +276,24 @@
       this.busy = true
       try {
         const r = await api.aiChat(this.buildMessages(t), { model: this._model })
-        const meta = (r.via === 'copilot' ? 'Copilot' : 'Models · ' + this._model) +
+        const um = r.model || this._model
+        const meta = (r.via === 'copilot' ? 'Copilot' : 'Models · ' + um) +
           (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '')
         const m = this.pushMsg('ai', '', meta)
+        if (r.model && r.model !== this._model) {
+          this._model = r.model
+          this.syncModelLabel()
+        }
         this.typewrite(m, String(r.text), 0)
       } catch (e) {
         this.busy = false
         const em = (e && e.message) || 'AI 请求失败'
-        this.pushMsg('ai', em.indexOf('登录') >= 0 ? em + '（首页 → 设置）' : em + ' · 可点顶部模型行切换重试')
+        const st = (e && e.status) || 0
+        let tip = ''
+        if (st === 403) tip = ' · 建议点「通道自检」查看解法'
+        else if (em.indexOf('登录') >= 0) tip = '（首页 → 设置）'
+        else tip = ' · 可点顶部模型行切换重试'
+        this.pushMsg('ai', em + tip)
         this.scrollBottom()
       }
     },

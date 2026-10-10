@@ -280,7 +280,7 @@ async function t_adaptive() {
     let err = null
     try { await api.getRepo('no/such') } catch (e) { err = e }
     assertEq(err.status, 404, 'status 404')
-    assertEq(err.message, '内容不存在（404）', 'friendly 404')
+    assertEq(err.message, '内容不存在（404，GitHub 路径区分大小写）', 'friendly 404')
   })
 
   await test('getIssues 过滤 pull_request', async () => {

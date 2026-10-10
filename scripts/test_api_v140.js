@@ -371,12 +371,13 @@ T('getFileRawEx：历史截断缓存作废重拉', async () => {
 
 /* ---------------- ⑥ AI ---------------- */
 
-T('AI：模型清单（v1.6.0 首模型 gpt-4o-mini，共 6 个）', async () => {
+T('AI：模型清单（v1.7.0 实证 3 模型，全为免费层 200 OK）', async () => {
   const api = apiOf(authed({}, () => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
-  assertEq(ms[0], 'gpt-4o-mini', '首模型为 gpt-4o-mini（v1.6.0 安全老模型先行）')
-  assertEq(ms.length, 6, '6 个模型')
-  assert(ms.indexOf('claude-haiku-4.5') >= 0, '含 Claude Haiku 4.5')
+  assertEq(ms[0], 'gpt-4o-mini', '首模型为 gpt-4o-mini（实证最稳）')
+  assertEq(ms.length, 3, '3 个模型（2026-10-10 实弹矩阵：免费层可用仅这三个）')
+  assert(ms.indexOf('gpt-4.1') >= 0, '含 gpt-4.1')
+  assert(ms.indexOf('gpt-4o') >= 0, '含 gpt-4o')
   assert(ms.every((m) => m.indexOf('/') < 0), 'Copilot API id 无 publisher 前缀')
 })
 
@@ -393,16 +394,17 @@ T('AI：aiChat 模型自动降级（gpt-5 系 /responses 空体 → 下一模型
       n++
       const body = JSON.parse(o.data)
       models.push(body.model)
+      if (body.model === 'gpt-4.1') return { code: 400, data: JSON.stringify({ error: { message: 'The requested model is not supported.', code: 'model_not_supported' } }), headers: {} }
       return { code: 200, data: JSON.stringify({ model: body.model, choices: [{ message: { content: 'ok' } }], usage: { total_tokens: 3 } }), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   })
   mocks['@system.storage']._map['gh_copilot_token'] = 'ghu_' + 'c'.repeat(36)
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
+  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-4.1' })
   assertEq(r.text, 'ok', '回复内容')
-  assertEq(r.model, 'claude-haiku-4.5', '实际用下一模型')
-  assertEq(models.length, 1, 'chat 仅 1 次（gpt-5 系直达 /responses 空体后降级）')
+  assertEq(r.model, 'gpt-4o', '实际用下一模型（gpt-4.1 → gpt-4o）')
+  assertEq(models.length, 2, 'chat 2 次（gpt-4.1 400 → /responses 空体回抛 → 降级 gpt-4o）')
 })
 
 T('AI：aiChat 额度错误（429）不降级', async () => {

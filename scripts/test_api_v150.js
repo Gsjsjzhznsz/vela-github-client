@@ -269,13 +269,13 @@ const EXCH_RESP = JSON.stringify({
 })
 const CHAT_OK = (model) => JSON.stringify({ model: model, choices: [{ message: { content: 'cp ok' } }], usage: { total_tokens: 5 } })
 
-T('AI：2026 Copilot 兜底模型清单（6 个，无 publisher 前缀）', async () => {
+T('AI：2026 Copilot 兜底模型清单（v1.7.0 实证 3 个，无死模型）', async () => {
   const api = apiOf(authed(() => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
-  assertEq(ms[0], 'gpt-4o-mini', '首模型 gpt-4o-mini（v1.6.0：/chat/completions 最稳老模型先行）')
-  assertEq(ms.length, 6, '6 个模型')
-  assert(ms.indexOf('claude-haiku-4.5') >= 0, '含 Claude Haiku 4.5')
-  assert(ms.indexOf('gemini-3-flash') >= 0, '含 Gemini 3 Flash')
+  assertEq(ms[0], 'gpt-4o-mini', '首模型 gpt-4o-mini（实弹 200 OK）')
+  assertEq(ms.length, 3, '3 个模型（免费层全矩阵实证，死模型零兜底）')
+  assert(ms.indexOf('gpt-4.1') >= 0, '含 gpt-4.1（实弹 200 OK）')
+  assert(ms.indexOf('gpt-4o') >= 0, '含 gpt-4o（实弹 200 OK）')
   assert(ms.every((m) => m.indexOf('/') < 0), 'Copilot API 模型 id 无 publisher 前缀')
 })
 
@@ -347,15 +347,16 @@ T('AI：模型自动降级（gpt-5 系 /responses 空体 → 下一模型成功�
     if (u === CHAT_URL) {
       const body = JSON.parse(o.data)
       asked.push(body.model)
+      if (body.model === 'gpt-4.1') return { code: 400, data: JSON.stringify({ error: { message: 'The requested model is not supported.', code: 'model_not_supported' } }), headers: {} }
       return { code: 200, data: CHAT_OK(body.model), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   }, { aiToken: GHU_OK })
   const api = apiOf(mocks)
-  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
-  assertEq(r.model, 'claude-haiku-4.5', '降级到下一模型')
-  assertEq(asked.length, 1, 'chat 仅 1 次（gpt-5 系直达 /responses，空体降级）')
-  assertEq(seq.length, 1, '/responses 被直达 1 次')
+  const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-4.1' })
+  assertEq(r.model, 'gpt-4o', '降级到下一模型（gpt-4.1 → gpt-4o）')
+  assertEq(asked.length, 2, 'chat 2 次（gpt-4.1 400 → /responses 空体 → 降级 gpt-4o 成功）')
+  assertEq(seq.length, 1, '/responses 同模型重试 1 次')
 })
 
 T('AI：错误透出——400 文本原文进 message（不再笼统报网关异常）', async () => {

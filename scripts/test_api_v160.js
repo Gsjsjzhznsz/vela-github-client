@@ -162,11 +162,12 @@ T('② 交换 403 → exchangeFail 立即透出，零模型降级零 chat 请求
 
 /* ---------------- ③ /responses 直达与取文 ---------------- */
 
-T('③ gpt-5-mini 直达 /responses（output_text 取文）', async () => {
+T('③ gpt-5-mini 直达 /responses（目录端点图路由，output_text 取文）', async () => {
   const seen = {}
   const mocks = authed((i, o) => {
     const u = fetchUrl(o)
     if (u === COPILOT_EXCH_URL) return { code: 200, data: EXCH_RESP, headers: {} }
+    if (u === CP_API + '/models') return { code: 200, data: JSON.stringify({ data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-4.1' }, { id: 'gpt-4o' }, { id: 'gpt-5-mini', supported_endpoints: ['/responses'] }] }), headers: {} }
     if (u === RESP_URL) {
       seen.resp = o
       return { code: 200, data: JSON.stringify({ output_text: 'resp-ok', usage: { total_tokens: 7 } }), headers: {} }
@@ -174,6 +175,7 @@ T('③ gpt-5-mini 直达 /responses（output_text 取文）', async () => {
     return { code: 200, data: '{}', headers: {} }
   }, { aiToken: GHU_OK })
   const api = apiOf(mocks)
+  api.aiModelsSetRemote(await api.copilotModels()) /* 目录刷新：置顶 + 端点图填充 */
   const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
   assertEq(r.text, 'resp-ok', 'output_text 取文')
   assertEq(r.ep, 'responses', 'ep=responses')
@@ -187,16 +189,18 @@ T('③ gpt-5-mini 直达 /responses（output_text 取文）', async () => {
   assert(urls.every((u) => u !== CHAT_URL), '绝不先打 /chat/completions（Docker 文档：恒 400）')
 })
 
-T('③ gpt-5-mini /responses 无 output_text → output[].content[].text 拼接', async () => {
+T('③ gpt-5-mini /responses 目录图路由 无 output_text → output[].content[].text 拼接', async () => {
   const mocks = authed((i, o) => {
     const u = fetchUrl(o)
     if (u === COPILOT_EXCH_URL) return { code: 200, data: EXCH_RESP, headers: {} }
+    if (u === CP_API + '/models') return { code: 200, data: JSON.stringify({ data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-5-mini', supported_endpoints: ['/responses'] }] }), headers: {} }
     if (u === RESP_URL) {
       return { code: 200, data: JSON.stringify({ output: [{ type: 'message', content: [{ type: 'output_text', text: '拼' }, { type: 'output_text', text: '接-ok' }] }] }), headers: {} }
     }
     return { code: 200, data: '{}', headers: {} }
   }, { aiToken: GHU_OK })
   const api = apiOf(mocks)
+  api.aiModelsSetRemote(await api.copilotModels())
   const r = await api.aiChat([{ role: 'user', content: 'hi' }], { model: 'gpt-5-mini' })
   assertEq(r.text, '拼接-ok', 'output[] 取文')
 })
@@ -241,13 +245,13 @@ T('⑤ 降级耗尽：保留带原文的信息量最大错误（非「缺内容�
 
 /* ---------------- ⑥ 模型顺序 ---------------- */
 
-T('⑥ 兜底清单 gpt-4o-mini 先行（chat 直挂最稳）', async () => {
+T('⑥ 兜底清单实证 3 模型（2026-10-10 全矩阵：仅这三个免费层 200）', async () => {
   const api = apiOf(authed(() => ({ code: 200, data: '{}', headers: {} })))
   const ms = api.aiModels()
   assertEq(ms[0], 'gpt-4o-mini', '首模型 gpt-4o-mini')
-  assertEq(ms[1], 'gpt-4.1-mini', '次模型 gpt-4.1-mini')
-  assert(ms.indexOf('gpt-5-mini') >= 0, 'gpt-5-mini 保留（/responses 路径）')
-  assertEq(ms.length, 6, '6 个')
+  assertEq(ms[1], 'gpt-4.1', '次模型 gpt-4.1')
+  assertEq(ms[2], 'gpt-4o', '第三 gpt-4o')
+  assertEq(ms.length, 3, '3 个（死模型零兜底，降级不再白耗往返）')
 })
 
 /* ---------------- ⑦ 403 分级文案 ---------------- */

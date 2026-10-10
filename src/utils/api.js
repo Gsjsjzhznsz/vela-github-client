@@ -2269,16 +2269,21 @@ function cpIdentityHeaders() {
   }
 }
 
-/* Copilot Free 2026-10 主力模型（兜底清单；真实列表以 GET /models 动态刷新） */
+/* v1.7.0 实弹验证（2026-10-10 用户授权全矩阵实测，cp_probe2_result.json）：
+ * Copilot Free 真正可用模型仅 gpt-4o-mini / gpt-4.1 / gpt-4o（全部 200 OK，
+ * 与官方免费模型集一致）；gpt-5 系/gemini/kimi 等目录模型免费层一律
+ * 400 model_not_supported——旧表 6 模型中 4 个是死的，降级白耗 2 轮往返。 */
 const AI_MODELS = [
   'gpt-4o-mini',
-  'gpt-4.1-mini',
-  'gpt-5-mini',
-  'claude-haiku-4.5',
-  'gemini-3-flash',
-  'grok-code-fast-1'
+  'gpt-4.1',
+  'gpt-4o'
 ]
 const AI_MAX_TOKENS = 700
+/* v1.7.0：实弹验证可用模型（置顶排序依据；目录刷新后仍以这三者为默认面） */
+const CP_VERIFIED = ['gpt-4o-mini', 'gpt-4.1', 'gpt-4o']
+/* 模型→端点图（copilotModels 由目录顶层 supported_endpoints 填充；
+ * 目录 39.5KB 被截断时部分模型缺图 → aiChat 回退 v1.6.0 前缀启发式） */
+let _cpModelEp = {}
 let _aiModels = AI_MODELS.slice()
 let _aiRemoteTs = 0
 let _cpSess = null /* { token, api, exp(ms) }，提前 2min 判过期 */
@@ -2329,13 +2334,28 @@ export function aiModels() {
   return _aiModels
 }
 
-/** 远程模型表替换（copilotModels 刷新成功后由页面调用） */
+/* v1.7.0 远程模型表替换三防（实弹教训：目录 39.5KB 被 8KB 截断后，salvage
+ * 片段只含目录头部的死模型，旧版直接拿它当默认表 → AI 全挂）：
+ * ① 片段中无任何实证可用模型 → 拒绝替换（保兜底实证表，返回 false）
+ * ② 实证可用模型置顶（免费层默认模型直接可用，付费层排其后再上限 12） */
 export function aiModelsSetRemote(ids) {
-  if (Array.isArray(ids) && ids.length) {
-    _aiModels = ids.slice(0, 12)
-    return true
+  if (!Array.isArray(ids) || !ids.length) return false
+  let hasVerified = false
+  for (let i = 0; i < ids.length; i++) {
+    if (CP_VERIFIED.indexOf(ids[i]) >= 0) { hasVerified = true; break }
   }
-  return false
+  if (!hasVerified) return false
+  const head = []
+  const tail = []
+  for (let i = 0; i < ids.length && head.length + tail.length < 24; i++) {
+    const id = ids[i]
+    if (CP_VERIFIED.indexOf(id) >= 0) head.push(id)
+    else tail.push(id)
+  }
+  const merged = head.concat(tail).slice(0, 12)
+  if (!merged.length) return false
+  _aiModels = merged
+  return true
 }
 
 /** 主 token 形态：pat（ghp_/github_pat_）| oauth（ghu_/gho_）| none */
@@ -2471,9 +2491,15 @@ export async function aiChat(messages, opts) {
       let usedEp = 'chat'
       let d = null
       let firstErr = null
-      /* v1.6.0：gpt-5 系/Codex 系/o 系只挂 /responses（Docker 文档实证：新模型对
-       * /chat/completions 恒 400）——前缀命中直达，其余 400/404 时换端点重试一次 */
-      const respOnly = /^(gpt-5|codex|o1|o3|o4)/.test(useModel)
+      /* v1.7.0 端点路由三级：目录 supported_endpoints 精确图（copilotModels 填充）
+       * > v1.6.0 前缀启发式 > 400/404 换端点重试。实弹实证 gpt-4o-mini 打
+       * /responses 400 unsupported_api_endpoint（端点互斥）——图已知 chat-only
+       * 时不再做无谓的 /responses 重试，省一轮往返。 */
+      const epInfo = _cpModelEp[useModel] || null
+      const respOnly = epInfo
+        ? (!epInfo.chat && epInfo.responses)
+        : /^(gpt-5|codex|o1|o3|o4)/.test(useModel)
+      const canRetryOther = epInfo ? (respOnly ? epInfo.chat : epInfo.responses) : true
       if (respOnly) {
         usedEp = 'responses'
         d = await aiPost(sess.api + '/responses', header,
@@ -2484,7 +2510,7 @@ export async function aiChat(messages, opts) {
             { messages: messages, model: useModel, max_tokens: AI_MAX_TOKENS }, 'chat')
         } catch (e1) {
           const st1 = Number(e1 && e1.status) || 0
-          if (st1 !== 400 && st1 !== 404) throw e1
+          if ((st1 !== 400 && st1 !== 404) || !canRetryOther) throw e1
           firstErr = e1
           usedEp = 'responses'
           d = await aiPost(sess.api + '/responses', header,
@@ -2566,7 +2592,7 @@ export async function aiProbe() {
     out.copilotHint = out.copilotHint ? (out.copilotHint + '\n' + authHint) : authHint
   }
   out.models = '2026-07-30 已退役'
-  out.modelsHint = 'models.github.ai 已停止服务（官方文档实证）；免费模型统一走 Copilot 通道（VS Code 同款）'
+  out.modelsHint = 'models.github.ai 已停服；免费层实测可用 gpt-4o-mini / gpt-4.1 / gpt-4o（2026-10-10 全矩阵实证）'
   return out
 }
 
@@ -2600,16 +2626,47 @@ export async function copilotModels() {
     if (sv) arr = sv.arr
   }
   if (!arr) return []
+  /* v1.7.0 目录过滤 + 端点图 + 置顶（实弹实证 2026-10-10）：
+   * - 全量 39.5KB 必被手表 8KB 截断 → salvage 片段只是目录头部；
+   * - state=enabled 不可信（kimi/gpt-5.6-luna enabled 但免费层 400），
+   *   state=disabled 与实测全一致 → 只剔除 disabled；
+   * - 剔除 embeddings 与内部工具模型（copilot-search/exec-agent/trajectory/
+   *   goldeneye/*-utility）；
+   * - 顶层 supported_endpoints 记入 _cpModelEp（ws:/ 前缀为 WebSocket 变体，
+   *   HTTP 客户端不适用，仅匹配 http 端点）；
+   * - 实证可用模型置顶——目录原序 gpt-4o-mini 排 26+ 位，截断片段根本见不到。 */
+  const epMap = {}
   const ids = []
   for (let i = 0; i < arr.length; i++) {
     const m = arr[i] || {}
     const id = m.id || m.model || m.name
     const cap = m.capabilities || {}
     const isChat = !cap.type || cap.type === 'chat'
-    if (typeof id === 'string' && id.length && isChat && ids.indexOf(id) < 0) ids.push(id)
+    if (typeof id !== 'string' || !id.length || !isChat || ids.indexOf(id) >= 0) continue
+    if (m.policy && m.policy.state === 'disabled') continue
+    if (/^(copilot-search|exec-agent|trajectory-compaction|goldeneye)/.test(id) || /-utility$/.test(id)) continue
+    const eps = m.supported_endpoints
+    if (Array.isArray(eps)) {
+      let hasChat = false, hasResp = false
+      for (let j = 0; j < eps.length; j++) {
+        const e = String(eps[j] || '')
+        if (e.indexOf('/chat/completions') >= 0) hasChat = true
+        else if (e.indexOf('/responses') >= 0) hasResp = true
+      }
+      if (hasChat || hasResp) epMap[id] = { chat: hasChat, responses: hasResp }
+    }
+    ids.push(id)
   }
-  if (ids.length) _aiRemoteTs = Date.now()
-  return ids
+  for (const vk in epMap) _cpModelEp[vk] = epMap[vk]
+  const vHead = []
+  const vTail = []
+  for (let i = 0; i < ids.length; i++) {
+    if (CP_VERIFIED.indexOf(ids[i]) >= 0) vHead.push(ids[i])
+    else vTail.push(ids[i])
+  }
+  const ordered = vHead.concat(vTail)
+  if (ordered.length) _aiRemoteTs = Date.now()
+  return ordered
 }
 
 /** 批量标记通知线程已读（v1.2.3 CI 聚合卡长按用）：mapLimit 限并发 3，

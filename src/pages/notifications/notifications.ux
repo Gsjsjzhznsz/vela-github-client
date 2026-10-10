@@ -98,7 +98,7 @@
   .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
+  .pad-end { width: 100%; height: 12px; }
   .li { padding: 4px 14px; }
   /* v1.9.0：仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
   .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 12px; padding: 13px 14px; }

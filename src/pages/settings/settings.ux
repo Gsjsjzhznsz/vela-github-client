@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v1.10.0（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v1.10.0-pro（小米手环 9/10 Pro 版 · 336×480 方屏；详情见「关于」页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：手表直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -94,7 +94,7 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }

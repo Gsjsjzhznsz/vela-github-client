@@ -77,7 +77,7 @@ T('② manifest：about 路由 + clipboard feature + 版本演进', () => {
   assert(MANIFEST.router.pages['pages/about'] && MANIFEST.router.pages['pages/about'].path === '/about', 'about 路由注册')
   const feats = MANIFEST.features.map((f) => f.name)
   assert(feats.indexOf('system.clipboard') >= 0, 'system.clipboard feature 声明')
-  assert(MANIFEST.versionCode >= 18 && /^\d+\.\d+\.\d+$/.test(MANIFEST.versionName), '版本号 ≥1.8.0 且格式合法（' + MANIFEST.versionName + '/' + MANIFEST.versionCode + '）')
+  assert(MANIFEST.versionCode >= 18 && /^\d+\.\d+\.\d+(-[a-z]+)?$/.test(MANIFEST.versionName), '版本号 ≥1.8.0 且格式合法（' + MANIFEST.versionName + '/' + MANIFEST.versionCode + '）')
 })
 
 T('② settings.ux：关于入口行 + 版本文案同步', () => {

@@ -75,7 +75,7 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
@@ -84,13 +84,13 @@
   .hd-clear { font-size: 19px; color: #f85149; padding: 6px 10px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 120px; }
+  .pad-end { width: 100%; height: 36px; }
   .li { padding: 4px 12px; }
   .row-u { flex-direction: row; justify-content: flex-end; }
   .row-a { flex-direction: row; justify-content: flex-start; }
-  .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 21px; color: #ffffff; width: 330px; line-height: 30px; }
-  .bub-col { flex-direction: column; width: 330px; }
-  .bub-a { background-color: #161b22; border-radius: 3px 12px 12px 12px; padding: 9px 11px; font-size: 21px; color: #e6edf3; width: 330px; line-height: 30px; }
+  .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 21px; color: #ffffff; width: 288px; line-height: 30px; }
+  .bub-col { flex-direction: column; width: 288px; }
+  .bub-a { background-color: #161b22; border-radius: 3px 12px 12px 12px; padding: 9px 11px; font-size: 21px; color: #e6edf3; width: 288px; line-height: 30px; }
   /* v1.8.0：思考过程折叠块 */
   .think-h { font-size: 19px; color: #58a6ff; margin-bottom: 4px; padding: 2px 0; }
   .think-b { background-color: #1c2128; border-radius: 10px; padding: 9px 11px; font-size: 20px; color: #8b949e; line-height: 29px; margin-bottom: 5px; }
@@ -115,7 +115,7 @@
   .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 92px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 16px; }
   .in-ic { width: 26px; height: 26px; }
   .in-ph { font-size: 21px; color: #484f58; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state { position: absolute; left: 0; top: 72px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
   .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
   .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>

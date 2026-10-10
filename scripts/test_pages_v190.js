@@ -47,7 +47,7 @@ const manifest = JSON.parse(read('src/manifest.json'))
 
 /* ---------------- ① manifest ---------------- */
 T('① manifest：interconnect feature + pulls 路由（版本号一致性由 v110 套件守门）', () => {
-  assert(/^\d+\.\d+\.\d+$/.test(manifest.versionName || ''), 'versionName 格式在案（具体值由最新套件断言）')
+  assert(/^\d+\.\d+\.\d+(-[a-z]+)?$/.test(manifest.versionName || ''), 'versionName 格式在案（具体值由最新套件断言）')
   assert(manifest.versionCode >= 19, 'versionCode 结构在案（具体值由最新套件断言）')
   const feats = manifest.features.map((f) => f.name)
   assert(feats.indexOf('system.interconnect') >= 0, 'system.interconnect feature')

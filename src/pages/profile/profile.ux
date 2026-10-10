@@ -67,7 +67,7 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
@@ -90,7 +90,7 @@
   .cell-icon { width: 22px; height: 22px; }
   .cell-label { flex: 1; font-size: 22px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 17px; height: 17px; }
-  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state { position: absolute; left: 0; top: 72px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
   .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
   .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
 </style>

@@ -44,13 +44,13 @@
 <style>
   /* BandQQ redmiwatch 分支同构：designWidth 432（1css=1物理px），根容器 100%/100%，页头 94px 避让屏幕圆角 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 14px; }
   .hd-logo { width: 36px; height: 36px; border-radius: 8px; }
   .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .hd-act { width: 44px; height: 44px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
+  .pad-end { width: 100%; height: 12px; }
   .li { padding: 4px 12px; }
   .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 12px; }
   .ava { width: 50px; height: 50px; border-radius: 25px; justify-content: center; align-items: center; }

@@ -1,0 +1,216 @@
+<template>
+  <div class="page">
+    <div class="hd">
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
+      <text class="hd-title">CI 历史</text>
+      <text class="hd-sub">{{hdRepo}} · 共 {{total}}</text>
+    </div>
+
+    <!-- RW5 固件根修（BandQQ v2.9.6 同构）：wrap flex:1 + scroll absolute 铺满 -->
+    <div class="body-wrap">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll">
+        <div class="li" for="{{it in commits}}" tid="oid">
+          <div class="cell" onclick="toggleExpand(it)">
+            <div class="dot {{it.cls}}"></div>
+            <div class="cell-main">
+              <text class="cell-title">{{it.headline}}</text>
+              <text class="cell-sub">{{it.oidShort}} · {{it.stateTxt}}{{it.date ? ' · ' + it.date : ''}}</text>
+            </div>
+            <image class="cell-arrow {{it.expanded ? 'arr-up' : ''}}" src="/common/icons/chevron.png" />
+          </div>
+          <!-- 内联展开 checkRuns（数据已在条目内，零二次请求） -->
+          <div class="chk" show="{{it.expanded}}">
+            <div class="chk-row" for="{{ck in it.checks}}" tid="ck.name">
+              <text class="chk-name">{{ck.name}}</text>
+              <text class="chk-state {{ck.cls}}">{{ck.txt}}</text>
+            </div>
+            <text class="chk-empty" show="{{it.checks.length === 0}}">无检查项</text>
+          </div>
+        </div>
+        <text class="foot" show="{{state === 'ok' && hasNext}}" onclick="loadMore">加载更多</text>
+        <text class="foot" show="{{state === 'ok' && !hasNext && commits.length > 0}}">— 到底了 —</text>
+        <div class="pad-end"></div>
+      </scroll>
+    </div>
+
+    <div class="state" show="{{state === 'loading'}}">
+      <text class="state-t">加载中…</text>
+    </div>
+    <div class="state" show="{{state === 'empty'}}">
+      <text class="state-t">该分支还没有提交</text>
+    </div>
+    <div class="state" show="{{state === 'error'}}">
+      <text class="state-t">{{errMsg}}</text>
+      <text class="state-btn" show="{{needAuth}}" onclick="goSettings">去登录</text>
+      <text class="state-btn" onclick="reload">点此重试</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
+  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 14px; color: #484f58; flex: 1; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 4px 12px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
+  .cell-title { font-size: 19px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 14px; height: 14px; }
+  .arr-up { transform: rotate(180deg); }
+  .dot { width: 14px; height: 14px; border-radius: 7px; }
+  .dot-ok { background-color: #3fb950; }
+  .dot-fail { background-color: #f85149; }
+  .dot-run { background-color: #d29922; }
+  .dot-idle { background-color: #484f58; }
+  .chk { flex-direction: column; background-color: #0d1117; border-radius: 10px; margin: 4px 12px 4px 36px; padding: 2px 10px; }
+  .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 5px 0; }
+  .chk-name { font-size: 15px; color: #c9d1d9; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .chk-state { font-size: 14px; margin-left: 8px; }
+  .st-ok { color: #3fb950; }
+  .st-fail { color: #f85149; }
+  .st-run { color: #d29922; }
+  .st-idle { color: #484f58; }
+  .chk-empty { font-size: 14px; color: #484f58; padding: 5px 0; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 19px; color: #8b949e; text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 17px; color: #58a6ff; margin-top: 12px; }
+</style>
+
+<script>
+  import router from '@system.router'
+  import prompt from '@system.prompt'
+  import api from '../../utils/api'
+  import { relTime } from '../../utils/fmt'
+  import { query } from '../../utils/view'
+
+  /* v1.2.3 新功能：CI 历史（commit × checkRuns）。
+   * CI 通知聚合卡（通知中心）/ 仓库页 Actions 入口的落点——「看看哪次构建挂了」。
+   * 数据：GraphQL Commit.history + statusCheckRollup 瘦字段（每条 ~370B，10 条
+   * ~3KB 一页安全到达）。REST /actions/runs 单条 ~17.7KB 恒超蓝牙截断阈值，
+   * 无回退通道——游客给「需登录」提示。点击条目内联展开 checkRuns（零二次请求）。 */
+
+  function rollCls(state) {
+    if (state === 'success') return 'dot-ok'
+    if (state === 'failure' || state === 'error') return 'dot-fail'
+    if (state === 'pending') return 'dot-run'
+    return 'dot-idle'
+  }
+
+  function rollTxt(state) {
+    if (state === 'success') return '通过'
+    if (state === 'failure') return '失败'
+    if (state === 'error') return '错误'
+    if (state === 'pending') return '进行中'
+    if (state === 'expected') return '等待中'
+    return state || '无状态'
+  }
+
+  function mapCommit(c) {
+    const st = c.state || ''
+    const checks = (c.checks || []).map(function (ck) {
+      const t = ck.concl || ''
+      return {
+        name: ck.name || 'check',
+        txt: t === 'success' ? '通过' : (t === 'failure' ? '失败' : (t === 'error' ? '错误' : (t === 'in_progress' || t === 'queued' ? '进行中' : (t || '未知')))),
+        cls: t === 'success' ? 'st-ok' : (t === 'failure' || t === 'error' ? 'st-fail' : (t === 'in_progress' || t === 'queued' || t === 'pending' ? 'st-run' : 'st-idle'))
+      }
+    })
+    return {
+      oid: c.oid,
+      oidShort: (c.oid || '').slice(0, 7),
+      headline: c.headline || '(无提交信息)',
+      state: st,
+      stateTxt: rollTxt(st),
+      date: relTime(c.date),
+      cls: rollCls(st),
+      checks: checks,
+      expanded: false
+    }
+  }
+
+  export default {
+    protected: {
+      full: ''
+    },
+    private: {
+      hdRepo: '',
+      commits: [],
+      page: 1,
+      hasNext: false,
+      total: 0,
+      state: 'loading',
+      errMsg: '',
+      needAuth: false,
+      loadingMore: false,
+      scY: 0
+    },
+    onInit(params) {
+      const p = query(params, this)
+      if (p.full) this.full = p.full
+      this.hdRepo = this.full
+      this.loadCommits()
+    },
+    async loadCommits() {
+      this.state = 'loading'
+      this.needAuth = false
+      try {
+        const r = await api.getCommitChecks(this.full, '', 1)
+        this.commits = (r.commits || []).map(mapCommit)
+        this.total = r.total || this.commits.length
+        this.hasNext = !!r.hasNext
+        this.page = 1
+        this.state = this.commits.length === 0 ? 'empty' : 'ok'
+      } catch (e) {
+        this.state = 'error'
+        this.needAuth = !!(e && e.needAuth)
+        this.errMsg = (e && e.message) || '加载失败'
+      }
+    },
+    async loadMore() {
+      if (!this.hasNext || this.loadingMore || this.state !== 'ok') return
+      this.loadingMore = true
+      try {
+        const next = this.page + 1
+        const r = await api.getCommitChecks(this.full, '', next)
+        const mapped = (r.commits || []).map(mapCommit)
+        for (let i = 0; i < mapped.length; i++) this.commits.push(mapped[i])
+        this.page = next
+        this.hasNext = !!r.hasNext
+      } catch (e) {
+        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
+      }
+      this.loadingMore = false
+    },
+    toggleExpand(item) {
+      if (!item) return
+      /* 固件 show 绑定刷新：整组重建引用确保视图更新（BandQQ tick 同源经验） */
+      const idx = this.commits.indexOf(item)
+      if (idx < 0) return
+      this.commits.splice(idx, 1, Object.assign({}, item, { expanded: !item.expanded }))
+    },
+    onListScroll(e) {
+      this.scY = (e && e.scrollY) || 0
+      if (this.state === 'ok' && this.hasNext && !this.loadingMore) {
+        const near = this.commits.length * 92 - 420
+        if (near > 0 && this.scY >= near) this.loadMore()
+      }
+    },
+    reload() {
+      this.loadCommits()
+    },
+    goSettings() {
+      router.push({ uri: 'pages/settings' })
+    },
+    goBack() {
+      router.back()
+    }
+  }
+</script>

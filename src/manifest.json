@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "1.2.2",
-  "versionCode": 9,
+  "versionName": "1.2.3",
+  "versionCode": 10,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -47,6 +47,10 @@
       "pages/home": {
         "component": "home",
         "path": "/home"
+      },
+      "pages/actions": {
+        "component": "actions",
+        "path": "/actions"
       },
       "pages/notifications": {
         "component": "notifications",

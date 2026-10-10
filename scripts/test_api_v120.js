@@ -415,8 +415,9 @@ async function t_rawchunk() {
     assertEq(r.name, 'README.md', 'readme name from tree')
     const rawCalls = mocks['@system.fetch'].calls.filter((c) => c.url.indexOf('raw.githubusercontent.com') > 0)
     assert(rawCalls.length >= 2, 'multiple chunk requests: ' + rawCalls.length)
-    assertEq(rawCalls[0].header.Range, 'bytes=0-8191', 'first chunk range')
-    assertEq(rawCalls[0].url, 'https://raw.githubusercontent.com/o/r/HEAD/README.md', 'raw url shape')
+    assertEq(rawCalls[0].header.Range, 'bytes=0-12287', 'first chunk range (v1.2.3 12KB 块)')
+    assert(rawCalls[0].url.indexOf('https://raw.githubusercontent.com/o/r/HEAD/README.md') === 0, 'raw url base shape')
+    assert(rawCalls[0].url.indexOf('?_b=0') > 0, 'chunk url jittered (v1.2.3 ?_b=)')
   })
 
   await test('平台无 arraybuffer（回调字符串）→ 文本模式重试同样完整', async () => {

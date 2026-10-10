@@ -282,8 +282,8 @@ async function t_fcache() {
     const url = 'https://raw.githubusercontent.com/o/r/HEAD/missing.txt'
     const mocks = authed({}, (n, o) => {
       const u = String(o.url)
-      if (u === url) {
-        /* 分块通道：文本模式 206 短块 */
+      if (u.indexOf(url) === 0) {
+        /* 分块通道：文本模式 206 短块（v1.2.3 URL 带 ?_b= 扰动，前缀匹配） */
         return { code: 206, data: 'from-chunked', headers: { 'content-range': 'bytes 0-8191/12', 'content-length': '12' } }
       }
       return { code: 500, data: '', headers: {} }

@@ -288,7 +288,7 @@ async function t_raw() {
     const api = loadModule('src/utils/api.js', mocks)
     const r = await api.getFileRawEx('o/r', 'huge.txt', 'HEAD', null)
     assertEq(r.capped, true, 'capped 标志')
-    assertEq(r.text.length, 128 * 8192, '恰好 1MB')
+    assertEq(r.text.length, 85 * 12288, '恰好分块上限（v1.2.3：12KB×85 ≈ 1.044MB ≥ 1MB 页面上限）')
   })
 
   await test('进度回调：Content-Range 总量解析 + loaded 单调递增', async () => {

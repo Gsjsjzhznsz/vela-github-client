@@ -22,8 +22,10 @@
             <image class="cell-icon" src="{{it.icon}}" />
             <div class="cell-main">
               <text class="cell-repo">{{it.repo}}</text>
-              <text class="cell-title">{{it.title}}</text>
-              <text class="cell-time">{{it.time}}{{it.unread ? ' · 长按标已读' : ''}}</text>
+              <!-- v1.2.3：CI 聚合卡（aggN>1）显示条数与操作提示；普通通知原样 -->
+              <text class="cell-title" show="{{!it.aggN || it.aggN <= 1}}">{{it.title}}</text>
+              <text class="cell-title" show="{{it.aggN > 1}}">{{it.aggN}} 条 CI 通知（未读 {{it.unreadN}}）</text>
+              <text class="cell-time">{{it.time}}{{it.ci ? ' · CI' : ''}}{{it.unread ? ' · 长按标已读' : ''}}</text>
             </div>
           </div>
         </div>
@@ -80,7 +82,7 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import api from '../../utils/api'
-  import { mapNotif } from '../../utils/view'
+  import { mapNotif, aggregateNotifs } from '../../utils/view'
 
   export default {
     private: {
@@ -116,7 +118,9 @@
         if (!Array.isArray(list)) {
           throw { message: '通知响应不完整，请重试' }
         }
-        const mapped = list.map(mapNotif)
+        // v1.2.3：CI 通知聚合折叠——同仓库连续 ci_activity 合成一张卡，
+        // 200 条 CI 噪音不再淹没真实通知（用户体感「数据不完整」的根源）
+        const mapped = aggregateNotifs(list.map(mapNotif))
         this.items = mapped
         this.page = 1
         // v1.2.2：通知改为并行子页策略，逻辑页大小固定 notifPageSize()（10），
@@ -143,7 +147,19 @@
       try {
         const next = this.page + 1
         const list = await api.getNotifications(next, this.all)
-        for (let i = 0; i < list.length; i++) this.items.push(mapNotif(list[i]))
+        // v1.2.3：增量聚合——新页先自身聚合，再与尾部同仓库 CI 段合并防断卡
+        const agg = aggregateNotifs(list.map(mapNotif))
+        const tail = this.items[this.items.length - 1]
+        const head = agg[0]
+        if (tail && head && tail.ci && head.ci && tail.repo === head.repo && tail.aggN) {
+          tail.threads = tail.threads.concat(head.threads)
+          tail.aggN = tail.aggN + head.aggN
+          tail.unreadN = (tail.unreadN || 0) + (head.unreadN || 0)
+          tail.unread = tail.unreadN > 0
+          tail.time = head.time
+          agg.shift()
+        }
+        for (let i = 0; i < agg.length; i++) this.items.push(agg[i])
         this.page = next
         this.hasMore = list.length >= api.notifPageSize()
         this.countUnread()
@@ -168,6 +184,16 @@
     },
     async openNotif(item) {
       if (!item) return
+      // v1.2.3：CI 通知/聚合卡 → Actions 页（workflow 运行列表）
+      if (item.ci) {
+        if (item.unread) {
+          item.unread = false
+          this.countUnread()
+        }
+        this.$app.$def.hook = { full: item.repo }
+        router.push({ uri: 'pages/actions' })
+        return
+      }
       if (item.unread) {
         item.unread = false
         this.countUnread()
@@ -182,9 +208,22 @@
         router.push({ uri: 'pages/repo' })
       }
     },
-    /** 长按：不打开，仅标记已读 */
+    /** 长按：CI 聚合卡 → 批量已读（该段全部线程并行标记）；普通通知仅标记单条 */
     async markOne(item) {
-      if (!item || !item.unread) return
+      if (!item) return
+      if (item.ci && item.aggN > 1) {
+        try {
+          const ok = await api.markThreadsRead(item.threads)
+          item.unread = false
+          item.unreadN = 0
+          this.countUnread()
+          prompt.showToast({ message: '已标记 ' + ok + ' 条 CI 已读', duration: 1500 })
+        } catch (e) {
+          prompt.showToast({ message: (e && e.message) || '操作失败', duration: 1500 })
+        }
+        return
+      }
+      if (!item.unread) return
       item.unread = false
       this.countUnread()
       try {

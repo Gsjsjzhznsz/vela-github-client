@@ -43,6 +43,10 @@
             <image class="gicon" src="/common/icons/book.png" />
             <text class="glabel">Releases</text>
           </div>
+          <div class="gcell" onclick="goActions">
+            <image class="gicon" src="/common/icons/gear.png" />
+            <text class="glabel">Actions</text>
+          </div>
           <div class="gcell" onclick="toggleStar">
             <image class="gicon" src="{{starred ? '/common/icons/star-fill.png' : '/common/icons/star.png'}}" />
             <text class="glabel">{{starred ? '已 Star' : 'Star'}}</text>
@@ -187,6 +191,10 @@
     goReleases() {
       this.$app.$def.hook = { full: this.full }
       router.push({ uri: 'pages/releases' })
+    },
+    goActions() {
+      this.$app.$def.hook = { full: this.full }
+      router.push({ uri: 'pages/actions' })
     },
     goBack() {
       router.back()

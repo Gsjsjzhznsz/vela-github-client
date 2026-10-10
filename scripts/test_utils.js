@@ -39,8 +39,27 @@ function loadModule(relPath, mocks) {
   const src = fs.readFileSync(abs, 'utf8')
   const code = transformEsm(src)
   const exports = {}
+  /* v1.2.3：相对导入回退真实模块 —— api.js 依赖 ./b64（默认导出）、view.js
+   * 依赖 ./fmt 等纯工具模块，测试无需为每个新增依赖手工注入 mock；
+   * 带 memo 防重复加载/循环依赖。@system.* 仍必须显式 mock。 */
+  const realCache = {}
+  const loadReal = (absPath) => {
+    if (realCache[absPath]) return realCache[absPath]
+    realCache[absPath] = {} /* 先占位防环 */
+    const sub = fs.readFileSync(absPath, 'utf8')
+    const subExports = {}
+    const subReq = (n) => {
+      if (mocks && Object.prototype.hasOwnProperty.call(mocks, n)) return mocks[n]
+      if (n.indexOf('.') === 0) return loadReal(path.resolve(path.dirname(absPath), n) + '.js')
+      throw new Error('no mock for ' + n)
+    }
+    new Function('__req', '__exports', 'console', transformEsm(sub))(subReq, subExports, console)
+    Object.keys(subExports).forEach((k) => { realCache[absPath][k] = subExports[k] })
+    return realCache[absPath]
+  }
   const req = (name) => {
     if (mocks && Object.prototype.hasOwnProperty.call(mocks, name)) return mocks[name]
+    if (name.indexOf('.') === 0) return loadReal(path.resolve(path.dirname(abs), name) + '.js')
     throw new Error('no mock for ' + name)
   }
   const fn = new Function('__req', '__exports', 'console', code)

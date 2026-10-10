@@ -7,6 +7,7 @@ import fetch from '@system.fetch'
 import storage from '@system.storage'
 import file from '@system.file'
 import downloader from '@system.request'
+import b64decode from './b64' /* v1.2.3：通道⑤ contents JSON base64 解码（默认导出） */
 
 const API_BASE = 'https://api.github.com'
 const TOKEN_KEY = 'gh_token'
@@ -241,7 +242,11 @@ function rawFetch(opts) {
         method: opts.method || 'GET',
         header: opts.header || {},
         data: opts.data,
-        responseType: opts.rt || 'json',
+        // v1.2.3：raw 请求强制 text —— responseType:'json' 时引擎会把 JSON
+        // 文件（package.json 等）内容 parse 成对象回调，raw 分支 String() 化
+        // 变成 '[object Object]' 并毒化 fcache（e2e 实测）；
+        // README 等非 JSON 文本此前未触发是因为引擎 parse 失败回传原文
+        responseType: opts.rt || (opts.raw ? 'text' : 'json'),
         success: (res) => { if (!done) { done = true; clearTimeout(timer); resolve(res) } },
         fail: (err, code) => { if (!done) { done = true; clearTimeout(timer); reject({ err: err, code: code }) } }
       })
@@ -689,7 +694,8 @@ async function requestGo(url, header, opt) {
         url: url,
         method: opt.method || 'GET',
         header: sendHeader,
-        data: opt.body ? JSON.stringify(opt.body) : undefined
+        data: opt.body ? JSON.stringify(opt.body) : undefined,
+        raw: !!opt.raw /* v1.2.3：透传 raw 标志给 rawFetch（text responseType 强制） */
       })
     } catch (e) {
       lastErr = e
@@ -719,9 +725,11 @@ async function requestGo(url, header, opt) {
             bytes += c < 0x80 ? 1 : (c < 0x800 ? 2 : 3)
           }
           if (bytes + 8 < clen) {
+            // v1.2.3：确定性截断（content-length 实证缺失）——同参重试无解，
+            // 立即跳出重试循环走下载器兜底/降档，不再空耗 1.2s+2.4s
             lastErr = { incomplete: true }
             res = null
-            continue
+            break
           }
         }
         d = s
@@ -729,10 +737,11 @@ async function requestGo(url, header, opt) {
         try {
           d = JSON.parse(s)
         } catch (e) {
-          // 截断的 JSON：绝不能把残缺文本当数据返回给页面
+          // 截断的 JSON：绝不能把残缺文本当数据返回给页面。
+          // v1.2.3：同样属确定性截断，快速终止重试
           lastErr = { incomplete: true }
           res = null
-          continue
+          break
         }
       } else {
         d = null
@@ -807,7 +816,10 @@ async function requestGo(url, header, opt) {
     throw { status: status, message: friendlyMessage(status, ghMsg) }
   }
   // v1.2.1：成功响应写入缓存（GET JSON/raw；data 为空不缓存防毒化）
-  if ((opt.method || 'GET') === 'GET' && data !== null && data !== undefined) {
+  // v1.2.3：空串 '' 同样不缓存 —— raw 空体响应 data='' 会毒化同 URL 的
+  // 后续不同形态请求（如通道④ raw 空体后通道⑤ JSON 复用同一 URL 命中坏缓存）
+  if ((opt.method || 'GET') === 'GET' &&
+      data !== null && data !== undefined && data !== '') {
     memSet(url, data, pickHeader(res.headers, 'etag'))
   }
   return data
@@ -858,15 +870,25 @@ async function requestAdaptive(key, build, page) {
 /* ================= v1.2.0 raw Range 分块拉取 =================
  * raw.githubusercontent.com 实证支持 HTTP Range（206 + accept-ranges: bytes），
  * api.github.com git/blobs 实证不支持（Range 被忽略返回 200 全量）。
- * 8KB 一块（低于蓝牙代理 14.3KB 截断阈值），任意大小文件都能完整取回。
- * UTF-8 多字节字符可能被块边界切开：字节模式用跨块状态机解码（pending 字节
- * 留到下一块）；平台不支持 arraybuffer 时退化为文本模式（边界字符损坏概率
- * 极低，且比「整个响应截断」好一个数量级）。 */
+ * v1.2.3 根治「第 2 块起必失败」：真机蓝牙代理对**同一 URL 的连续请求**存在
+ * 缓存/去重行为——第 1 块成功后，第 2 块请求被代理拦截（fail 回调），分块链
+ * 第 2 块起必失败。方案：每块 URL 追加无害扰动参数 ?_b=<offset>（服务器忽略
+ * 未知 query，内容不变），代理视为不同请求逐块放行。
+ * v1.2.3 块大小 8192→12288（仍低于 14.3KB 实测截断下限）：块数少 33%，
+ * 弱网下总往返显著减少。UTF-8 多字节字符可能被块边界切开：字节模式用跨块
+ * 状态机解码（pending 字节留到下一块）；平台不支持 arraybuffer 时退化为文本
+ * 模式（边界字符损坏概率极低，且比「整个响应截断」好一个数量级）。 */
 
 const RAW_BASE = 'https://raw.githubusercontent.com'
-const RAW_CHUNK = 8192
-const RAW_MAX_BLOCKS = 128 /* v1.2.1：8KB × 128 = 1MB 上限（原 512KB） */
+const RAW_CHUNK = 12288
+const RAW_MAX_BLOCKS = 85 /* v1.2.3：12KB × 85 ≈ 1.044MB 上限（覆盖 1MB 页面上限，与旧 8KB×128 同语义） */
 const FILE_RAW_CAP = 1024 * 1024 /* v1.2.2：下载器整文件落盘后的字节上限（与页面 MAX_SIZE 对齐） */
+
+/** v1.2.3：分块 URL 扰动——同 URL 连续请求被蓝牙代理去重/拦截的绕行。
+ *  raw.githubusercontent.com 忽略未知 query 参数，内容与etag均不变。 */
+function rawChunkUrl(url, blockIndex) {
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + '_b=' + blockIndex
+}
 
 function rawFileUrl(fullName, ref, path) {
   const encPath = String(path || '').split('/').map(encodeURIComponent).join('/')
@@ -937,10 +959,13 @@ async function rawRangeOnce(url, start, end, mode) {
     Range: 'bytes=' + start + '-' + end
   }
   if (_token) header['Authorization'] = 'Bearer ' + _token
+  // v1.2.3：URL 扰动（每块起始偏移作为扰动参数）——绕开真机蓝牙代理对
+  // 同一 URL 连续请求的缓存/去重拦截（Range 头不同的同 URL 第 2 块必失败实证）
+  const reqUrl = rawChunkUrl(url, start)
   let res = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      res = await rawFetch({ url: url, method: 'GET', header: header, rt: mode, timeout: 15000 })
+      res = await rawFetch({ url: reqUrl, method: 'GET', header: header, rt: mode, timeout: 15000 })
       break
     } catch (e) {
       if (attempt > 0) throw { status: 0, message: '网络连接失败，请检查手表网络' }
@@ -1101,7 +1126,7 @@ export async function getReadmeText(fullName, ref) {
   const rawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/octet-stream' }
   if (_token) rawHeader['Authorization'] = 'Bearer ' + _token
   try {
-    const dl = await dlFetchText(url, rawHeader, { download: 30000, complete: 45000, read: 10000 })
+    const dl = await dlFetchText(url, rawHeader, { download: 45000, complete: 75000, read: 15000 })
     if (typeof dl === 'string' && dl.length && !sniffRawErrorBody(dl) &&
         dl.slice(0, 512).indexOf('\u0000') < 0) {
       await fcachePut(url, dl)
@@ -1254,15 +1279,19 @@ export function notifPageSize() {
   return NOTIF_SUBS * NOTIF_SUB_PER
 }
 
-/** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接） */
+/** 单个子页：per=2 拉取；确定性截断时降级为两个 per=1 子请求（无缺口拼接）。
+ *  v1.2.3：子页请求一律 noDl —— 截断时若先走下载器兜底（真机挂起最坏 28s）再
+ *  降级，一个子页要 ~35s、整页 5 子页并发 3 也要 70s+，用户体感即「拉不全/拉不动」。
+ *  noDl 后截断立即降级 per=1（~6KB/条，远低于任何实测阈值），整页最坏 <30s。
+ *  per=1 降级同样 noDl（6KB 截断概率趋零，真挂了走全有或全无报错重试）。 */
 async function notifSubPage(sp, all) {
   try {
-    return await request('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }))
+    return await request('/notifications' + qs({ page: sp, per_page: NOTIF_SUB_PER, all: !!all }), { noDl: true })
   } catch (e) {
     if (!e || !e.incomplete) throw e
     /* per=2 的第 sp 页持有第 (2sp-1, 2sp) 条 → 对应 per=1 的这两页 */
-    const a = await request('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }))
-    const b = await request('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }))
+    const a = await request('/notifications' + qs({ page: 2 * sp - 1, per_page: 1, all: !!all }), { noDl: true })
+    const b = await request('/notifications' + qs({ page: 2 * sp, per_page: 1, all: !!all }), { noDl: true })
     return [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])
   }
 }
@@ -1516,9 +1545,12 @@ export async function getFileRawEx(fullName, path, ref, onProgress) {
   const rawHeader = { 'User-Agent': 'vela-github-client', Accept: 'application/octet-stream' }
   if (_token) rawHeader['Authorization'] = 'Bearer ' + _token
 
-  /* ② 原生下载器主通道：一次整文件落盘（≤1MB 由页面 rawSize 守卫） */
+  /* ② 原生下载器主通道：一次整文件落盘（≤1MB 由页面 rawSize 守卫）。
+   *  v1.2.3：超时 30/45/10 → 45/75/15 —— 真机蓝牙代理实测下载仅数 KB/s，
+   *  几百 KB 文件 30s 内下不完即被误判失败（随后落入死路分块/raw），这是
+   *  「加载 8KB 后内容为空」故障链的第一环。 */
   try {
-    const dl = await dlFetchText(url, rawHeader, { download: 30000, complete: 45000, read: 10000 })
+    const dl = await dlFetchText(url, rawHeader, { download: 45000, complete: 75000, read: 15000 })
     if (typeof dl === 'string' && dl.length) {
       if (sniffRawErrorBody(dl)) throw { status: 404, message: 'raw 下载器返回错误体，转下一通道' }
       if (dl.slice(0, 512).indexOf('\u0000') >= 0) throw { binary: true, message: '二进制文件，暂不支持预览' }
@@ -1550,12 +1582,63 @@ export async function getFileRawEx(fullName, path, ref, onProgress) {
     /* 落到 REST raw */
   }
 
-  /* ④ REST contents raw 兜底（私有仓库 raw 404 的场景） */
+  /* ④ REST contents raw 兜底（私有仓库 raw 404 的场景）。
+   *  v1.2.3：空体绝不再静默返回（旧版返回 {text:''} → 页面「文件内容为空」）
+   *  ——空体/JSON 体均视为本通道失败，续走 ⑤ base64 通道。 */
   const p = path ? '/' + path : ''
-  const text = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
-  const t3 = String(text == null ? '' : text)
-  if (t3) await fcachePut(url, t3)
-  return { text: t3, full: true, capped: false, bytes: utf8Len(t3), via: 'rest' }
+  let via4 = ''
+  let inc4 = false
+  try {
+    const text4 = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }), { raw: true })
+    const t4 = String(text4 == null ? '' : text4)
+    if (t4 && !sniffRawErrorBody(t4)) {
+      await fcachePut(url, t4)
+      return { text: t4, full: true, capped: false, bytes: utf8Len(t4), via: 'rest' }
+    }
+    via4 = t4 ? 'error-body' : 'empty'
+  } catch (e) {
+    if (e && e.binary) throw e
+    via4 = (e && e.message) || 'fail'
+    inc4 = !!(e && e.incomplete)
+  }
+
+  /* ⑤ v1.2.3 contents JSON base64 终备通道：
+   *  与 raw 完全不同的响应形态（api.github.com JSON，代理处理最成熟的形态）。
+   *  JSON 体 ≈ 元数据 700B + base64×1.37 → 文件 ≤9.5KB 时整响应 <14.3KB 截断下限，
+   *  可靠到达；>9.5KB 的 JSON 必截断（确定性失败）→ 抛错走页面重试提示。
+   *  四通道全失败时给出明确诊断（覆盖真机「加载 8KB 后内容为空」的完整故障链）。 */
+  let d5 = null
+  try {
+    d5 = await request('/repos/' + fullName + '/contents' + p + qs({ ref: ref || undefined }))
+  } catch (e5) {
+    /* v1.2.3：incomplete 标志必须透传（自适应分页/页面错误路径依赖它识别截断）；
+     * 同时附可行动文案 */
+    if (e5 && e5.incomplete) {
+      throw { status: 0, incomplete: true, message: '文件较大且网络通道受限，请稍后重试（蓝牙代理对大响应有限制）' }
+    }
+    throw e5
+  }
+  if (d5 && d5.type === 'file' && typeof d5.content === 'string' && d5.content.length) {
+    let text5 = ''
+    try {
+      text5 = b64decode.decode(d5.content)
+    } catch (e) {
+      throw { status: 0, message: '文件内容解码失败（base64），请重试' }
+    }
+    if (text5) {
+      let capped5 = false
+      if (utf8Len(text5) > FILE_RAW_CAP) {
+        text5 = utf8SliceBytes(text5, FILE_RAW_CAP)
+        capped5 = true
+      }
+      await fcachePut(url, text5)
+      return { text: text5, full: true, capped: capped5, bytes: utf8Len(text5), via: 'b64' }
+    }
+  }
+  /* 五通道全失败的最终诊断：给出每通道失败形态，绝不再返回空内容。
+   *  v1.2.3：任一通道出现确定性截断（incomplete）则标志透传——
+   *  上游自适应分页/错误路径依赖该标志识别「截断」类失败。 */
+  throw { status: 0, incomplete: inc4, message: '文件加载失败（下载器/分块/raw/base64 通道均不可用，raw ' + via4 + '），请稍后重试' }
 }
 
 /** 文件原始文本（保持 v1.2.0 契约：直接返回字符串；readme 页等沿用） */
@@ -1665,6 +1748,78 @@ export function getUser(login) {
   return request('/users/' + encodeURIComponent(login))
 }
 
+/* ================= v1.2.3 Actions（commit CI 历史）新功能 =================
+ * 用户未读通知 200+ 条中 99% 为 ci_activity（CheckSuite CI 通知，实测）——
+ * 通知聚合卡点开的落点就是「看看哪次构建挂了」。
+ * 实测选型：REST /actions/runs 单条全字段 ~17.7KB（head_commit 全家桶），任意
+ * per_page 均超 14.3KB 蓝牙截断阈值——彻底不可用；GraphQL 无 workflowRuns 字段
+ * （schema 实证 undefinedField），但 Commit.history + statusCheckRollup 可用，
+ * 瘦字段每条 ~370B，10 条 ~3KB 一页安全到达。游客/GraphQL 全灭 → 抛需登录提示。 */
+
+const GQL_COMMITS_Q = 'query($o:String!,$n:String!,$branch:String!,$first:Int!,$after:String){repository(owner:$o,name:$n){ref(qualifiedName:$branch){target{... on Commit{history(first:$first,after:$after){pageInfo{hasNextPage endCursor}totalCount nodes{oid committedDate messageHeadline statusCheckRollup{state contexts(first:4){nodes{... on CheckRun{name conclusion status}... on StatusContext{state context}}}}}}}}}}}'
+
+/** commit CI 历史瘦映射：rollup state + 前 4 个 check run/context */
+function gqlCommitToRest(n) {
+  if (!n) return null
+  const roll = n.statusCheckRollup || {}
+  const checks = []
+  const ctx = roll.contexts && Array.isArray(roll.contexts.nodes) ? roll.contexts.nodes : []
+  for (let i = 0; i < ctx.length; i++) {
+    const c = ctx[i]
+    if (!c) continue
+    if (c.name) checks.push({ name: c.name, concl: (c.conclusion || c.status || '').toLowerCase() })
+    else if (c.context) checks.push({ name: c.context, concl: (c.state || '').toLowerCase() })
+  }
+  return {
+    oid: String(n.oid || ''),
+    date: n.committedDate || '',
+    headline: n.messageHeadline || '',
+    state: roll.state ? String(roll.state).toLowerCase() : '',
+    checks: checks
+  }
+}
+
+/** commit 历史 + CI 状态（需登录）：
+ *  返回 {commits, total, hasNext}；游客抛 {needAuth:true}，GraphQL 网络失败/限流
+ *  重试后仍失败 → 抛错（REST /actions/runs 单条 17.7KB 恒超截断阈值，无回退通道）。 */
+export async function getCommitChecks(fullName, branch, page) {
+  await loadToken()
+  if (!_token) throw { status: 0, needAuth: true, message: '查看 CI 状态需登录 Token（设置 → 填入/登录）' }
+  const parts = fullName.split('/')
+  if (parts.length !== 2) throw { status: 404, message: '仓库地址无效' }
+  const key = 'cc|' + fullName + '|' + (branch || 'HEAD')
+  const after = cursorFor(key, page || 1)
+  if ((page || 1) > 1 && after === undefined) throw { status: 0, message: '分页游标断链，请从第一页重试' }
+  const d = await ghql(GQL_COMMITS_Q, {
+    o: parts[0], n: parts[1],
+    branch: 'refs/heads/' + (branch || 'HEAD'),
+    first: 10, after: after === null ? undefined : after
+  })
+  const ref = dig(d, ['repository', 'ref'])
+  if (!ref || !ref.target) throw { status: 404, message: '分支不存在（' + (branch || 'HEAD') + '）' }
+  const h = ref.target.history
+  if (!h || !Array.isArray(h.nodes)) throw { status: 0, message: '提交历史为空' }
+  if ((page || 1) >= 1) cursorSave(key, page || 1, h.pageInfo)
+  const commits = []
+  for (let i = 0; i < h.nodes.length; i++) {
+    const c = gqlCommitToRest(h.nodes[i])
+    if (c) commits.push(c)
+  }
+  return { commits: commits, total: h.totalCount || commits.length, hasNext: !!(h.pageInfo && h.pageInfo.hasNextPage) }
+}
+
+/** 批量标记通知线程已读（v1.2.3 CI 聚合卡长按用）：mapLimit 限并发 3，
+ *  返回成功数；单条失败不计入（404 已读等常态）。 */
+export async function markThreadsRead(threadUrls) {
+  const arr = Array.isArray(threadUrls) ? threadUrls : []
+  let ok = 0
+  await mapLimit(arr, 3, (u) =>
+    request(u, { method: 'PUT', body: {} }).then(() => { ok++ }).catch(() => {})
+  )
+  clearCache('/notifications')
+  return ok
+}
+
 export default {
   loadToken, hasToken, currentToken, saveToken, clearToken, validateToken, tokenFormatHint, rateInfo,
   request, qs, self, lastListPerPage, storageDiag, verifyPersisted, clearCache,
@@ -1673,5 +1828,6 @@ export default {
   getRepo, getReadme, getReadmeText, getContents, getFileRaw, getFileRawEx, getTree,
   getIssues, getIssue, getComments, addComment, getReleases,
   isStarred, setStarred, getUser,
-  deviceFlowStart, deviceFlowPoll, utf8DecodeChunk
+  deviceFlowStart, deviceFlowPoll, utf8DecodeChunk,
+  getCommitChecks, markThreadsRead
 }

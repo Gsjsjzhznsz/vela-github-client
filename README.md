@@ -43,7 +43,7 @@
 |:---:|:---:|
 | ![设置](docs/screenshots-vvm/07-设置-双通道登录.png) | ![关于页](docs/screenshots-vvm/08-关于页.png) |
 
-> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 模板透视合成（Watch 6 / Watch S5 机型标注为宣传示意）。
+> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 模板透视合成。
 
 ## ✨ 功能
 

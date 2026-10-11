@@ -90,8 +90,8 @@
   .chip { font-size: 21px; color: #8b949e; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #161b22; }
   .chip-on { font-size: 21px; color: #ffffff; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #1f6feb; }
   /* v1.9.0：概览行 */
-  .sum { flex-direction: row; align-items: center; padding: 2px 14px 6px; }
-  .sum-t { font-size: 19px; color: #6e7681; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .sum { flex-direction: row; align-items: center; justify-content: space-between; padding: 2px 14px 6px; }
+  .sum-t { font-size: 19px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; }
   .sum-btn { font-size: 19px; color: #d29922; padding: 6px 10px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 19px; height: 19px; }
@@ -99,14 +99,16 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 14px; }
+  /* v1.10.1 根修：列表项容器必须显式 column（本固件 div 缺省按 row 排布，
+   * 曾导致分组头与条目卡横向散排、卡片重叠——参见 settings.ux card-col 同类问题） */
+  .li { padding: 4px 14px; flex-direction: column; }
   /* v1.9.0：仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
   .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 12px; padding: 13px 14px; }
   .gh-arrow { font-size: 22px; color: #58a6ff; width: 30px; }
   .gh-repo { font-size: 22px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
   .gh-muted { font-size: 19px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
   .gh-n { font-size: 19px; color: #8b949e; margin-left: 8px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
+  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
   .unread { position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 5px; background-color: #3fb950; }
   .cell-icon { width: 26px; height: 26px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }

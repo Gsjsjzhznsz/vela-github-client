@@ -85,7 +85,7 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 120px; }
-  .li { padding: 4px 12px; }
+  .li { padding: 4px 12px; flex-direction: column; }
   .row-u { flex-direction: row; justify-content: flex-end; }
   .row-a { flex-direction: row; justify-content: flex-start; }
   .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 21px; color: #ffffff; width: 330px; line-height: 30px; }
@@ -99,7 +99,7 @@
   .quick { flex-direction: column; align-items: center; padding: 14px 12px; width: 100%; }
   .quick-h { font-size: 21px; color: #8b949e; margin-bottom: 9px; }
   .q-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 100%; }
-  .q-cell { width: 194px; background-color: #161b22; border-radius: 12px; padding: 12px 0; margin: 4px; align-items: center; }
+  .q-cell { width: 194px; background-color: #161b22; border-radius: 12px; padding: 12px 0; margin: 4px; align-items: center; flex-direction: column; }
   .q-t { font-size: 19px; color: #d2a8ff; }
   .quick-note { font-size: 19px; color: #58a6ff; margin-top: 10px; text-align: center; padding: 0 18px; }
   .quick-note.dim { color: #484f58; margin-top: 5px; }

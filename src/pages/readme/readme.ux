@@ -48,7 +48,7 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 3px 14px; }
+  .li { padding: 3px 14px; flex-direction: column; }
   /* 块样式与 md.js H_TABLE 严格对齐：显式 line-height 保证高度估算确定性 */
   .b-h { font-size: 22px; line-height: 30px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
   .b-p { font-size: 21px; line-height: 30px; color: #e6edf3; }

@@ -89,10 +89,10 @@
   .chips { flex-direction: row; flex-wrap: wrap; padding: 4px 14px 2px; }
   .chip { font-size: 21px; color: #8b949e; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #161b22; }
   .chip-on { font-size: 21px; color: #ffffff; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #1f6feb; }
-  /* v1.9.0：概览行 */
-  .sum { flex-direction: row; align-items: center; justify-content: space-between; padding: 2px 14px 6px; }
+  /* v1.10.1：概览行——margin 内缩替代 padding（本固件 padding 被叠加到 100% 宽之外导致右缘溢出） */
+  .sum { flex-direction: row; align-items: center; justify-content: space-between; margin: 2px 14px 6px; }
   .sum-t { font-size: 19px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; }
-  .sum-btn { font-size: 19px; color: #d29922; padding: 6px 10px; }
+  .sum-btn { font-size: 19px; color: #d29922; padding: 6px 10px; margin-right: 14px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 19px; height: 19px; }
   .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
@@ -108,7 +108,7 @@
   .gh-repo { font-size: 22px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
   .gh-muted { font-size: 19px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
   .gh-n { font-size: 19px; color: #8b949e; margin-left: 8px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
   .unread { position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 5px; background-color: #3fb950; }
   .cell-icon { width: 26px; height: 26px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
@@ -391,7 +391,7 @@
       this.ciN = ciN
       this.unreadN = unreadN
       this.totalN = itemsN
-      this.sumText = groups.length + ' 仓库 · ' + itemsN + ' 条' + (ciN > 0 ? ' · CI ' + ciN : '') + (mutedN > 0 ? ' · 静音 ' + mutedN : '') + (this._fromCache ? ' · 缓存' : '')
+      this.sumText = groups.length + '仓 · ' + itemsN + '条' + (ciN > 0 ? ' · CI ' + ciN : '') + (mutedN > 0 ? ' · 静音' + mutedN : '') + (this._fromCache ? ' · 缓存' : '')
     },
     /* 网络数据落地（reload/loadMore 成功后统一入口） */
     applyData() {

@@ -31,9 +31,9 @@
 |:---:|:---:|
 | ![首页](docs/screenshots-vvm/01-首页-登录态-5000配额.png) | ![通知中心](docs/screenshots-vvm/02-通知中心-CI聚合卡-真实数据.png) |
 
-| 我的仓库（真实列表） | 搜索（实时结果） |
+| Copilot AI（真实对话） | 搜索（实时结果） |
 |:---:|:---:|
-| ![我的仓库](docs/screenshots-vvm/03-我的仓库-真实列表.png) | ![搜索](docs/screenshots-vvm/04-搜索-真实结果.png) |
+| ![Copilot 专区](docs/screenshots-vvm/06-Copilot专区-真实对话.png) | ![搜索](docs/screenshots-vvm/04-搜索-真实结果.png) |
 
 | 趋势（新星榜） | Copilot 专区（授权门） |
 |:---:|:---:|
@@ -43,7 +43,7 @@
 |:---:|:---:|
 | ![设置](docs/screenshots-vvm/07-设置-双通道登录.png) | ![关于页](docs/screenshots-vvm/08-关于页.png) |
 
-> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 的 Redmi Watch 5 模板透视合成。
+> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 模板透视合成（Watch 6 / Watch S5 机型标注为宣传示意）。
 
 ## ✨ 功能
 

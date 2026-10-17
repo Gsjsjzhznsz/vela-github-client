@@ -6,19 +6,13 @@
     </div>
 
     <div class="tabs">
-      <text class="tab {{mode === 'new' ? 'on' : ''}}" onclick="switchMode('new')">新星</text>
-      <text class="tab {{mode === 'rising' ? 'on' : ''}}" onclick="switchMode('rising')">黑马</text>
       <text class="tab {{mode === 'classic' ? 'on' : ''}}" onclick="switchMode('classic')">经典</text>
-    </div>
-
-    <div class="pull" style="height: {{pullY}}px">
-      <image class="pull-icon" src="/common/icons/refresh.png" />
-      <text class="pull-text">{{pullText}}</text>
+      <text class="tab {{mode === 'rising' ? 'on' : ''}}" onclick="switchMode('rising')">黑马</text>
+      <text class="tab {{mode === 'new' ? 'on' : ''}}" onclick="switchMode('new')">新星</text>
     </div>
 
     <div class="body-wrap">
-      <scroll class="body" scroll-y="true" onscroll="onListScroll"
-          ontouchstart="onTouchStart" ontouchmove="onTouchMove" ontouchend="onTouchEnd">
+      <scroll class="body" scroll-y="true" onscroll="onListScroll">
       <div class="li" for="{{it in items}}" tid="id">
         <div class="cell" onclick="openRepo(it)">
           <text class="rank" show="{{it.rank <= 3}}">{{it.rank}}</text>
@@ -37,8 +31,11 @@
           </div>
         </div>
       </div>
+      <div class="li" show="{{state === 'ok' && hasMore && !loadingMore}}">
+        <text class="foot-btn" onclick="loadMore">加载更多</text>
+      </div>
       <div class="li" show="{{state === 'ok' && loadingMore}}">
-        <text class="foot" onclick="loadMore">加载更多</text>
+        <text class="foot">加载中…</text>
       </div>
       <div class="li" show="{{state === 'ok' && !hasMore && items.length > 0}}">
         <text class="foot">— 到底了 —</text>
@@ -61,7 +58,8 @@
 </template>
 
 <style>
-  /* band-pro v2.0 BDS-336：主文本 26/次 21/弱 19，卡 radius 20，页头 96（手环 9/10 Pro 336×480） */
+  /* band-pro v2.0 BDS-336：designWidth 336（手环 9/10 Pro 336×480），主 26/次 21/弱 19，
+   * v2.0.2 交互 BandQQ 化：去触摸下拉（固件 scroll 触摸层未实证）、分页改「加载更多」按钮 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
   .hd-act { width: 46px; height: 46px; }
@@ -71,9 +69,6 @@
   .tabs { flex-direction: row; padding: 3px 14px 9px; }
   .tab { font-size: 23px; color: #8b949e; padding: 8px 20px; background-color: #161b22; border-radius: 18px; margin-right: 12px; }
   .on { color: #ffffff; background-color: #1f6feb; }
-  .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
-  .pull-icon { width: 24px; height: 24px; }
-  .pull-text { font-size: 22px; color: #8b949e; margin-left: 8px; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
@@ -91,6 +86,7 @@
   .meta-ic { width: 18px; height: 18px; margin-left: 12px; margin-right: 3px; }
   .meta-t { font-size: 19px; color: #8b949e; }
   .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .foot-btn { font-size: 21px; color: #58a6ff; text-align: center; width: 100%; padding: 12px 0; }
   .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
@@ -113,18 +109,13 @@ function _catch(body, recover) {
 }
 export default {
   private: {
-    mode: 'new',
+    mode: 'classic',
     items: [],
     state: 'loading',
     errMsg: '',
     page: 1,
     hasMore: true,
-    loadingMore: false,
-    refreshing: false,
-    scY: 0,
-    tY: 0,
-    pullY: 0,
-    pullText: '下拉刷新'
+    loadingMore: false
   },
   onInit() {},
   onShow() {
@@ -187,9 +178,11 @@ export default {
     }
   },
   switchMode(m) {
-    if (this.mode === m) return;
-    this.mode = m;
-    this.items = [];
+    if (this.mode !== m) {
+      this.mode = m;
+      this.items = [];
+    }
+    /* 同 tab 再点一次 = 手动刷新（v2.0.2 去下拉刷新后的刷新入口） */
     this.reload();
   },
   openRepo(item) {
@@ -202,43 +195,16 @@ export default {
     });
   },
   doRefresh() {
-    if (this.refreshing) return;
-    this.refreshing = true;
-    this.pullY = 60;
-    this.pullText = '刷新中…';
-    this.reload().then(() => {
-      this.refreshing = false;
-      this.pullY = 0;
-    });
+    this.reload();
   },
   onListScroll(e) {
-    this.scY = e && e.scrollY || 0;
-    // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
+    /* v2.0.2：仅做触底自动加载估算，不写观察态（避免每滚动帧触发脏检查）；
+     * 分页主入口是「加载更多」按钮，此处只在接近底部时提前拉取 */
+    const y = e && e.scrollY || 0;
     if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-      const near = this.items.length * 158 - 420;
-      if (near > 0 && this.scY >= near) this.loadMore();
+      const near = this.items.length * 118 - 300;
+      if (near > 0 && y >= near) this.loadMore();
     }
-  },
-  onTouchStart(e) {
-    if (this.scY <= 0 && !this.refreshing) {
-      const t = e && e.touches && e.touches[0];
-      this.tY = t && (t.pageY || t.clientY) || 0;
-    }
-  },
-  onTouchMove(e) {
-    if (this.refreshing || this.tY <= 0 || this.scY > 0) return;
-    const t = e && e.touches && e.touches[0];
-    const y = t && (t.pageY || t.clientY) || 0;
-    const delta = y - this.tY;
-    if (delta > 0) {
-      this.pullY = Math.min(112, Math.floor(delta * 0.45));
-      this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新';
-    }
-  },
-  onTouchEnd() {
-    if (this.refreshing) return;
-    if (this.pullY > 80) this.doRefresh();else this.pullY = 0;
-    this.tY = 0;
   },
   goBack() {
     router.back();

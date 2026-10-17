@@ -53,13 +53,23 @@ t('显式行高 ≥ 字号×1.25（违例: ' + badLh.join(',') + '）', badLh.le
 
 // 3) BDS-192 关键回归点
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
-t('input kb-dock 216 = KB_H_RECT', /\.kb-dock \{[^}]*height: 216px/.test(read('src/pages/input/input.ux')));
+/* v2.0.3：键盘逐字照搬 BandQQ main 分支（pill-shaped 192 原生布局），断言同步换轨 */
+t('input kb-dock 333 = KB_H_PILL（BandQQ main 照搬）', /\.kb-dock \{[^}]*height: 333px/.test(read('src/pages/input/input.ux')));
+t('input screentype=pill-shaped', /screentype="pill-shaped"/.test(read('src/pages/input/input.ux')));
 t('input top-bar 56 与全页页头一致', /\.top-bar \{ height: 56px/.test(read('src/pages/input/input.ux')));
-t('InputMethod KB_H_RECT=216（28拼音行+44动作行+144字母区）', /var KB_H_RECT = 216;/.test(read('src/components/InputMethod/InputMethod.ux')));
-t('InputMethod rect 分支 188 高（44+144）', /screentype==='rect'\}\}" style="width: 100%;height: 188px/.test(read('src/components/InputMethod/InputMethod.ux')));
-t('键盘字母键 48×48 fs24', /\.calbtn67 \{[^}]*width:48px;[^}]*height:48px;/.test(read('src/components/InputMethod/InputMethod.ux').replace(/\n\s*/g, '')) && /font-size:24px/.test(read('src/components/InputMethod/InputMethod.ux')));
-t('键盘候选条定宽 86（固件 flex:1 不收缩根修）', /width: 86px;height: 44px/.test(read('src/components/InputMethod/InputMethod.ux')));
-t('键盘动作键 t9 方图 44×44', /t9\/bigA\.png" style="padding: 4px;margin-left: 3px;width:44px;height:44px/.test(read('src/components/InputMethod/InputMethod.ux')));
+t('InputMethod KB_H_PILL=333（28拼音行+305键区，BandQQ main）', /var KB_H_PILL = 333;/.test(read('src/components/InputMethod/InputMethod.ux')));
+t('InputMethod pill 分支 305 高', /screentype==='pill-shaped'\}\}" style="width: 100%;height: 305px/.test(read('src/components/InputMethod/InputMethod.ux')));
+t('InputMethod 与 BandQQ main 零漂移（除 initlang 增量）', (() => {
+  const norm = x => x
+    .replace(/\/\* vgc v1\.1\.3[\s\S]*?\*\//g, '')
+    .replace(/,\s*initlang: \{\s*default: "cn",\s*\}/, '')
+    .replace(/if \(this\.initlang && [\s\S]*?this\.lang = this\.initlang;\s*\}/, '')
+    .replace(/\n[ \t]*(?=\n)/g, '');
+  const fsx = require('fs');
+  return norm(read('src/components/InputMethod/InputMethod.ux')) === norm(fsx.readFileSync('/home/z/my-project/work/bandqq-main/band-qq/src/components/InputMethod/InputMethod.ux', 'utf8'));
+})());
+t('键盘 pill 66 键 60×60 fs32（BandQQ 原生）', /\.calbtn66 \{[\s\S]*?width:60px;[\s\S]*?height:60px;/.test(read('src/components/InputMethod/InputMethod.ux').replace(/\n\s*/g, '')));
+t('键盘候选条 cvalWaiting 144（BandQQ pill 原生）', /id="cvalWaiting" scroll-x="{{true}}" style="position: absolute;left: 15px;top: 56px;width: 144px/.test(read('src/components/InputMethod/InputMethod.ux')));
 t('home 页头 56（BDS-192）', /\.hd \{ height: 56px/.test(read('src/pages/home/home.ux')));
 t('home 主文本 20', /\.row1 \{ font-size: 20px/.test(read('src/pages/home/home.ux')));
 t('issue 头像 30 适配 17px 字母', /\.ava \{ width: 30px; height: 30px; border-radius: 15px;/.test(read('src/pages/issue/issue.ux')));
@@ -68,8 +78,13 @@ t('code 行号/代码/token 行高统一 22', /\.ln \{[^}]*line-height: 22px/.te
   /\.code-line \{[^}]*line-height: 22px/.test(read('src/pages/code/code.ux')) &&
   /\.tk \{[^}]*line-height: 22px/.test(read('src/pages/code/code.ux')));
 t('ai 气泡宽 140（192 屏半幅）', /\.bub-u \{[^}]*width: 140px/.test(read('src/pages/ai/ai.ux')) && /\.bub-a \{[^}]*width: 140px/.test(read('src/pages/ai/ai.ux')));
-t('ai 底部输入条 68（触区适配）', /\.inbar \{[^}]*height: 68px/.test(read('src/pages/ai/ai.ux')));
-t('device 授权码 30（8 位码 192 宽放得下）', /\.code \{ font-size: 30px/.test(read('src/pages/device/device.ux')));
+t('ai 底部输入条 64 胶囊悬浮（R角适配）', /\.inbar \{[^}]*height: 64px[^}]*border-radius: 32px/.test(read('src/pages/ai/ai.ux')));
+t('device 授权码 22+内边12（156px 稳落 168px 内容区）', /\.code \{ font-size: 22px/.test(read('src/pages/device/device.ux')) && /\.codebox \{[^}]*padding: 10px 12px/.test(read('src/pages/device/device.ux')));
+t('formPost 走 rawFetch 网桥编排（免打字砍网根修）', /return rawFetch\(\{[\s\S]*?method: 'POST'/.test(read('src/utils/api.js')));
+t('formPost 显式超时 15s', /const FORM_TIMEOUT = 15000;/.test(read('src/utils/api.js')));
+t('R角：页头顶垫 8 侧垫 14（16 页）', (read('src/pages/home/home.ux').match(/padding: 8px 14px 0/) !== null));
+t('R角：pad-end 尾部缓冲 44', /\.pad-end \{ width: 100%; height: 44px/.test(read('src/pages/home/home.ux')));
+t('R角：hd-act-wrap -6（返回字形离开圆角裁切区）', /\.hd-act-wrap \{[^}]*margin-left: -6px/.test(read('src/pages/settings/settings.ux')));
 t('repo 功能区 BandQQ 式列表行（宫格退役）', /\.mrow \{ flex-direction: row/.test(read('src/pages/repo/repo.ux')));
 t('md.js H_TABLE 对齐页面块类（p fs17/lh23）', /p: \{ fs: 17, lh: 23/.test(read('src/utils/md.js')));
 t('md.js 192 可用宽度（代码 138/正文 158）', /b\.t === 'c' \? 138 : 158/.test(read('src/utils/md.js')));
@@ -78,10 +93,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.2-band', /"versionName": "2\.0\.2-band"/.test(man));
-t('manifest versionCode 32（四分支同步）', /"versionCode": 32/.test(man));
+t('manifest versionName 2.0.3-band', /"versionName": "2\.0\.3-band"/.test(man));
+t('manifest versionCode 33（四分支同步）', /"versionCode": 33/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.0.2-band', /"version": "2\.0\.2-band"/.test(read('package.json')));
+t('package.json 2.0.3-band', /"version": "2\.0\.3-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

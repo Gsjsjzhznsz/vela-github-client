@@ -60,20 +60,20 @@
 </template>
 
 <style>
-  /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：主文本 24-26/代码 21-28，页头 96；
+  /* band v2.0 BDS-192（手环 9/10/11 标准版 192×490 / 212×520）：主文本 24-26/代码 21-28，页头 56；
    * 代码区 480 高屏每页 12 行（28px 行高 ≈ 12 行 + 翻页器一屏），行号列 56px */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
   .hd-act { width: 30px; height: 30px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 14px; color: #484f58; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
+  .pad-end { width: 100%; height: 44px; } /* v2.0.3 R角：尾部缓冲 14→44，末张卡片离开底部圆角+手势区 */
   .li { padding: 4px 10px; width: 100%; flex-direction: column; }
   .li-code { padding: 1px 10px; width: 100%; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 16px; padding: 10px; }

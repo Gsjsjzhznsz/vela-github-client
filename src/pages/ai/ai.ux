@@ -74,11 +74,11 @@
 </template>
 
 <style>
-  /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：气泡宽 280（308 内缩留余），主文本 22-24 */
+  /* band v2.0 BDS-192（手环 9/10/11 标准版 192×490 / 212×520）：气泡宽 280（308 内缩留余），主文本 22-24 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
   .hd-act { width: 30px; height: 30px; }
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .hd-sub { font-size: 14px; color: #d2a8ff; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
@@ -113,7 +113,7 @@
   .gate-btn-t { font-size: 18px; color: #ffffff; font-weight: bold; }
   .gate-tip { font-size: 14px; color: #484f58; margin-top: 14px; text-align: center; line-height: 21px; width: 176px; }
   .gate-tip2 { font-size: 14px; color: #484f58; margin-top: 1px; text-align: center; line-height: 21px; width: 176px; }
-  .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 68px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 10px; }
+  .inbar { position: absolute; left: 8px; bottom: 12px; width: 176px; height: 64px; flex-direction: row; align-items: center; background-color: #161b22; border-radius: 32px; padding: 0 12px; } /* v2.0.3 R角：贴底整宽条改胶囊悬浮，避开底部圆角裁切 */
   .in-ic { width: 30px; height: 30px; }
   .in-ph { font-size: 17px; color: #484f58; margin-left: 8px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }

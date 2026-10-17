@@ -61,10 +61,10 @@
   /* band v2.0 BDS-192：designWidth 192（手环 9/10/11 米粒窄屏），主 20/次 16/弱 14，
    * v2.0.2 交互 BandQQ 化：去触摸下拉（固件 scroll 触摸层未实证）、分页改「加载更多」按钮 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
   .hd-act { width: 30px; height: 30px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
   .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .tabs { flex-direction: row; padding: 3px 10px 9px; }
   .tab { font-size: 17px; color: #8b949e; padding: 8px 20px; background-color: #161b22; border-radius: 11px; margin-right: 12px; }
@@ -72,7 +72,7 @@
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 14px; }
+  .pad-end { width: 100%; height: 44px; } /* v2.0.3 R角：尾部缓冲 14→44，末张卡片离开底部圆角+手势区 */
   .li { padding: 4px 10px; flex-direction: column; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
   .rank { width: 30px; font-size: 20px; color: #f0883e; font-weight: bold; text-align: center; }

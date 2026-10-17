@@ -5,7 +5,8 @@
        键盘 hide 恒为 false——本固件 $watch 不触发（BandQQ v2.18.0 注释实证），
        动态 hide 切换永不渲染；独立输入页 + 键盘常驻是 BandQQ 在手环的唯一可靠用法。
        预览区与键盘全部绝对锚定：top-bar 流内固定高，preview-box absolute 铺剩余，
-       kb-dock absolute 贴底锚（显式高 216 = KB_H_RECT，band 分支 screentype=rect 192 原生）。 -->
+       kb-dock absolute 贴底锚。v2.0.3：键盘逐字照搬 BandQQ main 分支（pill-shaped 192 原生布局，
+       KB_H_PILL=333=28 拼音行+305 键区），dock/preview 显式高对齐 333。 -->
   <div class="page">
     <div class="top-bar">
       <div class="btn-back-wrap" onclick="goBack"><image class="btn-back" src="/common/icons/back.png" /></div>
@@ -20,27 +21,27 @@
       </div>
     </div>
     <div class="kb-dock">
-      <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="rect" initlang="{{mode === 'token' ? 'en' : 'cn'}}" @complete="onComplete" @delete="onDelete"></input-method>
+      <input-method hide="{{false}}" maxlength="5" vibratemode="short" screentype="pill-shaped" initlang="{{mode === 'token' ? 'en' : 'cn'}}" @complete="onComplete" @delete="onDelete"></input-method>
     </div>
   </div>
 </template>
 
 <style>
-  /* band v2.0 BDS-192：top-bar 56 与全页页头一致；kb-dock 216 = KB_H_RECT（rect 键盘 28+188） */
+  /* band v2.0 BDS-192：top-bar 56 与全页页头一致；kb-dock 333 = KB_H_PILL（BandQQ main 照搬：28 拼音行+305 键区） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
-  .top-bar { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .top-bar { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角 */
   .btn-back { width: 30px; height: 30px; }
-  .btn-back-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .btn-back-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
   .bar-title { flex: 1; font-size: 20px; color: #e6edf3; font-weight: bold; margin-left: 6px; lines: 1; text-overflow: ellipsis; }
   .done-btn { width: 80px; height: 40px; text-align: center; line-height: 40px; font-size: 16px; color: #ffffff; background-color: #238636; border-radius: 20px; }
   /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */
-  .preview-box { position: absolute; left: 0; top: 56px; bottom: 216px; width: 100%; flex-direction: column; padding: 5px 10px; }
+  .preview-box { position: absolute; left: 0; top: 56px; bottom: 333px; width: 100%; flex-direction: column; padding: 5px 10px; }
   .preview-text { font-size: 18px; color: #58a6ff; line-height: 25px; text-align: left; word-break: break-all; }
   .preview-tools { flex-direction: row; align-items: center; justify-content: space-between; margin-top: 9px; }
   .preview-hint { font-size: 16px; color: #484f58; text-align: left; flex: 1; }
   .clear-btn { font-size: 17px; color: #f85149; padding: 6px 16px; border: 1px solid #30363d; border-radius: 16px; }
   /* 键盘坞：bottom:0 由引擎按页面可用底解析（避让固件手势保留区），显式高 = 键盘物理高 */
-  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 216px; }
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 333px; }
 </style>
 
 <script>import router from '@system.router';

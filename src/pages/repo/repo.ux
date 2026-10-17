@@ -111,152 +111,240 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { compact, relTime, langColor } from '../../utils/fmt'
-  import { query } from '../../utils/view'
-
-  export default {
-    protected: {
-      full: ''
-    },
-    private: {
-      desc: '',
-      lang: '',
-      langc: '#30363d',
-      stars: '0',
-      forks: '0',
-      watchers: '0',
-      openIssues: '0',
-      license: '',
-      updated: '',
-      starred: false,
-      starHint: false,
-      subState: 'off',
-      subHint: false,
-      state: 'loading',
-      errMsg: ''
-    },
-    onInit(params) {
-      const p = query(params, this)
-      if (p.full) this.full = p.full
-    },
-    onShow() {
-      if (this.full && this.state !== 'ok') this.reload()
-    },
-    async reload() {
-      this.state = 'loading'
-      try {
-        const r = await api.getRepo(this.full)
-        if (!r || typeof r !== 'object') {
-          throw { message: '仓库响应不完整，请重试' }
-        }
-        this.desc = r.description || ''
-        this.lang = r.language || ''
-        this.langc = langColor(r.language)
-        this.stars = compact(r.stargazers_count)
-        this.forks = compact(r.forks_count)
-        this.watchers = compact(r.subscribers_count)
-        this.openIssues = compact(r.open_issues_count)
-        this.license = r.license && r.license.spdx_id ? r.license.spdx_id : '无协议'
-        this.updated = '更新于 ' + relTime(r.pushed_at)
-        this.state = 'ok'
-        this.checkStar()
-        this.checkSub()
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
-      }
-    },
-    async checkStar() {
-      await api.loadToken()
-      if (!api.hasToken()) return
-      try {
-        this.starred = await api.isStarred(this.full)
-      } catch (e) {
-        // 忽略 Star 状态查询失败
-      }
-    },
-    /* ---- v1.9.0：订阅三态（off→on→ignore→off）——在手表上直接关掉噪音仓库通知 ---- */
-    async checkSub() {
-      if (!api.hasToken()) return
-      try {
-        const s = await api.getRepoSubscription(this.full)
-        this.subState = (s && s.state) || 'off'
-      } catch (e) {
-        // 忽略订阅态查询失败
-      }
-    },
-    async toggleSub() {
-      await api.loadToken()
-      if (!api.hasToken()) {
-        this.subHint = true
-        prompt.showToast({ message: '订阅需登录 Token', duration: 1500 })
-        return
-      }
-      try {
-        const order = ['off', 'on', 'ignore']
-        const next = order[(order.indexOf(this.subState) + 1) % order.length]
-        await api.setRepoSubscription(this.full, next)
-        this.subState = next
-        prompt.showToast({
-          message: next === 'on' ? '已订阅通知' : (next === 'ignore' ? '已忽略此仓库通知' : '已取消订阅'),
-          duration: 1600
-        })
-      } catch (e) {
-        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
-      }
-    },
-    async toggleStar() {
-      await api.loadToken()
-      if (!api.hasToken()) {
-        this.starHint = true
-        prompt.showToast({ message: 'Star 需登录 Token', duration: 1500 })
-        return
-      }
-      try {
-        const target = !this.starred
-        await api.setStarred(this.full, target)
-        this.starred = target
-        prompt.showToast({ message: target ? '已 Star ⭐' : '已取消 Star', duration: 1500 })
-      } catch (e) {
-        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
-      }
-    },
-    goReadme() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/readme' })
-    },
-    goIssues() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/issues' })
-    },
-    /* v1.9.0：PR 列表页 */
-    goPulls() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/pulls' })
-    },
-    goCode() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/code' })
-    },
-    goReleases() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/releases' })
-    },
-    goActions() {
-      this.$app.$def.hook = { full: this.full }
-      router.push({ uri: 'pages/actions' })
-    },
-    /* v1.3.0：仓库上下文注入 Copilot 专区（README 摘要由 AI 页发送时补拉） */
-    goAI() {
-      this.$app.$def.aiCtx = { full: this.full, path: '', text: '当前仓库：' + this.full + (this.desc ? ('\n仓库简介：' + this.desc) : '') }
-      router.push({ uri: 'pages/ai' })
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { compact, relTime, langColor } from '../../utils/fmt';
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  protected: {
+    full: ''
+  },
+  private: {
+    desc: '',
+    lang: '',
+    langc: '#30363d',
+    stars: '0',
+    forks: '0',
+    watchers: '0',
+    openIssues: '0',
+    license: '',
+    updated: '',
+    starred: false,
+    starHint: false,
+    subState: 'off',
+    subHint: false,
+    state: 'loading',
+    errMsg: ''
+  },
+  onInit(params) {
+    const p = query(params, this);
+    if (p.full) this.full = p.full;
+  },
+  onShow() {
+    if (this.full && this.state !== 'ok') this.reload();
+  },
+  reload: function () {
+    try {
+      const _this = this;
+      _this.state = 'loading';
+      return Promise.resolve(_catch(function () {
+        return Promise.resolve(api.getRepo(_this.full)).then(function (r) {
+          if (!r || typeof r !== 'object') {
+            throw {
+              message: '仓库响应不完整，请重试'
+            };
+          }
+          _this.desc = r.description || '';
+          _this.lang = r.language || '';
+          _this.langc = langColor(r.language);
+          _this.stars = compact(r.stargazers_count);
+          _this.forks = compact(r.forks_count);
+          _this.watchers = compact(r.subscribers_count);
+          _this.openIssues = compact(r.open_issues_count);
+          _this.license = r.license && r.license.spdx_id ? r.license.spdx_id : '无协议';
+          _this.updated = '更新于 ' + relTime(r.pushed_at);
+          _this.state = 'ok';
+          _this.checkStar();
+          _this.checkSub();
+        });
+      }, function (e) {
+        _this.state = 'error';
+        _this.errMsg = e && e.message || '加载失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  checkStar: function () {
+    try {
+      const _this2 = this;
+      return Promise.resolve(api.loadToken()).then(function () {
+        if (!api.hasToken()) return;
+        const _temp = _catch(function () {
+          return Promise.resolve(api.isStarred(_this2.full)).then(function (_api$isStarred) {
+            _this2.starred = _api$isStarred;
+          });
+        }, function () {});
+        if (_temp && _temp.then) return _temp.then(function () {});
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* ---- v1.9.0：订阅三态（off→on→ignore→off）——在手表上直接关掉噪音仓库通知 ---- */checkSub: function () {
+    try {
+      const _this3 = this;
+      if (!api.hasToken()) return Promise.resolve();
+      const _temp2 = _catch(function () {
+        return Promise.resolve(api.getRepoSubscription(_this3.full)).then(function (s) {
+          _this3.subState = s && s.state || 'off';
+        });
+      }, function () {});
+      return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  toggleSub: function () {
+    try {
+      const _this4 = this;
+      return Promise.resolve(api.loadToken()).then(function () {
+        if (!api.hasToken()) {
+          _this4.subHint = true;
+          prompt.showToast({
+            message: '订阅需登录 Token',
+            duration: 1500
+          });
+          return;
+        }
+        const _temp3 = _catch(function () {
+          const order = ['off', 'on', 'ignore'];
+          const next = order[(order.indexOf(_this4.subState) + 1) % order.length];
+          return Promise.resolve(api.setRepoSubscription(_this4.full, next)).then(function () {
+            _this4.subState = next;
+            prompt.showToast({
+              message: next === 'on' ? '已订阅通知' : next === 'ignore' ? '已忽略此仓库通知' : '已取消订阅',
+              duration: 1600
+            });
+          });
+        }, function (e) {
+          prompt.showToast({
+            message: e && e.message || '操作失败',
+            duration: 2000
+          });
+        });
+        if (_temp3 && _temp3.then) return _temp3.then(function () {});
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  toggleStar: function () {
+    try {
+      const _this5 = this;
+      return Promise.resolve(api.loadToken()).then(function () {
+        if (!api.hasToken()) {
+          _this5.starHint = true;
+          prompt.showToast({
+            message: 'Star 需登录 Token',
+            duration: 1500
+          });
+          return;
+        }
+        const _temp4 = _catch(function () {
+          const target = !_this5.starred;
+          return Promise.resolve(api.setStarred(_this5.full, target)).then(function () {
+            _this5.starred = target;
+            prompt.showToast({
+              message: target ? '已 Star ⭐' : '已取消 Star',
+              duration: 1500
+            });
+          });
+        }, function (e) {
+          prompt.showToast({
+            message: e && e.message || '操作失败',
+            duration: 2000
+          });
+        });
+        if (_temp4 && _temp4.then) return _temp4.then(function () {});
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  goReadme() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/readme'
+    });
+  },
+  goIssues() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/issues'
+    });
+  },
+  /* v1.9.0：PR 列表页 */
+  goPulls() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/pulls'
+    });
+  },
+  goCode() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/code'
+    });
+  },
+  goReleases() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/releases'
+    });
+  },
+  goActions() {
+    this.$app.$def.hook = {
+      full: this.full
+    };
+    router.push({
+      uri: 'pages/actions'
+    });
+  },
+  /* v1.3.0：仓库上下文注入 Copilot 专区（README 摘要由 AI 页发送时补拉） */
+  goAI() {
+    this.$app.$def.aiCtx = {
+      full: this.full,
+      path: '',
+      text: '当前仓库：' + this.full + (this.desc ? '\n仓库简介：' + this.desc : '')
+    };
+    router.push({
+      uri: 'pages/ai'
+    });
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

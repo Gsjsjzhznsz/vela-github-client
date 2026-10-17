@@ -121,307 +121,435 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import storage from '@system.storage'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import storage from '@system.storage';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
 
-  /* v1.5.0 Copilot 专区（单通道重构）：
-   *  Copilot Chat 唯一通道（Models 2026-07-30 已退役）；PAT 用户点卡片一键
-   *  设备授权（独立 ghu_，与主登录分离）。会话持久化 storage（40 条上限）；
-   *  上下文注入（代码页/仓库页「问 AI」）；打字机分帧渲染。 */
-  const HIST_KEY = 'ai_hist_v1'
-  const HIST_CAP = 40
-  const QUICKS = [
-    { id: 'q1', label: '总结这个仓库', prompt: '请用中文简要总结当前仓库的用途、技术栈和亮点。' },
-    { id: 'q2', label: '解释这段代码', prompt: '请用中文逐段解释附加上下文里的代码片段，说明它做了什么。' },
-    { id: 'q3', label: '写 commit 信息', prompt: '请根据附加上下文的代码变更/文件内容，用约定式提交（Conventional Commits）风格写一条简短 commit message。' },
-    { id: 'q4', label: '找潜在 Bug', prompt: '请检查附加上下文里的代码，指出潜在 bug 或风险点，用中文简要列出。' },
-    { id: 'q5', label: '写 README 草稿', prompt: '请为附加上下文的仓库/文件写一段简短的 README 介绍草稿（中文）。' },
-    { id: 'q6', label: '生成 Issue 回复', prompt: '请针对附加上下文里的讨论内容，用中文起草一条礼貌、专业的 Issue/PR 回复。' },
-    { id: 'q7', label: '通道自检', prompt: null },
-    { id: 'q8', label: '刷新模型列表', prompt: null }
-  ]
-  /* v1.5.0：系统提示语随通道更新（Models 已退役，统一 Copilot） */
-  const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。'
+/* v1.5.0 Copilot 专区（单通道重构）：
+ *  Copilot Chat 唯一通道（Models 2026-07-30 已退役）；PAT 用户点卡片一键
+ *  设备授权（独立 ghu_，与主登录分离）。会话持久化 storage（40 条上限）；
+ *  上下文注入（代码页/仓库页「问 AI」）；打字机分帧渲染。 */
 
-  export default {
-    protected: {},
-    private: {
-      msgs: [],
-      quicks: QUICKS,
-      busy: false,
-      scrollTop: 0,
-      chan: '',
-      modelShort: '',
-      ctxHint: '提示：在代码页/仓库页点「问 AI」可附加上下文',
-      state: 'ok',
-      needCp: false, /* v1.5.0：PAT 且未 Copilot 授权 → 显示授权引导卡 */
-      thinkText: '' /* v1.8.0：实时思考状态文本 */
-    },
-    onInit() {
-      this._model = api.aiModels()[0]
-      this._ctx = null
-      this._tick = 0
-    },
-    async onShow() {
-      await api.loadToken()
-      if (!api.hasToken()) {
-        this.state = 'needauth'
-        this.chan = api.aiChannelLabel()
-        return
-      }
-      this.state = 'ok'
-      await api.loadAiTok()
-      this.needCp = api.aiTokenKind() === 'pat' && !api.hasAiTok()
-      this.chan = api.aiChannelLabel()
-      this.syncModelLabel()
-      // 消费代码页/仓库页注入的上下文
-      const app = this.$app.$def
-      const cx = app && app.aiCtx
-      if (cx && cx.text) {
-        app.aiCtx = null
-        this._ctx = cx
-        this.ctxHint = '已附加：' + (cx.path || cx.full || '上下文') + '（本次会话有效）'
-      }
-      // 消费键盘页回传的问题
-      const r = app && app.inputResult
-      if (r && r.type === 'ai' && r.text) {
-        app.inputResult = null
-        this.send(r.text)
-        return
-      }
-      if (this.msgs.length === 0) this.loadHist()
-    },
-    syncModelLabel() {
-      const m = this._model
-      this.modelShort = m.indexOf('/') >= 0 ? m.split('/')[1] : m
-    },
-    cycleModel() {
-      if (this.busy) return
-      const ms = api.aiModels()
-      let i = ms.indexOf(this._model)
-      this._model = ms[(i + 1) % ms.length]
-      this.syncModelLabel()
-      prompt.showToast({ message: '模型：' + this._model, duration: 1400 })
-    },
-    loadHist() {
-      try {
-        storage.get({
-          key: HIST_KEY,
-          success: (d) => {
-            try {
-              const arr = d ? JSON.parse(d) : null
-              if (Array.isArray(arr) && arr.length) this.msgs = arr
-            } catch (e) {}
-          }
-        })
-      } catch (e) {}
-    },
-    saveHist() {
-      try {
-        /* v1.8.0：思考过程入档瘦身（600 字截断，去开关位）——控制 storage 体积 */
-        const keep = this.msgs.slice(-HIST_CAP).map(function (m) {
-          return { id: m.id, role: m.role, text: m.text, meta: m.meta, think: (m.think || '').slice(0, 600) }
-        })
-        storage.set({ key: HIST_KEY, value: JSON.stringify(keep) })
-      } catch (e) {}
-    },
-    clearHist() {
-      if (this.busy) return
-      this.msgs = []
-      this._ctx = null
-      this.ctxHint = '提示：在代码页/仓库页点「问 AI」可附加上下文'
-      try { storage.delete({ key: HIST_KEY }) } catch (e) {}
-      prompt.showToast({ message: '会话已清空', duration: 1200 })
-    },
-    pushMsg(role, text, meta, think) {
-      const m = {
-        id: 'm' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-        role: role, text: text, meta: meta || '',
-        /* v1.8.0：思考过程（推理模型才有，非推理模型空串不渲染） */
-        think: think ? String(think).slice(0, 800) : '',
-        thinkOpen: false
-      }
-      this.msgs.push(m)
-      if (this.msgs.length > HIST_CAP) this.msgs = this.msgs.slice(-HIST_CAP)
-      this.scrollBottom()
-      return m
-    },
-    /* v1.8.0：实时思考状态（秒级计时 + 点动画 + 慢网提示） */
-    startThink() {
-      const self = this
-      this._thinkT0 = Date.now()
-      this._thinkN = 0
-      this.tickThink()
-      this._thinkTimer = setInterval(function () { self.tickThink() }, 1000)
-    },
-    tickThink() {
-      const sec = Math.floor((Date.now() - this._thinkT0) / 1000)
-      const dots = ['', ' ·', ' ··', ' ···']
-      const d = dots[this._thinkN % 4]
-      this._thinkN++
-      let s = '思考中' + d + ' · ' + sec + 's · ' + (this.modelShort || this._model)
-      if (sec >= 15) s += '\n蓝牙网络较慢，请稍候…'
-      this.thinkText = s
-    },
-    stopThink() {
-      if (this._thinkTimer) { clearInterval(this._thinkTimer); this._thinkTimer = null }
-      this.thinkText = ''
-    },
-    /* v1.8.0：思考过程折叠切换 */
-    toggleThink(m) {
-      if (!m || !m.think) return
-      m.thinkOpen = !m.thinkOpen
-      this.msgs = this.msgs.slice()
-    },
-    scrollBottom() {
-      this._tick++
-      this.scrollTop = (this._tick % 2) ? 1 : 0
-    },
-    quickAsk(q) {
-      if (this.busy) return
-      if (q.id === 'q7') { this.runProbe(); return }
-      if (q.id === 'q8') { this.refreshModels(); return }
-      this.send(q.prompt)
-    },
-    /* v1.5.0：通道自检——/copilot_internal/user 套餐/额度 + 凭据交换实测 +
-     * Models 退役说明，结果以消息卡片呈现（旧版 /user/copilot 对 PAT 恒 404
-     * 误报「未开通」的误导性结论不再出现） */
-    async runProbe() {
-      if (!api.hasToken()) { this.state = 'needauth'; return }
-      this.busy = true
-      this.pushMsg('user', '通道自检')
-      try {
-        const p = await api.aiProbe()
-        let txt = '自检结果：\n· Copilot：' + p.copilot + '\n· 凭据交换：' + (p.exchange || '未测') + '\n· Models 通道：' + p.models
-        if (p.quotaChat) txt += '\n· 会话额度：' + p.quotaChat
-        if (p.copilotHint) txt += '\n· ' + p.copilotHint
-        if (p.modelsHint) txt += '\n· ' + p.modelsHint
-        if (p.copilot && p.copilot.indexOf('已开通') >= 0 && p.exchange === '未授权') {
-          this.needCp = true
-          txt += '\n→ 点顶部紫色卡片一键授权后即可对话（同 VS Code 免费模型）'
-        }
-        this.pushMsg('ai', txt, '诊断')
-      } catch (e) {
-        this.pushMsg('ai', '自检失败：' + ((e && e.message) || '网络异常'))
-      }
-      this.busy = false
-      this.scrollBottom()
-    },
-    /* v1.5.0：模型列表动态刷新——Copilot /models 实时目录（免费轮换不依赖硬编码） */
-    async refreshModels() {
-      if (!api.hasToken()) { this.state = 'needauth'; return }
-      this.busy = true
-      try {
-        const ids = await api.copilotModels()
-        if (ids.length && api.aiModelsSetRemote(ids)) {
-          if (api.aiModels().indexOf(this._model) < 0) this._model = api.aiModels()[0]
-          this.syncModelLabel()
-          this.pushMsg('ai', '模型列表已刷新（' + ids.length + ' 个）：' + ids.slice(0, 6).join('、') + (ids.length > 6 ? ' 等' : ''), '目录')
-        } else {
-          this.pushMsg('ai', '模型目录拉取失败（需先完成 Copilot 授权或网络受限），继续使用内置列表', '目录')
-        }
-      } catch (e) {
-        const em = (e && e.message) || '网络异常'
-        if (e && e.needCopilot) this.needCp = true
-        this.pushMsg('ai', '模型目录刷新失败：' + em)
-      }
-      this.busy = false
-      this.scrollBottom()
-    },
-    /* v1.5.0：一键 Copilot 设备授权（独立于主登录，免打字） */
-    goCopilotAuth() {
-      this.$app.$def.hook = { mode: 'copilot' }
-      router.push({ uri: 'pages/device', params: { mode: 'copilot' } })
-    },
-    openInput() {
-      if (this.busy) return
-      /* v1.7.1 根修：本固件 router 不透传 params（BandQQ/全项目 hook 模式实证，
-       * 此处曾是全项目唯一 params 直传调用点）→ type 丢失落 search → 确认回传
-       * type 不匹配被 AI 页丢弃 = 「手动输入点确认没有任何反应」。统一 hook。 */
-      this.$app.$def.hook = { type: 'ai' }
-      router.push({ uri: 'pages/input' })
-    },
-    buildMessages(userText) {
-      const msgs = [{ role: 'system', content: SYSTEM_PROMPT }]
-      if (this._ctx && this._ctx.text) {
-        msgs.push({ role: 'system', content: '以下是与本次问题相关的上下文：\n' + this._ctx.text.slice(0, 3600) })
-      }
-      // 最近 8 条历史（错误提示条目 role=ai 但文本以失败文案开头，简单截尾即可）
-      const hist = this.msgs.slice(-8)
-      for (let i = 0; i < hist.length; i++) {
-        msgs.push({ role: hist[i].role === 'user' ? 'user' : 'assistant', content: String(hist[i].text).slice(0, 1200) })
-      }
-      msgs.push({ role: 'user', content: userText })
-      return msgs
-    },
-    async send(text) {
-      const t = String(text || '').trim()
-      if (!t || this.busy) return
-      if (!api.hasToken()) { this.state = 'needauth'; return }
-      this.pushMsg('user', t)
-      this.busy = true
-      this.startThink()
-      try {
-        const r = await api.aiChat(this.buildMessages(t), { model: this._model })
-        this.stopThink()
-        const um = r.model || this._model
-        const dur = r.ms ? (Math.round(r.ms / 100) / 10) + 's' : ''
-        const meta = 'Copilot · ' + um +
-          (r.ep === 'responses' ? ' · /responses' : '') +
-          (dur ? ' · ' + dur : '') +
-          (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '')
-        const m = this.pushMsg('ai', '', meta, r.thinking || '')
-        if (r.model && r.model !== this._model) {
-          this._model = r.model
-          this.syncModelLabel()
-        }
-        this.typewrite(m, String(r.text), 0)
-      } catch (e) {
-        this.stopThink()
-        this.busy = false
-        const em = (e && e.message) || 'AI 请求失败'
-        const st = (e && e.status) || 0
-        let tip = ''
-        if (e && e.needCopilot) {
-          this.needCp = true /* v1.7.1：授权门全屏弹出 */
-          tip = '\n→ 完成授权后重发即可'
-        } else if (st === 429) tip = ' · 会话额度用尽，下月刷新或切模型'
-        else tip = ' · 可点顶部模型行切换重试'
-        this.pushMsg('ai', em + tip)
-        this.scrollBottom()
-      }
-    },
-    /* 打字机分帧：14 字/33ms，长回复 60 帧后一次补全（渲染压力可控） */
-    typewrite(m, full, idx) {
-      if (idx >= full.length) {
-        this.busy = false
-        this.saveHist()
-        this.scrollBottom()
-        return
-      }
-      const step = Math.min(full.length, idx + 14)
-      m.text = full.slice(0, step)
-      this.msgs = this.msgs.slice()
-      if (step - idx < 840) {
-        const self = this
-        setTimeout(function () { self.typewrite(m, full, step) }, 33)
-      } else {
-        m.text = full
-        this.busy = false
-        this.saveHist()
-        this.scrollBottom()
-      }
-    },
-    goBack() {
-      router.back()
-    },
-    onDestroy() {
-      this.stopThink()
-      this.msgs = []
-      this._ctx = null
-    }
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+const HIST_KEY = 'ai_hist_v1';
+const HIST_CAP = 40;
+const QUICKS = [{
+  id: 'q1',
+  label: '总结这个仓库',
+  prompt: '请用中文简要总结当前仓库的用途、技术栈和亮点。'
+}, {
+  id: 'q2',
+  label: '解释这段代码',
+  prompt: '请用中文逐段解释附加上下文里的代码片段，说明它做了什么。'
+}, {
+  id: 'q3',
+  label: '写 commit 信息',
+  prompt: '请根据附加上下文的代码变更/文件内容，用约定式提交（Conventional Commits）风格写一条简短 commit message。'
+}, {
+  id: 'q4',
+  label: '找潜在 Bug',
+  prompt: '请检查附加上下文里的代码，指出潜在 bug 或风险点，用中文简要列出。'
+}, {
+  id: 'q5',
+  label: '写 README 草稿',
+  prompt: '请为附加上下文的仓库/文件写一段简短的 README 介绍草稿（中文）。'
+}, {
+  id: 'q6',
+  label: '生成 Issue 回复',
+  prompt: '请针对附加上下文里的讨论内容，用中文起草一条礼貌、专业的 Issue/PR 回复。'
+}, {
+  id: 'q7',
+  label: '通道自检',
+  prompt: null
+}, {
+  id: 'q8',
+  label: '刷新模型列表',
+  prompt: null
+}];
+/* v1.5.0：系统提示语随通道更新（Models 已退役，统一 Copilot） */
+const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。';
+export default {
+  protected: {},
+  private: {
+    msgs: [],
+    quicks: QUICKS,
+    busy: false,
+    scrollTop: 0,
+    chan: '',
+    modelShort: '',
+    ctxHint: '提示：在代码页/仓库页点「问 AI」可附加上下文',
+    state: 'ok',
+    needCp: false,
+    /* v1.5.0：PAT 且未 Copilot 授权 → 显示授权引导卡 */
+    thinkText: '' /* v1.8.0：实时思考状态文本 */
+  },
+  onInit() {
+    this._model = api.aiModels()[0];
+    this._ctx = null;
+    this._tick = 0;
+  },
+  onShow: function () {
+    try {
+      const _this = this;
+      return Promise.resolve(api.loadToken()).then(function () {
+        if (!api.hasToken()) {
+          _this.state = 'needauth';
+          _this.chan = api.aiChannelLabel();
+          return;
+        }
+        _this.state = 'ok';
+        return Promise.resolve(api.loadAiTok()).then(function () {
+          _this.needCp = api.aiTokenKind() === 'pat' && !api.hasAiTok();
+          _this.chan = api.aiChannelLabel();
+          _this.syncModelLabel();
+          // 消费代码页/仓库页注入的上下文
+          // 消费键盘页回传的问题
+          const app = _this.$app.$def;
+          const cx = app && app.aiCtx;
+          if (cx && cx.text) {
+            app.aiCtx = null;
+            _this._ctx = cx;
+            _this.ctxHint = '已附加：' + (cx.path || cx.full || '上下文') + '（本次会话有效）';
+          }
+          const r = app && app.inputResult;
+          if (r && r.type === 'ai' && r.text) {
+            app.inputResult = null;
+            _this.send(r.text);
+            return;
+          }
+          if (_this.msgs.length === 0) _this.loadHist();
+        });
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  syncModelLabel() {
+    const m = this._model;
+    this.modelShort = m.indexOf('/') >= 0 ? m.split('/')[1] : m;
+  },
+  cycleModel() {
+    if (this.busy) return;
+    const ms = api.aiModels();
+    let i = ms.indexOf(this._model);
+    this._model = ms[(i + 1) % ms.length];
+    this.syncModelLabel();
+    prompt.showToast({
+      message: '模型：' + this._model,
+      duration: 1400
+    });
+  },
+  loadHist() {
+    try {
+      storage.get({
+        key: HIST_KEY,
+        success: d => {
+          try {
+            const arr = d ? JSON.parse(d) : null;
+            if (Array.isArray(arr) && arr.length) this.msgs = arr;
+          } catch (e) {}
+        }
+      });
+    } catch (e) {}
+  },
+  saveHist() {
+    try {
+      /* v1.8.0：思考过程入档瘦身（600 字截断，去开关位）——控制 storage 体积 */
+      const keep = this.msgs.slice(-HIST_CAP).map(function (m) {
+        return {
+          id: m.id,
+          role: m.role,
+          text: m.text,
+          meta: m.meta,
+          think: (m.think || '').slice(0, 600)
+        };
+      });
+      storage.set({
+        key: HIST_KEY,
+        value: JSON.stringify(keep)
+      });
+    } catch (e) {}
+  },
+  clearHist() {
+    if (this.busy) return;
+    this.msgs = [];
+    this._ctx = null;
+    this.ctxHint = '提示：在代码页/仓库页点「问 AI」可附加上下文';
+    try {
+      storage.delete({
+        key: HIST_KEY
+      });
+    } catch (e) {}
+    prompt.showToast({
+      message: '会话已清空',
+      duration: 1200
+    });
+  },
+  pushMsg(role, text, meta, think) {
+    const m = {
+      id: 'm' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      role: role,
+      text: text,
+      meta: meta || '',
+      /* v1.8.0：思考过程（推理模型才有，非推理模型空串不渲染） */
+      think: think ? String(think).slice(0, 800) : '',
+      thinkOpen: false
+    };
+    this.msgs.push(m);
+    if (this.msgs.length > HIST_CAP) this.msgs = this.msgs.slice(-HIST_CAP);
+    this.scrollBottom();
+    return m;
+  },
+  /* v1.8.0：实时思考状态（秒级计时 + 点动画 + 慢网提示） */
+  startThink() {
+    const self = this;
+    this._thinkT0 = Date.now();
+    this._thinkN = 0;
+    this.tickThink();
+    this._thinkTimer = setInterval(function () {
+      self.tickThink();
+    }, 1000);
+  },
+  tickThink() {
+    const sec = Math.floor((Date.now() - this._thinkT0) / 1000);
+    const dots = ['', ' ·', ' ··', ' ···'];
+    const d = dots[this._thinkN % 4];
+    this._thinkN++;
+    let s = '思考中' + d + ' · ' + sec + 's · ' + (this.modelShort || this._model);
+    if (sec >= 15) s += '\n蓝牙网络较慢，请稍候…';
+    this.thinkText = s;
+  },
+  stopThink() {
+    if (this._thinkTimer) {
+      clearInterval(this._thinkTimer);
+      this._thinkTimer = null;
+    }
+    this.thinkText = '';
+  },
+  /* v1.8.0：思考过程折叠切换 */
+  toggleThink(m) {
+    if (!m || !m.think) return;
+    m.thinkOpen = !m.thinkOpen;
+    this.msgs = this.msgs.slice();
+  },
+  scrollBottom() {
+    this._tick++;
+    this.scrollTop = this._tick % 2 ? 1 : 0;
+  },
+  quickAsk(q) {
+    if (this.busy) return;
+    if (q.id === 'q7') {
+      this.runProbe();
+      return;
+    }
+    if (q.id === 'q8') {
+      this.refreshModels();
+      return;
+    }
+    this.send(q.prompt);
+  },
+  /* v1.5.0：通道自检——/copilot_internal/user 套餐/额度 + 凭据交换实测 +
+   * Models 退役说明，结果以消息卡片呈现（旧版 /user/copilot 对 PAT 恒 404
+   * 误报「未开通」的误导性结论不再出现） */
+  runProbe: function () {
+    try {
+      const _this2 = this;
+      function _temp2() {
+        _this2.busy = false;
+        _this2.scrollBottom();
+      }
+      if (!api.hasToken()) {
+        _this2.state = 'needauth';
+        return Promise.resolve();
+      }
+      _this2.busy = true;
+      _this2.pushMsg('user', '通道自检');
+      const _temp = _catch(function () {
+        return Promise.resolve(api.aiProbe()).then(function (p) {
+          let txt = '自检结果：\n· Copilot：' + p.copilot + '\n· 凭据交换：' + (p.exchange || '未测') + '\n· Models 通道：' + p.models;
+          if (p.quotaChat) txt += '\n· 会话额度：' + p.quotaChat;
+          if (p.copilotHint) txt += '\n· ' + p.copilotHint;
+          if (p.modelsHint) txt += '\n· ' + p.modelsHint;
+          if (p.copilot && p.copilot.indexOf('已开通') >= 0 && p.exchange === '未授权') {
+            _this2.needCp = true;
+            txt += '\n→ 点顶部紫色卡片一键授权后即可对话（同 VS Code 免费模型）';
+          }
+          _this2.pushMsg('ai', txt, '诊断');
+        });
+      }, function (e) {
+        _this2.pushMsg('ai', '自检失败：' + (e && e.message || '网络异常'));
+      });
+      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* v1.5.0：模型列表动态刷新——Copilot /models 实时目录（免费轮换不依赖硬编码） */refreshModels: function () {
+    try {
+      const _this3 = this;
+      function _temp4() {
+        _this3.busy = false;
+        _this3.scrollBottom();
+      }
+      if (!api.hasToken()) {
+        _this3.state = 'needauth';
+        return Promise.resolve();
+      }
+      _this3.busy = true;
+      const _temp3 = _catch(function () {
+        return Promise.resolve(api.copilotModels()).then(function (ids) {
+          if (ids.length && api.aiModelsSetRemote(ids)) {
+            if (api.aiModels().indexOf(_this3._model) < 0) _this3._model = api.aiModels()[0];
+            _this3.syncModelLabel();
+            _this3.pushMsg('ai', '模型列表已刷新（' + ids.length + ' 个）：' + ids.slice(0, 6).join('、') + (ids.length > 6 ? ' 等' : ''), '目录');
+          } else {
+            _this3.pushMsg('ai', '模型目录拉取失败（需先完成 Copilot 授权或网络受限），继续使用内置列表', '目录');
+          }
+        });
+      }, function (e) {
+        const em = e && e.message || '网络异常';
+        if (e && e.needCopilot) _this3.needCp = true;
+        _this3.pushMsg('ai', '模型目录刷新失败：' + em);
+      });
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* v1.5.0：一键 Copilot 设备授权（独立于主登录，免打字） */
+  goCopilotAuth() {
+    this.$app.$def.hook = {
+      mode: 'copilot'
+    };
+    router.push({
+      uri: 'pages/device',
+      params: {
+        mode: 'copilot'
+      }
+    });
+  },
+  openInput() {
+    if (this.busy) return;
+    /* v1.7.1 根修：本固件 router 不透传 params（BandQQ/全项目 hook 模式实证，
+     * 此处曾是全项目唯一 params 直传调用点）→ type 丢失落 search → 确认回传
+     * type 不匹配被 AI 页丢弃 = 「手动输入点确认没有任何反应」。统一 hook。 */
+    this.$app.$def.hook = {
+      type: 'ai'
+    };
+    router.push({
+      uri: 'pages/input'
+    });
+  },
+  buildMessages(userText) {
+    const msgs = [{
+      role: 'system',
+      content: SYSTEM_PROMPT
+    }];
+    if (this._ctx && this._ctx.text) {
+      msgs.push({
+        role: 'system',
+        content: '以下是与本次问题相关的上下文：\n' + this._ctx.text.slice(0, 3600)
+      });
+    }
+    // 最近 8 条历史（错误提示条目 role=ai 但文本以失败文案开头，简单截尾即可）
+    const hist = this.msgs.slice(-8);
+    for (let i = 0; i < hist.length; i++) {
+      msgs.push({
+        role: hist[i].role === 'user' ? 'user' : 'assistant',
+        content: String(hist[i].text).slice(0, 1200)
+      });
+    }
+    msgs.push({
+      role: 'user',
+      content: userText
+    });
+    return msgs;
+  },
+  send: function (text) {
+    try {
+      const _this4 = this;
+      const t = String(text || '').trim();
+      if (!t || _this4.busy) return Promise.resolve();
+      if (!api.hasToken()) {
+        _this4.state = 'needauth';
+        return Promise.resolve();
+      }
+      _this4.pushMsg('user', t);
+      _this4.busy = true;
+      _this4.startThink();
+      const _temp5 = _catch(function () {
+        return Promise.resolve(api.aiChat(_this4.buildMessages(t), {
+          model: _this4._model
+        })).then(function (r) {
+          _this4.stopThink();
+          const um = r.model || _this4._model;
+          const dur = r.ms ? Math.round(r.ms / 100) / 10 + 's' : '';
+          const meta = 'Copilot · ' + um + (r.ep === 'responses' ? ' · /responses' : '') + (dur ? ' · ' + dur : '') + (r.usage && r.usage.total_tokens ? ' · ' + r.usage.total_tokens + ' tokens' : '');
+          const m = _this4.pushMsg('ai', '', meta, r.thinking || '');
+          if (r.model && r.model !== _this4._model) {
+            _this4._model = r.model;
+            _this4.syncModelLabel();
+          }
+          _this4.typewrite(m, String(r.text), 0);
+        });
+      }, function (e) {
+        _this4.stopThink();
+        _this4.busy = false;
+        const em = e && e.message || 'AI 请求失败';
+        const st = e && e.status || 0;
+        let tip = '';
+        if (e && e.needCopilot) {
+          _this4.needCp = true; /* v1.7.1：授权门全屏弹出 */
+          tip = '\n→ 完成授权后重发即可';
+        } else if (st === 429) tip = ' · 会话额度用尽，下月刷新或切模型';else tip = ' · 可点顶部模型行切换重试';
+        _this4.pushMsg('ai', em + tip);
+        _this4.scrollBottom();
+      });
+      return Promise.resolve(_temp5 && _temp5.then ? _temp5.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* 打字机分帧：14 字/33ms，长回复 60 帧后一次补全（渲染压力可控） */
+  typewrite(m, full, idx) {
+    if (idx >= full.length) {
+      this.busy = false;
+      this.saveHist();
+      this.scrollBottom();
+      return;
+    }
+    const step = Math.min(full.length, idx + 14);
+    m.text = full.slice(0, step);
+    this.msgs = this.msgs.slice();
+    if (step - idx < 840) {
+      const self = this;
+      setTimeout(function () {
+        self.typewrite(m, full, step);
+      }, 33);
+    } else {
+      m.text = full;
+      this.busy = false;
+      this.saveHist();
+      this.scrollBottom();
+    }
+  },
+  goBack() {
+    router.back();
+  },
+  onDestroy() {
+    this.stopThink();
+    this.msgs = [];
+    this._ctx = null;
+  }
+};</script>

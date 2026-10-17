@@ -63,103 +63,135 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import b64 from '../../utils/b64'
-  import { mdToBlocks } from '../../utils/md'
-  import { query } from '../../utils/view'
-
-  const PAGE_CHUNK = 40
-
-  export default {
-    protected: {
-      full: ''
-    },
-    private: {
-      items: [],
-      totalBlocks: 0,
-      rendered: 0,
-      state: 'loading',
-      errMsg: ''
-    },
-    onInit(params) {
-      const p = query(params, this)
-      if (p.full) this.full = p.full
-    },
-    onShow() {
-      if (this.full && this.state !== 'ok') this.reload()
-    },
-    async reload() {
-      this.state = 'loading'
-      try {
-        let md = ''
-        // v1.2.0 首选：raw.githubusercontent Range 分块（任意大小完整可达）
-        let viaRaw = false
-        try {
-          const rr = await api.getReadmeText(this.full)
-          if (rr && typeof rr.text === 'string' && rr.text) {
-            md = rr.text
-            viaRaw = true
-          }
-        } catch (e1) { /* 分块通道失败 → 回退 base64 通道 */ }
-        if (!viaRaw) {
-          const r = await api.getReadme(this.full)
-          // 蓝牙代理对长响应可能截断/丢弃：r 非对象或缺 content 一律按失败处理，绝不渲染空文档
-          if (!r || typeof r !== 'object' || typeof r.content !== 'string' || !r.content) {
-            throw { message: 'README 响应不完整，请重试' }
-          }
-          md = b64.decode(r.content)
-        }
-        // 非响应式大数组挂在 this._ 前缀，遵循官方内存规范
-        const blocks = mdToBlocks(md)
-        if (!blocks || blocks.length === 0) {
-          throw { message: 'README 为空或解码失败' }
-        }
-        this._allBlocks = blocks
-        this.totalBlocks = blocks.length
-        this.rendered = 0
-        this.items = []
-        this.appendMore()
-        this.state = 'ok'
-      } catch (e) {
-        this._allBlocks = null
-        this.totalBlocks = 0
-        this.rendered = 0
-        this.items = []
-        this.state = 'error'
-        this.errMsg = (e && e.message) || 'README 加载失败'
-      }
-    },
-    appendMore() {
-      if (!this._allBlocks) return
-      const end = Math.min(this.totalBlocks, this.rendered + PAGE_CHUNK)
-      for (let i = this.rendered; i < end; i++) {
-        const b = this._allBlocks[i]
-        // h 必须随块传给模板：style height 引用 it.h（v1.1.1 之前丢传 → 全部塌陷隐形）
-        this.items.push({ id: 'b' + i, t: b.t, s: b.s, h: b.h })
-      }
-      this.rendered = end
-    },
-    onListScroll(e) {
-      const y = (e && e.scrollY) || 0
-      this._sy = y
-      if (this.state === 'ok' && this.rendered < this.totalBlocks) {
-        const near = this.items.length * 76 - 340
-        if (near > 0 && y >= near) this.loadMoreBlocks()
-      }
-    },
-
-    loadMoreBlocks() {
-      if (this.state !== 'ok' || this.rendered >= this.totalBlocks) return
-      this.appendMore()
-    },
-    onDestroy() {
-      this._allBlocks = null
-      this.items = []
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import b64 from '../../utils/b64';
+import { mdToBlocks } from '../../utils/md';
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+const PAGE_CHUNK = 40;
+export default {
+  protected: {
+    full: ''
+  },
+  private: {
+    items: [],
+    totalBlocks: 0,
+    rendered: 0,
+    state: 'loading',
+    errMsg: ''
+  },
+  onInit(params) {
+    const p = query(params, this);
+    if (p.full) this.full = p.full;
+  },
+  onShow() {
+    if (this.full && this.state !== 'ok') this.reload();
+  },
+  reload: function () {
+    try {
+      const _this = this;
+      _this.state = 'loading';
+      return Promise.resolve(_catch(function () {
+        function _temp4() {
+          let _exit = false;
+          function _temp2(_result) {
+            if (_exit) return _result;
+            // 非响应式大数组挂在 this._ 前缀，遵循官方内存规范
+            const blocks = mdToBlocks(md);
+            if (!blocks || blocks.length === 0) {
+              throw {
+                message: 'README 为空或解码失败'
+              };
+            }
+            _this._allBlocks = blocks;
+            _this.totalBlocks = blocks.length;
+            _this.rendered = 0;
+            _this.items = [];
+            _this.appendMore();
+            _this.state = 'ok';
+          }
+          const _temp = function () {
+            if (!viaRaw) {
+              return Promise.resolve(api.getReadme(_this.full)).then(function (r) {
+                // 蓝牙代理对长响应可能截断/丢弃：r 非对象或缺 content 一律按失败处理，绝不渲染空文档
+                if (!r || typeof r !== 'object' || typeof r.content !== 'string' || !r.content) {
+                  throw {
+                    message: 'README 响应不完整，请重试'
+                  };
+                }
+                md = b64.decode(r.content);
+              });
+            }
+          }();
+          return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
+        }
+        let md = '';
+        // v1.2.0 首选：raw.githubusercontent Range 分块（任意大小完整可达）
+        let viaRaw = false;
+        const _temp3 = _catch(function () {
+          return Promise.resolve(api.getReadmeText(_this.full)).then(function (rr) {
+            if (rr && typeof rr.text === 'string' && rr.text) {
+              md = rr.text;
+              viaRaw = true;
+            }
+          });
+        }, function () {});
+        return _temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3);
+      }, function (e) {
+        _this._allBlocks = null;
+        _this.totalBlocks = 0;
+        _this.rendered = 0;
+        _this.items = [];
+        _this.state = 'error';
+        _this.errMsg = e && e.message || 'README 加载失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  appendMore() {
+    if (!this._allBlocks) return;
+    const end = Math.min(this.totalBlocks, this.rendered + PAGE_CHUNK);
+    for (let i = this.rendered; i < end; i++) {
+      const b = this._allBlocks[i];
+      // h 必须随块传给模板：style height 引用 it.h（v1.1.1 之前丢传 → 全部塌陷隐形）
+      this.items.push({
+        id: 'b' + i,
+        t: b.t,
+        s: b.s,
+        h: b.h
+      });
+    }
+    this.rendered = end;
+  },
+  onListScroll(e) {
+    const y = e && e.scrollY || 0;
+    this._sy = y;
+    if (this.state === 'ok' && this.rendered < this.totalBlocks) {
+      const near = this.items.length * 76 - 340;
+      if (near > 0 && y >= near) this.loadMoreBlocks();
+    }
+  },
+  loadMoreBlocks() {
+    if (this.state !== 'ok' || this.rendered >= this.totalBlocks) return;
+    this.appendMore();
+  },
+  onDestroy() {
+    this._allBlocks = null;
+    this.items = [];
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

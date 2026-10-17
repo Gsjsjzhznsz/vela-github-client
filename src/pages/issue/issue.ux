@@ -142,184 +142,251 @@
   .trunc-btn { font-size: 22px; color: #58a6ff; margin-top: 8px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { mdToBlocks } from '../../utils/md'
-  import { relTime, truncate, avatar } from '../../utils/fmt'
-  import { mapIssue } from '../../utils/view'
-  import { query } from '../../utils/view'
-
-  export default {
-    protected: {
-      full: '',
-      n: ''
-    },
-    private: {
-      title: '',
-      open: true,
-      isPR: false,
-      author: '',
-      created: '',
-      labelsText: '',
-      labelColor: '#8b949e',
-      commentN: 0,
-      bodyBlocks: [],
-      bodyTrunc: false,
-      comments: [],
-      state: 'loading',
-      errMsg: '',
-      loadingComments: false,
-      hasMoreComments: false,
-      sending: false,
-      canCmt: false,
-      patching: false
-    },
-    onInit(params) {
-      const p = query(params, this)
-      if (p.full) this.full = p.full
-      if (p.n) this.n = String(p.n)
-    },
-    onShow() {
-      // 消费独立输入页回传的评论草稿
-      const app = this.$app.$def
-      const r = app && app.inputResult
-      if (r && r.type === 'comment' && r.text) {
-        app.inputResult = null
-        this.sendComment(r.text)
+<script>import router from '@system.router';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { mdToBlocks } from '../../utils/md';
+import { relTime, truncate, avatar } from '../../utils/fmt';
+import { mapIssue } from '../../utils/view';
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  protected: {
+    full: '',
+    n: ''
+  },
+  private: {
+    title: '',
+    open: true,
+    isPR: false,
+    author: '',
+    created: '',
+    labelsText: '',
+    labelColor: '#8b949e',
+    commentN: 0,
+    bodyBlocks: [],
+    bodyTrunc: false,
+    comments: [],
+    state: 'loading',
+    errMsg: '',
+    loadingComments: false,
+    hasMoreComments: false,
+    sending: false,
+    canCmt: false,
+    patching: false
+  },
+  onInit(params) {
+    const p = query(params, this);
+    if (p.full) this.full = p.full;
+    if (p.n) this.n = String(p.n);
+  },
+  onShow() {
+    // 消费独立输入页回传的评论草稿
+    const app = this.$app.$def;
+    const r = app && app.inputResult;
+    if (r && r.type === 'comment' && r.text) {
+      app.inputResult = null;
+      this.sendComment(r.text);
+    }
+    this.canCmt = api.hasToken();
+    if (this.full && this.n && this.state !== 'ok') this.reload();
+  },
+  reload: function () {
+    try {
+      const _this = this;
+      _this.state = 'loading';
+      return Promise.resolve(_catch(function () {
+        return Promise.resolve(api.getIssue(_this.full, _this.n)).then(function (iss) {
+          if (!iss || typeof iss !== 'object') {
+            throw {
+              message: 'Issue 响应不完整，请重试'
+            };
+          }
+          const m = mapIssue(iss);
+          _this.title = m.title;
+          _this.open = m.open;
+          _this.isPR = !!iss.pull_request;
+          _this.author = m.author;
+          _this.created = m.time;
+          _this.labelsText = (iss.labels || []).map(l => l.name).join(' · ');
+          _this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : '#8b949e';
+          _this.commentN = iss.comments || 0;
+          _this.canCmt = api.hasToken();
+          const body = mdToBlocks(iss.body || '');
+          const blocks = [];
+          for (let i = 0; i < body.length && i < 80; i++) {
+            // h 必须随块传给模板（同 readme 页根因修复）
+            blocks.push({
+              id: 'b' + i,
+              t: body[i].t,
+              s: body[i].s,
+              h: body[i].h
+            });
+          }
+          _this.bodyBlocks = blocks;
+          // v1.3.0：三级通道降级到 GraphQL（无 body）时显示省略提示
+          _this.bodyTrunc = !!iss.__bodyTruncated;
+          _this._issueUrl = 'https://github.com/' + _this.full + '/' + (iss.pull_request ? 'pull/' : 'issues/') + _this.n;
+          _this._cmtsUrl = iss.comments_url || '';
+          _this.comments = [];
+          _this._cPage = 0;
+          _this.hasMoreComments = _this.commentN > 0;
+          _this.state = 'ok';
+          _this.loadMoreComments();
+        });
+      }, function (e) {
+        _this.state = 'error';
+        _this.errMsg = e && e.message || '加载失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  onListScroll(e) {
+    const y = e && e.scrollY || 0;
+    this._sy = y;
+    if (this.state === 'ok' && this.hasMoreComments && !this.loadingComments) {
+      const near = this.bodyBlocks.length * 52 + this.comments.length * 115 - 340;
+      if (near > 0 && y >= near) this.loadMoreComments();
+    }
+  },
+  loadMoreComments: function () {
+    try {
+      const _this2 = this;
+      function _temp2() {
+        _this2.loadingComments = false;
       }
-      this.canCmt = api.hasToken()
-      if (this.full && this.n && this.state !== 'ok') this.reload()
-    },
-    async reload() {
-      this.state = 'loading'
-      try {
-        const iss = await api.getIssue(this.full, this.n)
-        if (!iss || typeof iss !== 'object') {
-          throw { message: 'Issue 响应不完整，请重试' }
-        }
-        const m = mapIssue(iss)
-        this.title = m.title
-        this.open = m.open
-        this.isPR = !!iss.pull_request
-        this.author = m.author
-        this.created = m.time
-        this.labelsText = (iss.labels || []).map((l) => l.name).join(' · ')
-        this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : '#8b949e'
-        this.commentN = iss.comments || 0
-        this.canCmt = api.hasToken()
-        const body = mdToBlocks(iss.body || '')
-        const blocks = []
-        for (let i = 0; i < body.length && i < 80; i++) {
-          // h 必须随块传给模板（同 readme 页根因修复）
-          blocks.push({ id: 'b' + i, t: body[i].t, s: body[i].s, h: body[i].h })
-        }
-        this.bodyBlocks = blocks
-        // v1.3.0：三级通道降级到 GraphQL（无 body）时显示省略提示
-        this.bodyTrunc = !!iss.__bodyTruncated
-        this._issueUrl = 'https://github.com/' + this.full + '/' + (iss.pull_request ? 'pull/' : 'issues/') + this.n
-        this._cmtsUrl = iss.comments_url || ''
-        this.comments = []
-        this._cPage = 0
-        this.hasMoreComments = this.commentN > 0
-        this.state = 'ok'
-        this.loadMoreComments()
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
+      if (_this2.state !== 'ok' || _this2.loadingComments || !_this2.hasMoreComments) return Promise.resolve();
+      _this2.loadingComments = true;
+      const _temp = _catch(function () {
+        const next = _this2._cPage + 1;
+        return Promise.resolve(api.getComments(_this2._cmtsUrl, next)).then(function (list) {
+          for (let i = 0; i < list.length; i++) {
+            const c = list[i];
+            const av = avatar(c.user ? c.user.login : '?');
+            _this2.comments.push({
+              id: String(c.id),
+              author: c.user ? c.user.login : '未知',
+              time: relTime(c.created_at),
+              text: truncate((c.body || '').replace(/\r/g, ''), 500),
+              avn: av.ch,
+              avc: av.color
+            });
+          }
+          _this2._cPage = next;
+          _this2.hasMoreComments = list.length >= api.lastListPerPage();
+        });
+      }, function () {});
+      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  onDestroy() {
+    this.bodyBlocks = [];
+    this.comments = [];
+  },
+  /* ---- 评论发表（T9 拼音键盘） ---- */
+  /* 写评论：跳 BandQQ compose 同构输入页（键盘常驻），onShow 消费草稿并发送 */
+  /** v1.9.0：关闭/重开 Issue（PATCH state；PR 同样适用） */
+  toggleIssueState: function () {
+    try {
+      const _this3 = this;
+      function _temp4() {
+        _this3.patching = false;
       }
-    },
-    onListScroll(e) {
-      const y = (e && e.scrollY) || 0
-      this._sy = y
-      if (this.state === 'ok' && this.hasMoreComments && !this.loadingComments) {
-        const near = (this.bodyBlocks.length * 52 + this.comments.length * 115) - 340
-        if (near > 0 && y >= near) this.loadMoreComments()
+      if (!_this3.canCmt || _this3.patching) return Promise.resolve();
+      _this3.patching = true;
+      const _temp3 = _catch(function () {
+        const target = _this3.open ? 'closed' : 'open';
+        return Promise.resolve(api.patchIssueState(_this3.full, _this3.n, target)).then(function () {
+          _this3.open = target === 'open';
+          prompt.showToast({
+            message: _this3.open ? '已重新打开' : '已关闭',
+            duration: 1500
+          });
+        });
+      }, function (e) {
+        prompt.showToast({
+          message: e && e.message || '操作失败',
+          duration: 2000
+        });
+      });
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  openComposer() {
+    if (!api.hasToken()) {
+      prompt.showToast({
+        message: '发表评论需登录 Token（设置页）',
+        duration: 2000
+      });
+      return;
+    }
+    this.$app.$def.hook = {
+      type: 'comment',
+      initial: ''
+    };
+    router.push({
+      uri: 'pages/input'
+    });
+  },
+  sendComment: function (body) {
+    try {
+      const _this4 = this;
+      function _temp6() {
+        _this4.sending = false;
       }
-    },
-
-    async loadMoreComments() {
-      if (this.state !== 'ok' || this.loadingComments || !this.hasMoreComments) return
-      this.loadingComments = true
-      try {
-        const next = this._cPage + 1
-        const list = await api.getComments(this._cmtsUrl, next)
-        for (let i = 0; i < list.length; i++) {
-          const c = list[i]
-          const av = avatar(c.user ? c.user.login : '?')
-          this.comments.push({
+      if (!body) return Promise.resolve();
+      if (!_this4._cmtsUrl || _this4.sending) return Promise.resolve();
+      _this4.sending = true;
+      const _temp5 = _catch(function () {
+        return Promise.resolve(api.addComment(_this4._cmtsUrl, body)).then(function (c) {
+          const av = avatar(c.user ? c.user.login : '?');
+          _this4.comments.push({
             id: String(c.id),
-            author: c.user ? c.user.login : '未知',
-            time: relTime(c.created_at),
+            author: c.user ? c.user.login : '我',
+            time: '刚刚',
             text: truncate((c.body || '').replace(/\r/g, ''), 500),
             avn: av.ch,
             avc: av.color
-          })
-        }
-        this._cPage = next
-        this.hasMoreComments = list.length >= api.lastListPerPage()
-      } catch (e) {
-        // 评论加载失败不打断页面
-      }
-      this.loadingComments = false
-    },
-    onDestroy() {
-      this.bodyBlocks = []
-      this.comments = []
-    },
-    /* ---- 评论发表（T9 拼音键盘） ---- */
-    /* 写评论：跳 BandQQ compose 同构输入页（键盘常驻），onShow 消费草稿并发送 */
-    /** v1.9.0：关闭/重开 Issue（PATCH state；PR 同样适用） */
-    async toggleIssueState() {
-      if (!this.canCmt || this.patching) return
-      this.patching = true
-      try {
-        const target = this.open ? 'closed' : 'open'
-        await api.patchIssueState(this.full, this.n, target)
-        this.open = target === 'open'
-        prompt.showToast({ message: this.open ? '已重新打开' : '已关闭', duration: 1500 })
-      } catch (e) {
-        prompt.showToast({ message: (e && e.message) || '操作失败', duration: 2000 })
-      }
-      this.patching = false
-    },
-    openComposer() {
-      if (!api.hasToken()) {
-        prompt.showToast({ message: '发表评论需登录 Token（设置页）', duration: 2000 })
-        return
-      }
-      this.$app.$def.hook = { type: 'comment', initial: '' }
-      router.push({ uri: 'pages/input' })
-    },
-
-    async sendComment(body) {
-      if (!body) return
-      if (!this._cmtsUrl || this.sending) return
-      this.sending = true
-      try {
-        const c = await api.addComment(this._cmtsUrl, body)
-        const av = avatar(c.user ? c.user.login : '?')
-        this.comments.push({
-          id: String(c.id),
-          author: c.user ? c.user.login : '我',
-          time: '刚刚',
-          text: truncate((c.body || '').replace(/\r/g, ''), 500),
-          avn: av.ch,
-          avc: av.color
-        })
-        this.commentN += 1
-        prompt.showToast({ message: '评论已发表', duration: 1500 })
-      } catch (e) {
-        prompt.showToast({ message: '发表失败：' + ((e && e.message) || ''), duration: 2000 })
-      }
-      this.sending = false
-    },
-    goBack() {
-      router.back()
-    },
-    /* v1.3.0：正文省略时引导手机浏览器（快应用无剪贴板 API，用分享型 toast 展示链接） */
-    copyIssueLink() {
-      prompt.showToast({ message: this._issueUrl || '', duration: 4000 })
+          });
+          _this4.commentN += 1;
+          prompt.showToast({
+            message: '评论已发表',
+            duration: 1500
+          });
+        });
+      }, function (e) {
+        prompt.showToast({
+          message: '发表失败：' + (e && e.message || ''),
+          duration: 2000
+        });
+      });
+      return Promise.resolve(_temp5 && _temp5.then ? _temp5.then(_temp6) : _temp6(_temp5));
+    } catch (e) {
+      return Promise.reject(e);
     }
+  },
+  goBack() {
+    router.back();
+  },
+  /* v1.3.0：正文省略时引导手机浏览器（快应用无剪贴板 API，用分享型 toast 展示链接） */
+  copyIssueLink() {
+    prompt.showToast({
+      message: this._issueUrl || '',
+      duration: 4000
+    });
   }
-</script>
+};</script>

@@ -64,159 +64,225 @@
   .err-t { font-size: 25px; color: #f85149; text-align: center; padding: 0 10px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { query } from '../../utils/view'
-
-  export default {
-    private: {
-      state: 'starting', /* starting / code / saving / error */
-      userCode: '',
-      verifyUri: 'github.com/login/device',
-      statusText: '等待授权…',
-      errMsg: '',
-      mode: 'login' /* v1.5.0：login（主登录）| copilot（AI 专用授权） */
-    },
-    onInit(params) {
-      /* v1.5.0：mode=copilot → AI 专用授权（Copilot CLI GitHub App），
-       * 成功后存独立 AI token，不动主登录 */
-      try {
-        const p = query(params, this)
-        this.mode = p.mode === 'copilot' ? 'copilot' : 'login'
-      } catch (e) { this.mode = 'login' }
-      this._dc = ''
-      this._interval = 5
-      this._deadline = 0
-      this._timer = null
-      this._destroyed = false
-      this._netFails = 0
-      this._started = false
-      this._checking = false
-    },
-    onShow() {
-      if (this.state === 'starting' && !this._dc && !this._started) {
-        this._started = true
-        this.start()
-      }
-    },
-    start() {
-      if (this._destroyed) return
-      this.state = 'starting'
-      this._startOnce()
-    },
-    async _startOnce() {
-      try {
-        const r = await api.deviceFlowStart(this.mode)
-        if (this._destroyed) return
-        this._dc = r.deviceCode
-        this._interval = r.interval
-        this._deadline = Date.now() + r.expiresIn * 1000
-        this._netFails = 0
-        this.userCode = r.userCode
-        this.verifyUri = String(r.verifyUri || 'https://github.com/login/device').replace(/^https?:\/\//, '')
-        this.statusText = '等待授权 · 有效期 ' + Math.floor(r.expiresIn / 60) + ' 分钟'
-        this.state = 'code'
-        this.schedule()
-      } catch (e) {
-        if (this._destroyed) return
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '发起登录失败'
-      }
-    },
-    schedule() {
-      if (this._destroyed || this._timer) return
-      const iv = Math.max(3, this._interval) * 1000
-      this._timer = setTimeout(() => {
-        this._timer = null
-        this.pollOnce()
-      }, iv)
-    },
-    /** v1.2.1：手动刷新——不等轮询计时器，立即检查一次授权结果 */
-    async manualCheck() {
-      if (this._destroyed || this.state !== 'code' || this._checking) return
-      this._checking = true
-      this.statusText = '正在手动检查…'
-      if (this._timer) { clearTimeout(this._timer); this._timer = null }
-      await this.pollOnce() /* pollOnce 内部会自行安排下一轮（或终态返回） */
-      this._checking = false
-    },
-    async pollOnce() {
-      if (this._destroyed || this.state !== 'code') return
-      if (Date.now() > this._deadline) {
-        this.state = 'error'
-        this.errMsg = '登录码已过期，请重新开始'
-        return
-      }
-      const r = await api.deviceFlowPoll(this._dc, this._interval, this.mode)
-      if (this._destroyed || this.state !== 'code') return
-      if (r.state === 'ok') {
-        await this.finish(r.token)
-        return
-      }
-      if (r.state === 'slow') {
-        this._interval = r.interval
-      } else if (r.state === 'netfail') {
-        this._netFails++
-        if (this._netFails >= 6) {
-          this.state = 'error'
-          this.errMsg = '网络不稳定，请重新开始'
-          return
-        }
-      } else if (r.state === 'pending') {
-        this._netFails = 0
-      } else if (r.state === 'expired') {
-        this.state = 'error'
-        this.errMsg = '登录码已过期，请重新开始'
-        return
-      } else if (r.state === 'denied') {
-        this.state = 'error'
-        this.errMsg = '你已在网页拒绝了授权'
-        return
-      } else {
-        this.state = 'error'
-        this.errMsg = '登录异常（HTTP ' + (r.status || '?') + '），请重新开始'
-        return
-      }
-      const leftMs = this._deadline - Date.now()
-      if (leftMs > 0) {
-        const m = Math.ceil(leftMs / 60000)
-        this.statusText = '等待授权 · 剩余约 ' + m + ' 分钟'
-      }
-      this.schedule()
-    },
-    async finish(token) {
-      this.state = 'saving'
-      try {
-        if (this.mode === 'copilot') {
-          /* v1.5.0：AI 专用 token 落盘（独立于主登录），并立即验证凭据可交换 */
-          await api.saveAiTok(token)
-          prompt.showToast({ message: 'Copilot 授权成功，已保存本机', duration: 2000 })
-        } else {
-          await api.saveToken(token)
-          await api.verifyPersisted()
-          prompt.showToast({ message: '登录成功，已保存本机', duration: 2000 })
-        }
-        setTimeout(() => {
-          if (!this._destroyed) router.back()
-        }, 900)
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = '授权成功但保存失败：' + ((e && e.message) || '')
-      }
-    },
-    cancel() {
-      this._destroyed = true
-      if (this._timer) { clearTimeout(this._timer); this._timer = null }
-      router.back()
-    },
-    onDestroy() {
-      this._destroyed = true
-      if (this._timer) { clearTimeout(this._timer); this._timer = null }
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  private: {
+    state: 'starting',
+    /* starting / code / saving / error */
+    userCode: '',
+    verifyUri: 'github.com/login/device',
+    statusText: '等待授权…',
+    errMsg: '',
+    mode: 'login' /* v1.5.0：login（主登录）| copilot（AI 专用授权） */
+  },
+  onInit(params) {
+    /* v1.5.0：mode=copilot → AI 专用授权（Copilot CLI GitHub App），
+     * 成功后存独立 AI token，不动主登录 */
+    try {
+      const p = query(params, this);
+      this.mode = p.mode === 'copilot' ? 'copilot' : 'login';
+    } catch (e) {
+      this.mode = 'login';
+    }
+    this._dc = '';
+    this._interval = 5;
+    this._deadline = 0;
+    this._timer = null;
+    this._destroyed = false;
+    this._netFails = 0;
+    this._started = false;
+    this._checking = false;
+  },
+  onShow() {
+    if (this.state === 'starting' && !this._dc && !this._started) {
+      this._started = true;
+      this.start();
+    }
+  },
+  start() {
+    if (this._destroyed) return;
+    this.state = 'starting';
+    this._startOnce();
+  },
+  _startOnce: function () {
+    try {
+      const _this = this;
+      return Promise.resolve(_catch(function () {
+        return Promise.resolve(api.deviceFlowStart(_this.mode)).then(function (r) {
+          if (_this._destroyed) return;
+          _this._dc = r.deviceCode;
+          _this._interval = r.interval;
+          _this._deadline = Date.now() + r.expiresIn * 1000;
+          _this._netFails = 0;
+          _this.userCode = r.userCode;
+          _this.verifyUri = String(r.verifyUri || 'https://github.com/login/device').replace(/^https?:\/\//, '');
+          _this.statusText = '等待授权 · 有效期 ' + Math.floor(r.expiresIn / 60) + ' 分钟';
+          _this.state = 'code';
+          _this.schedule();
+        });
+      }, function (e) {
+        if (_this._destroyed) return;
+        _this.state = 'error';
+        _this.errMsg = e && e.message || '发起登录失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  schedule() {
+    if (this._destroyed || this._timer) return;
+    const iv = Math.max(3, this._interval) * 1000;
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this.pollOnce();
+    }, iv);
+  },
+  /** v1.2.1：手动刷新——不等轮询计时器，立即检查一次授权结果 */manualCheck: function () {
+    try {
+      const _this2 = this;
+      if (_this2._destroyed || _this2.state !== 'code' || _this2._checking) return Promise.resolve();
+      _this2._checking = true;
+      _this2.statusText = '正在手动检查…';
+      if (_this2._timer) {
+        clearTimeout(_this2._timer);
+        _this2._timer = null;
+      }
+      return Promise.resolve(_this2.pollOnce()).then(function () {
+        /* pollOnce 内部会自行安排下一轮（或终态返回） */
+        _this2._checking = false;
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  pollOnce: function () {
+    try {
+      const _this3 = this;
+      if (_this3._destroyed || _this3.state !== 'code') return Promise.resolve();
+      if (Date.now() > _this3._deadline) {
+        _this3.state = 'error';
+        _this3.errMsg = '登录码已过期，请重新开始';
+        return Promise.resolve();
+      }
+      return Promise.resolve(api.deviceFlowPoll(_this3._dc, _this3._interval, _this3.mode)).then(function (r) {
+        let _exit = false;
+        function _temp2(_result2) {
+          if (_exit) return _result2;
+          if (r.state === 'slow') {
+            _this3._interval = r.interval;
+          } else if (r.state === 'netfail') {
+            _this3._netFails++;
+            if (_this3._netFails >= 6) {
+              _this3.state = 'error';
+              _this3.errMsg = '网络不稳定，请重新开始';
+              return;
+            }
+          } else if (r.state === 'pending') {
+            _this3._netFails = 0;
+          } else if (r.state === 'expired') {
+            _this3.state = 'error';
+            _this3.errMsg = '登录码已过期，请重新开始';
+            return;
+          } else if (r.state === 'denied') {
+            _this3.state = 'error';
+            _this3.errMsg = '你已在网页拒绝了授权';
+            return;
+          } else {
+            _this3.state = 'error';
+            _this3.errMsg = '登录异常（HTTP ' + (r.status || '?') + '），请重新开始';
+            return;
+          }
+          const leftMs = _this3._deadline - Date.now();
+          if (leftMs > 0) {
+            const m = Math.ceil(leftMs / 60000);
+            _this3.statusText = '等待授权 · 剩余约 ' + m + ' 分钟';
+          }
+          _this3.schedule();
+        }
+        if (_this3._destroyed || _this3.state !== 'code') return;
+        const _temp = function () {
+          if (r.state === 'ok') {
+            return Promise.resolve(_this3.finish(r.token)).then(function () {
+              _exit = true;
+            });
+          }
+        }();
+        return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  finish: function (token) {
+    try {
+      const _this4 = this;
+      _this4.state = 'saving';
+      const _temp5 = _catch(function () {
+        function _temp4() {
+          setTimeout(() => {
+            if (!_this4._destroyed) router.back();
+          }, 900);
+        }
+        const _temp3 = function () {
+          if (_this4.mode === 'copilot') {
+            /* v1.5.0：AI 专用 token 落盘（独立于主登录），并立即验证凭据可交换 */
+            return Promise.resolve(api.saveAiTok(token)).then(function () {
+              prompt.showToast({
+                message: 'Copilot 授权成功，已保存本机',
+                duration: 2000
+              });
+            });
+          } else {
+            return Promise.resolve(api.saveToken(token)).then(function () {
+              return Promise.resolve(api.verifyPersisted()).then(function () {
+                prompt.showToast({
+                  message: '登录成功，已保存本机',
+                  duration: 2000
+                });
+              });
+            });
+          }
+        }();
+        return _temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3);
+      }, function (e) {
+        _this4.state = 'error';
+        _this4.errMsg = '授权成功但保存失败：' + (e && e.message || '');
+      });
+      return Promise.resolve(_temp5 && _temp5.then ? _temp5.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  cancel() {
+    this._destroyed = true;
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+    router.back();
+  },
+  onDestroy() {
+    this._destroyed = true;
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

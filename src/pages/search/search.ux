@@ -89,98 +89,141 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { mapRepo } from '../../utils/view'
-
-
-  export default {
-    private: {
-      query: '',
-      items: [],
-      state: 'empty',   // empty | loading | ok | error
-      errMsg: '',
-      emptyText: '输入关键词开始搜索',
-      total: 0,
-      page: 1,
-      hasMore: true,
-      loadingMore: false,
-      searched: false
-    },
-    onInit() {
-    },
-    async onShow() {
-      // 消费独立输入页回传的草稿（BandQQ store 同构：应用级共享态）
-      const app = this.$app.$def
-      const r = app && app.inputResult
-      if (r && r.type === 'search' && r.text) {
-        app.inputResult = null
-        this.query = r.text
-        this.doSearch()
-      }
-    },
-    goInput() {
-      this.$app.$def.hook = { type: 'search', initial: this.query || '' }
-      router.push({ uri: 'pages/input' })
-    },
-    async doSearch() {
-      const kw = this.query.trim()
-      if (!kw) {
-        prompt.showToast({ message: '请先输入关键词', duration: 1500 })
-        return
-      }
-      this.state = 'loading'
-      this.searched = true
-      try {
-        const r = await api.searchRepos(kw, 1, 'best match')
-        const list = (r && Array.isArray(r.items)) ? r.items : []
-        this.total = (r && r.total_count) || list.length
-        this.items = list.map(mapRepo)
-        this.page = 1
-        this.hasMore = list.length >= api.lastListPerPage()
-        this.state = this.items.length === 0 ? 'empty' : 'ok'
-        this.emptyText = '没有找到相关仓库'
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '搜索失败'
-      }
-    },
-    onListScroll(e) {
-      const y = (e && e.scrollY) || 0
-      // 触底自动加载（scrollY 估算：单项约 84px）
-      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 165 - 420
-        if (near > 0 && y >= near) this.loadMore()
-      }
-    },
-
-    async loadMore() {
-      if (!this.searched || !this.hasMore || this.loadingMore || this.state !== 'ok') return
-      this.loadingMore = true
-      try {
-        const next = this.page + 1
-        const r = await api.searchRepos(this.query.trim(), next, 'best match')
-        const list = (r && Array.isArray(r.items)) ? r.items : []
-        for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
-        this.page = next
-        this.hasMore = list.length >= api.lastListPerPage()
-      } catch (e) {
-        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
-      }
-      this.loadingMore = false
-    },
-    openRepo(item) {
-      if (!item) return
-      this.$app.$def.hook = { full: item.full }
-      router.push({ uri: 'pages/repo' })
-    },
-    doRefresh() {
-      if (this.query.trim()) this.doSearch()
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { mapRepo } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  private: {
+    query: '',
+    items: [],
+    state: 'empty',
+    // empty | loading | ok | error
+    errMsg: '',
+    emptyText: '输入关键词开始搜索',
+    total: 0,
+    page: 1,
+    hasMore: true,
+    loadingMore: false,
+    searched: false
+  },
+  onInit() {},
+  onShow: function () {
+    try {
+      const _this = this;
+      // 消费独立输入页回传的草稿（BandQQ store 同构：应用级共享态）
+      const app = _this.$app.$def;
+      const r = app && app.inputResult;
+      if (r && r.type === 'search' && r.text) {
+        app.inputResult = null;
+        _this.query = r.text;
+        _this.doSearch();
+      }
+      return Promise.resolve();
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  goInput() {
+    this.$app.$def.hook = {
+      type: 'search',
+      initial: this.query || ''
+    };
+    router.push({
+      uri: 'pages/input'
+    });
+  },
+  doSearch: function () {
+    try {
+      const _this2 = this;
+      const kw = _this2.query.trim();
+      if (!kw) {
+        prompt.showToast({
+          message: '请先输入关键词',
+          duration: 1500
+        });
+        return Promise.resolve();
+      }
+      _this2.state = 'loading';
+      _this2.searched = true;
+      const _temp = _catch(function () {
+        return Promise.resolve(api.searchRepos(kw, 1, 'best match')).then(function (r) {
+          const list = r && Array.isArray(r.items) ? r.items : [];
+          _this2.total = r && r.total_count || list.length;
+          _this2.items = list.map(mapRepo);
+          _this2.page = 1;
+          _this2.hasMore = list.length >= api.lastListPerPage();
+          _this2.state = _this2.items.length === 0 ? 'empty' : 'ok';
+          _this2.emptyText = '没有找到相关仓库';
+        });
+      }, function (e) {
+        _this2.state = 'error';
+        _this2.errMsg = e && e.message || '搜索失败';
+      });
+      return Promise.resolve(_temp && _temp.then ? _temp.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  onListScroll(e) {
+    const y = e && e.scrollY || 0;
+    // 触底自动加载（scrollY 估算：单项约 84px）
+    if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+      const near = this.items.length * 165 - 420;
+      if (near > 0 && y >= near) this.loadMore();
+    }
+  },
+  loadMore: function () {
+    try {
+      const _this3 = this;
+      function _temp3() {
+        _this3.loadingMore = false;
+      }
+      if (!_this3.searched || !_this3.hasMore || _this3.loadingMore || _this3.state !== 'ok') return Promise.resolve();
+      _this3.loadingMore = true;
+      const _temp2 = _catch(function () {
+        const next = _this3.page + 1;
+        return Promise.resolve(api.searchRepos(_this3.query.trim(), next, 'best match')).then(function (r) {
+          const list = r && Array.isArray(r.items) ? r.items : [];
+          for (let i = 0; i < list.length; i++) _this3.items.push(mapRepo(list[i]));
+          _this3.page = next;
+          _this3.hasMore = list.length >= api.lastListPerPage();
+        });
+      }, function (e) {
+        prompt.showToast({
+          message: '加载失败：' + (e && e.message || ''),
+          duration: 1500
+        });
+      });
+      return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  openRepo(item) {
+    if (!item) return;
+    this.$app.$def.hook = {
+      full: item.full
+    };
+    router.push({
+      uri: 'pages/repo'
+    });
+  },
+  doRefresh() {
+    if (this.query.trim()) this.doSearch();
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

@@ -113,374 +113,486 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { compact } from '../../utils/fmt'
-  import { query } from '../../utils/view'
-  import { detectLang, buildBlockState, tokenizeLine } from '../../utils/hl'
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { compact } from '../../utils/fmt';
+import { query } from '../../utils/view';
+import { detectLang, buildBlockState, tokenizeLine } from '../../utils/hl';
 
-  /* v1.2.1：大文件上限 200KB → 1MB（raw Range 分块引擎同步升级到 1MB）；
-   * 超限不再直接拒绝——上限内全部可开，超过才提示。
-   * v1.2.2：参考弦电子书分段渲染——每页固定行数（原 3000 行一次性入列，
-   * 模板节点多、渲染重、低端机滚动卡顿；分页后每页仅 ~20 节点）。 */
-  const MAX_LINES = 3000
-  const MAX_SIZE = 1024 * 1024
-  const PAGE_SIZE = 12
-  /* v1.3.0：目录列表同样分页——深/巨型目录（node_modules 单层数百条目）
-   * 一次性入列曾导致渲染树爆炸 → OOM 死机重启；band 版每页 12 条（大触区卡片）。 */
-  const PAGE_DIR = 12
-  const BIN_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'dylib', 'pdf', 'mp3', 'mp4', 'wav', 'woff', 'woff2', 'ttf', 'eot', 'otf', 'jar', 'class', 'pyc', 'bin', 'apk', 'rpk']
+/* v1.2.1：大文件上限 200KB → 1MB（raw Range 分块引擎同步升级到 1MB）；
+ * 超限不再直接拒绝——上限内全部可开，超过才提示。
+ * v1.2.2：参考弦电子书分段渲染——每页固定行数（原 3000 行一次性入列，
+ * 模板节点多、渲染重、低端机滚动卡顿；分页后每页仅 ~20 节点）。 */
 
-  export default {
-    protected: {
-      full: ''
-    },
-    private: {
-      mode: 'dir',
-      hdTitle: '',
-      pathText: '',
-      items: [],
-      state: 'loading',
-      errMsg: '',
-      progressText: '',
-      scrollTop: 0,
-      curPage: 1,
-      dirPages: 1
-    },
-    onInit(params) {
-      const p = query(params, this)
-      if (p.full) this.full = p.full
-      this._segments = []      // 当前目录段
-      this._shaStack = []      // v1.1.3：各级目录 tree sha（contents 截断时 trees 回退用）
-      this._filePath = ''      // 当前文件路径
-      this._fileName = ''
-      this._allLines = []      // v1.2.2：文件全量行（分页渲染源）
-      this._lang = 'plain'     // v1.2.4：语法高亮语言（按文件名探测）
-      this._block = []         // v1.2.4：跨行块注释/围栏状态表（载入时一次预计算）
-      this._totalPages = 1
-      this._capped = false
-      this._scrollTick = 0
-      this._dirEntries = []     // v1.3.0：目录全量条目（分页渲染源）
-      this._dirCache = {}       // v1.3.0：会话目录缓存（返回上级/来回翻秒开，上限 16 层）
-      this.hdTitle = this.full
-      this.loadDir()
-    },
-    currentPath() {
-      return this._segments.join('/')
-    },
-    async loadDir() {
-      this.mode = 'dir'
-      this.state = 'loading'
-      const cacheKey = this.full + '#' + this.currentPath()
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+const MAX_LINES = 3000;
+const MAX_SIZE = 1024 * 1024;
+const PAGE_SIZE = 12;
+/* v1.3.0：目录列表同样分页——深/巨型目录（node_modules 单层数百条目）
+ * 一次性入列曾导致渲染树爆炸 → OOM 死机重启；band 版每页 12 条（大触区卡片）。 */
+const PAGE_DIR = 12;
+const BIN_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'dylib', 'pdf', 'mp3', 'mp4', 'wav', 'woff', 'woff2', 'ttf', 'eot', 'otf', 'jar', 'class', 'pyc', 'bin', 'apk', 'rpk'];
+export default {
+  protected: {
+    full: ''
+  },
+  private: {
+    mode: 'dir',
+    hdTitle: '',
+    pathText: '',
+    items: [],
+    state: 'loading',
+    errMsg: '',
+    progressText: '',
+    scrollTop: 0,
+    curPage: 1,
+    dirPages: 1
+  },
+  onInit(params) {
+    const p = query(params, this);
+    if (p.full) this.full = p.full;
+    this._segments = []; // 当前目录段
+    this._shaStack = []; // v1.1.3：各级目录 tree sha（contents 截断时 trees 回退用）
+    this._filePath = ''; // 当前文件路径
+    this._fileName = '';
+    this._allLines = []; // v1.2.2：文件全量行（分页渲染源）
+    this._lang = 'plain'; // v1.2.4：语法高亮语言（按文件名探测）
+    this._block = []; // v1.2.4：跨行块注释/围栏状态表（载入时一次预计算）
+    this._totalPages = 1;
+    this._capped = false;
+    this._scrollTick = 0;
+    this._dirEntries = []; // v1.3.0：目录全量条目（分页渲染源）
+    this._dirCache = {}; // v1.3.0：会话目录缓存（返回上级/来回翻秒开，上限 16 层）
+    this.hdTitle = this.full;
+    this.loadDir();
+  },
+  currentPath() {
+    return this._segments.join('/');
+  },
+  loadDir: function () {
+    try {
+      let _exit = false;
+      const _this = this;
+      _this.mode = 'dir';
+      _this.state = 'loading';
+      const cacheKey = _this.full + '#' + _this.currentPath();
       /* v1.3.0：会话目录缓存命中 → 零网络秒开（返回上级/来回翻目录不再重拉） */
-      const hit = this._dirCache && this._dirCache[cacheKey]
-      if (hit) { this.applyDirList(hit); return }
-      try {
-        let list = null
+      const hit = _this._dirCache && _this._dirCache[cacheKey];
+      if (hit) {
+        _this.applyDirList(hit);
+        return Promise.resolve();
+      }
+      return Promise.resolve(_catch(function () {
+        function _temp6(_result) {
+          let _exit2 = false;
+          if (_exit) return _result;
+          function _temp4(_result5) {
+            if (_exit2) return _result5;
+            const dirs = [];
+            const files = [];
+            for (let i = 0; i < list.length; i++) {
+              const e = list[i];
+              if (e.type === 'dir') dirs.push(e);else files.push(e);
+            }
+            dirs.sort((a, b) => a.name < b.name ? -1 : 1);
+            files.sort((a, b) => a.name < b.name ? -1 : 1);
+            const out = [];
+            if (_this._segments.length > 0) out.push({
+              id: 'up',
+              kind: 'up'
+            });
+            for (let i = 0; i < dirs.length; i++) {
+              out.push({
+                id: 'd' + i,
+                kind: 'entry',
+                name: dirs[i].name,
+                path: dirs[i].path,
+                isDir: true,
+                sha: dirs[i].sha || '',
+                icon: '/common/icons/folder.png',
+                size: '',
+                rawSize: 0
+              });
+            }
+            for (let i = 0; i < files.length; i++) {
+              out.push({
+                id: 'f' + i,
+                kind: 'entry',
+                name: files[i].name,
+                path: files[i].path,
+                isDir: false,
+                sha: files[i].sha || '',
+                icon: '/common/icons/code.png',
+                size: compact(files[i].size || 0) + 'B',
+                rawSize: files[i].size || 0
+              });
+            }
+            if (out.length === 0) out.push({
+              id: 'empty0',
+              kind: 'foot',
+              text: '（空目录）'
+            });
+            // v1.3.0：目录缓存 + 分页——全量条目入 _dirEntries，页面仅渲染当页 24 条
+            _this._dirCache[cacheKey] = out;
+            const keys = Object.keys(_this._dirCache);
+            if (keys.length > 16) delete _this._dirCache[keys[0]];
+            _this.applyDirList(out);
+          }
+          const _temp3 = function () {
+            if (!Array.isArray(list)) {
+              function _temp2(_result4) {
+                if (_exit2) return _result4;
+                throw {
+                  message: '目录响应不完整，请重试'
+                };
+              }
+              const _temp = function () {
+                if (list && typeof list === 'object' && list.type === 'file' && list.path) {
+                  _this._filePath = list.path;
+                  return Promise.resolve(_this.openFileText(list.path, list.name, list.size || 0)).then(function () {
+                    _exit2 = true;
+                  });
+                }
+              }();
+              // 内容接口对单文件返回对象：仅当结构完整才按文件查看，
+              // 其余（残缺 JSON / 字符串 / 空对象）一律报错，绝不渲染垃圾数据
+              return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
+            }
+          }();
+          return _temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3);
+        }
+        let list = null;
         /* v1.4.0：GraphQL 瘦字段目录列表主通道（单条目 ~70B，响应缩 4-7 倍，
          * 中型目录在截断阈值内直达）；游客/限流/网络/路径是文件 → 回落
          * REST 阶梯（contents → 截断 → getTreeEx 下载器整树，v1.3.0 逻辑不变）；
          * 404（GitHub 路径区分大小写）直接抛明确文案。 */
-        try {
-          list = await api.getDirList(this.full, this.currentPath(), this._branch)
-        } catch (eG) {
-          if (eG && eG.status === 404) throw eG
-          try {
-            list = await api.getContents(this.full, this.currentPath(), this._branch)
-          } catch (e) {
-            if (e && e.incomplete) {
-              // v1.1.3：目录响应被蓝牙代理截断（contents 接口无 per_page 可降）——
-              // 回退 git trees API：条目瘦 3-4 倍，大目录可完整到达；
-              // 子树定位用上一级缓存的目录 sha（根用 HEAD）
-              // v1.3.0：改用 getTreeEx——trees 的 fetch 响应对巨型目录仍会截断，
-              // 原生下载器整树一次到齐（深目录数据不完整的根治）
-              const sha = this._shaStack.length ? this._shaStack[this._shaStack.length - 1] : 'HEAD'
-              const t = await api.getTreeEx(this.full, sha)
-              const arr = t && Array.isArray(t.tree) ? t.tree : null
-              if (!arr) throw { message: '目录响应不完整，请重试' }
-              list = []
-              for (let i = 0; i < arr.length; i++) {
-                const x = arr[i]
-                list.push({
-                  name: x.path.split('/').pop(),
-                  path: x.path,
-                  type: x.type === 'tree' ? 'dir' : 'file',
-                  size: x.size || 0,
-                  sha: x.sha || ''
-                })
+        const _temp5 = _catch(function () {
+          return Promise.resolve(api.getDirList(_this.full, _this.currentPath(), _this._branch)).then(function (_api$getDirList) {
+            list = _api$getDirList;
+          });
+        }, function (eG) {
+          if (eG && eG.status === 404) throw eG;
+          return _catch(function () {
+            return Promise.resolve(api.getContents(_this.full, _this.currentPath(), _this._branch)).then(function (_api$getContents) {
+              list = _api$getContents;
+            });
+          }, function (e) {
+            return function () {
+              if (e && e.incomplete) {
+                // v1.1.3：目录响应被蓝牙代理截断（contents 接口无 per_page 可降）——
+                // 回退 git trees API：条目瘦 3-4 倍，大目录可完整到达；
+                // 子树定位用上一级缓存的目录 sha（根用 HEAD）
+                // v1.3.0：改用 getTreeEx——trees 的 fetch 响应对巨型目录仍会截断，
+                // 原生下载器整树一次到齐（深目录数据不完整的根治）
+                const sha = _this._shaStack.length ? _this._shaStack[_this._shaStack.length - 1] : 'HEAD';
+                return Promise.resolve(api.getTreeEx(_this.full, sha)).then(function (t) {
+                  const arr = t && Array.isArray(t.tree) ? t.tree : null;
+                  if (!arr) throw {
+                    message: '目录响应不完整，请重试'
+                  };
+                  list = [];
+                  for (let i = 0; i < arr.length; i++) {
+                    const x = arr[i];
+                    list.push({
+                      name: x.path.split('/').pop(),
+                      path: x.path,
+                      type: x.type === 'tree' ? 'dir' : 'file',
+                      size: x.size || 0,
+                      sha: x.sha || ''
+                    });
+                  }
+                });
+              } else {
+                throw e;
               }
-            } else {
-              throw e
-            }
+            }();
+          });
+        });
+        return _temp5 && _temp5.then ? _temp5.then(_temp6) : _temp6(_temp5);
+      }, function (e) {
+        _this.state = 'error';
+        _this.errMsg = e && e.message || '加载失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* 目录渲染统一出口：缓存命中/网络拉取共用（分页 + 滚动复位 + 路径文本） */
+  applyDirList(out) {
+    this._dirEntries = out;
+    this.dirPages = Math.max(1, Math.ceil(out.length / PAGE_DIR));
+    this.renderDirPage(1);
+    this.pathText = this.currentPath();
+    this._scrollTick++;
+    this.scrollTop = this._scrollTick % 2 ? 1 : 0;
+    this.state = 'ok';
+  },
+  /* v1.3.0：目录分页渲染（弦电子书式限量）——含「返回上级」首项与翻页器 */
+  renderDirPage(n) {
+    const start = (n - 1) * PAGE_DIR;
+    const slice = this._dirEntries.slice(start, start + PAGE_DIR);
+    const out = slice.slice();
+    out.push({
+      id: 'dpager',
+      kind: 'pager',
+      info: '第 ' + n + ' / ' + this.dirPages + ' 页 · 共 ' + this._dirEntries.length + ' 项',
+      canPrev: n > 1,
+      canNext: n < this.dirPages
+    });
+    out.push({
+      id: 'dai',
+      kind: 'ai',
+      text: '问 AI 关于本目录'
+    });
+    this.items = out;
+    this.curPage = n;
+  },
+  /* v1.3.0：翻页器目录/文件共用，按 mode 分发 */
+  pagePrev() {
+    if (this.mode === 'file') {
+      if (this.curPage > 1) this.pageTurnTo(this.curPage - 1);
+      return;
+    }
+    if (this.mode === 'dir' && this.curPage > 1) this.turnDir(this.curPage - 1);
+  },
+  pageNext() {
+    if (this.mode === 'file') {
+      if (this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1);
+      return;
+    }
+    if (this.mode === 'dir' && this.curPage < this.dirPages) this.turnDir(this.curPage + 1);
+  },
+  turnDir(n) {
+    this._scrollTick++;
+    this.renderDirPage(n);
+    this.scrollTop = this._scrollTick % 2 ? 1 : 0;
+  },
+  /* v1.3.0：问 AI——把当前文件片段/目录清单注入 Copilot 专区上下文 */
+  askAI() {
+    const app = this.$app.$def;
+    let ctx = '';
+    if (this.mode === 'file' && this._allLines.length) {
+      ctx = '文件 ' + this._filePath + ' 内容片段：\n' + this._allLines.slice(0, 120).join('\n').slice(0, 3800);
+    } else if (this._dirEntries.length) {
+      const names = [];
+      for (let i = 0; i < this._dirEntries.length && i < 60; i++) {
+        const e = this._dirEntries[i];
+        if (e.kind === 'entry') names.push((e.isDir ? '[目录] ' : '[文件] ') + e.name);
+      }
+      ctx = (this.currentPath() || '仓库根目录') + ' 目录清单：\n' + names.join('\n');
+    }
+    app.aiCtx = {
+      full: this.full,
+      path: this.mode === 'file' ? this._filePath : this.currentPath(),
+      text: ctx
+    };
+    router.push({
+      uri: 'pages/ai'
+    });
+  },
+  openEntry: function (item) {
+    try {
+      const _this2 = this;
+      if (!item) return Promise.resolve();
+      return Promise.resolve(function () {
+        if (item.isDir) {
+          _this2._segments = item.path.split('/');
+          // v1.1.3：记录目录 tree sha（深层大目录回退 trees API 时定位子树）；
+          // contents/trees 的目录项都自带 sha，栈深始终与层级对齐
+          if (item.sha) _this2._shaStack.push(item.sha);
+          _this2.hdTitle = item.name;
+          _this2.loadDir();
+        } else {
+          const ext = (item.name.split('.').pop() || '').toLowerCase();
+          if (BIN_EXT.indexOf(ext) >= 0) {
+            prompt.showToast({
+              message: '二进制文件，暂不支持查看',
+              duration: 2000
+            });
+            return;
           }
-        }
-        if (!Array.isArray(list)) {
-          // 内容接口对单文件返回对象：仅当结构完整才按文件查看，
-          // 其余（残缺 JSON / 字符串 / 空对象）一律报错，绝不渲染垃圾数据
-          if (list && typeof list === 'object' && list.type === 'file' && list.path) {
-            this._filePath = list.path
-            await this.openFileText(list.path, list.name, list.size || 0)
-            return
+          if (item.rawSize && item.rawSize > MAX_SIZE) {
+            prompt.showToast({
+              message: '文件超过 1MB，暂不支持查看',
+              duration: 2000
+            });
+            return;
           }
-          throw { message: '目录响应不完整，请重试' }
+          _this2._filePath = item.path;
+          _this2._fileName = item.name;
+          _this2.state = 'loading';
+          /* v1.4.0：目录项自带的字节数传入下载器作完整性基准（静默截断守门员） */
+          return Promise.resolve(_this2.openFileText(item.path, item.name, item.rawSize || 0)).then(function () {});
         }
-        const dirs = []
-        const files = []
-        for (let i = 0; i < list.length; i++) {
-          const e = list[i]
-          if (e.type === 'dir') dirs.push(e)
-          else files.push(e)
-        }
-        dirs.sort((a, b) => (a.name < b.name ? -1 : 1))
-        files.sort((a, b) => (a.name < b.name ? -1 : 1))
-        const out = []
-        if (this._segments.length > 0) out.push({ id: 'up', kind: 'up' })
-        for (let i = 0; i < dirs.length; i++) {
-          out.push({
-            id: 'd' + i,
-            kind: 'entry',
-            name: dirs[i].name,
-            path: dirs[i].path,
-            isDir: true,
-            sha: dirs[i].sha || '',
-            icon: '/common/icons/folder.png',
-            size: '',
-            rawSize: 0
-          })
-        }
-        for (let i = 0; i < files.length; i++) {
-          out.push({
-            id: 'f' + i,
-            kind: 'entry',
-            name: files[i].name,
-            path: files[i].path,
-            isDir: false,
-            sha: files[i].sha || '',
-            icon: '/common/icons/code.png',
-            size: compact(files[i].size || 0) + 'B',
-            rawSize: files[i].size || 0
-          })
-        }
-        if (out.length === 0) out.push({ id: 'empty0', kind: 'foot', text: '（空目录）' })
-        // v1.3.0：目录缓存 + 分页——全量条目入 _dirEntries，页面仅渲染当页 24 条
-        this._dirCache[cacheKey] = out
-        const keys = Object.keys(this._dirCache)
-        if (keys.length > 16) delete this._dirCache[keys[0]]
-        this.applyDirList(out)
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
-      }
-    },
-    /* 目录渲染统一出口：缓存命中/网络拉取共用（分页 + 滚动复位 + 路径文本） */
-    applyDirList(out) {
-        this._dirEntries = out
-        this.dirPages = Math.max(1, Math.ceil(out.length / PAGE_DIR))
-        this.renderDirPage(1)
-        this.pathText = this.currentPath()
-        this._scrollTick++
-        this.scrollTop = (this._scrollTick % 2) ? 1 : 0
-        this.state = 'ok'
-    },
-    /* v1.3.0：目录分页渲染（弦电子书式限量）——含「返回上级」首项与翻页器 */
-    renderDirPage(n) {
-      const start = (n - 1) * PAGE_DIR
-      const slice = this._dirEntries.slice(start, start + PAGE_DIR)
-      const out = slice.slice()
-      out.push({
-        id: 'dpager',
-        kind: 'pager',
-        info: '第 ' + n + ' / ' + this.dirPages + ' 页 · 共 ' + this._dirEntries.length + ' 项',
-        canPrev: n > 1,
-        canNext: n < this.dirPages
-      })
-      out.push({ id: 'dai', kind: 'ai', text: '问 AI 关于本目录' })
-      this.items = out
-      this.curPage = n
-    },
-    /* v1.3.0：翻页器目录/文件共用，按 mode 分发 */
-    pagePrev() {
-      if (this.mode === 'file') { if (this.curPage > 1) this.pageTurnTo(this.curPage - 1); return }
-      if (this.mode === 'dir' && this.curPage > 1) this.turnDir(this.curPage - 1)
-    },
-    pageNext() {
-      if (this.mode === 'file') { if (this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1); return }
-      if (this.mode === 'dir' && this.curPage < this.dirPages) this.turnDir(this.curPage + 1)
-    },
-    turnDir(n) {
-      this._scrollTick++
-      this.renderDirPage(n)
-      this.scrollTop = (this._scrollTick % 2) ? 1 : 0
-    },
-    /* v1.3.0：问 AI——把当前文件片段/目录清单注入 Copilot 专区上下文 */
-    askAI() {
-      const app = this.$app.$def
-      let ctx = ''
-      if (this.mode === 'file' && this._allLines.length) {
-        ctx = '文件 ' + this._filePath + ' 内容片段：\n' + this._allLines.slice(0, 120).join('\n').slice(0, 3800)
-      } else if (this._dirEntries.length) {
-        const names = []
-        for (let i = 0; i < this._dirEntries.length && i < 60; i++) {
-          const e = this._dirEntries[i]
-          if (e.kind === 'entry') names.push((e.isDir ? '[目录] ' : '[文件] ') + e.name)
-        }
-        ctx = (this.currentPath() || '仓库根目录') + ' 目录清单：\n' + names.join('\n')
-      }
-      app.aiCtx = { full: this.full, path: this.mode === 'file' ? this._filePath : this.currentPath(), text: ctx }
-      router.push({ uri: 'pages/ai' })
-    },
-    async openEntry(item) {
-      if (!item) return
-      if (item.isDir) {
-        this._segments = item.path.split('/')
-        // v1.1.3：记录目录 tree sha（深层大目录回退 trees API 时定位子树）；
-        // contents/trees 的目录项都自带 sha，栈深始终与层级对齐
-        if (item.sha) this._shaStack.push(item.sha)
-        this.hdTitle = item.name
-        this.loadDir()
-      } else {
-        const ext = (item.name.split('.').pop() || '').toLowerCase()
-        if (BIN_EXT.indexOf(ext) >= 0) {
-          prompt.showToast({ message: '二进制文件，暂不支持查看', duration: 2000 })
-          return
-        }
-        if (item.rawSize && item.rawSize > MAX_SIZE) {
-          prompt.showToast({ message: '文件超过 1MB，暂不支持查看', duration: 2000 })
-          return
-        }
-        this._filePath = item.path
-        this._fileName = item.name
-        this.state = 'loading'
-        /* v1.4.0：目录项自带的字节数传入下载器作完整性基准（静默截断守门员） */
-        await this.openFileText(item.path, item.name, item.rawSize || 0)
-      }
-    },
-    async openFileText(path, name, expectedSize) {
-      try {
-        this._wantSize = expectedSize || 0
+      }());
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  openFileText: function (path, name, expectedSize) {
+    try {
+      const _this3 = this;
+      return Promise.resolve(_catch(function () {
+        _this3._wantSize = expectedSize || 0;
         // v1.2.2：原生下载器主通道无逐块进度，先给「正在下载」占位避免像卡死；
         // 分块回退路径由 onProg 覆盖为「已加载 X / Y」
-        const fmtB = (n) => (n >= 1024 ? (Math.round(n / 102.4) / 10) + 'KB' : n + 'B')
-        this.progressText = '正在下载文件（原生通道）…'
-        this.state = 'loading'
+        const fmtB = n => n >= 1024 ? Math.round(n / 102.4) / 10 + 'KB' : n + 'B';
+        _this3.progressText = '正在下载文件（原生通道）…';
+        _this3.state = 'loading';
         const onProg = (loaded, total) => {
-          this.progressText = total > 0
-            ? '已加载 ' + fmtB(loaded) + ' / ' + fmtB(total)
-            : '已加载 ' + fmtB(loaded)
-        }
-        const r = await api.getFileRawEx(this.full, path, this._branch, onProg, expectedSize || 0)
-        const text = r && r.text
-        if (typeof text !== 'string') {
-          // raw 请求返回了对象：代理丢了 Accept 头，拿到的是文件元信息 JSON 而非内容
-          throw { message: '文件响应异常，请重试' }
-        }
-        if (!text) {
-          throw { message: '文件内容为空' }
-        }
-        this._fileName = name || path.split('/').pop()
-        this.hdTitle = this._fileName
-        const lines = text.replace(/\r/g, '').split('\n')
-        if (lines.length > MAX_LINES) lines.length = MAX_LINES
-        this._allLines = lines
-        // v1.2.4：语法高亮 —— 语言探测 + 跨行块状态一次预计算（弦电子书式
-        // 限量渲染：翻页时只对当页 18 行分词，全程毫秒级）
-        this._lang = detectLang(this._fileName)
-        this._block = this._lang === 'plain' ? [] : buildBlockState(lines, this._lang)
-        this._capped = !!r.capped
-        this._totalPages = Math.max(1, Math.ceil(lines.length / PAGE_SIZE))
-        this.mode = 'file'
-        this.renderFilePage(1)
-        this.state = 'ok'
-        this.progressText = ''
-      } catch (e) {
-        this.mode = 'dir'
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '文件加载失败'
-        this.progressText = ''
-      }
-    },
-    /* ---- v1.2.2 弦电子书式分页渲染 + v1.2.4 按页语法高亮 ---- */
-    renderFilePage(n) {
-      const start = (n - 1) * PAGE_SIZE
-      const slice = this._allLines.slice(start, start + PAGE_SIZE)
-      const hl = this._lang !== 'plain'
-      const out = []
-      for (let i = 0; i < slice.length; i++) {
-        const raw = slice[i]
-        const s = raw.length > 160 ? raw.slice(0, 160) + '…' : raw
-        if (hl) {
-          const bs = this._block[start + i] || { inb: false, lg: this._lang }
-          out.push({
-            id: 'l' + start + '_' + i,
-            kind: 'cline',
-            n: start + i + 1,
-            toks: tokenizeLine(s, bs.lg, bs.inb)
-          })
-        } else {
-          out.push({ id: 'l' + start + '_' + i, kind: 'line', n: start + i + 1, s: s })
-        }
-      }
-      out.push({
-        id: 'pager',
-        kind: 'pager',
-        info: '第 ' + n + ' / ' + this._totalPages + ' 页',
-        canPrev: n > 1,
-        canNext: n < this._totalPages
-      })
-      out.push({ id: 'fai', kind: 'ai', text: '问 AI 关于本文件' })
-      if (this._capped) out.push({ id: 'cap', kind: 'foot', text: '— 文件过大，仅显示前 1MB，其余已省略 —' })
-      else if (this._allLines.length >= MAX_LINES) out.push({ id: 'max', kind: 'foot', text: '（已达 3000 行上限，其余行已省略）' })
-      else if (n >= this._totalPages) out.push({ id: 'end', kind: 'foot', text: '— 文件结尾 —' })
-      this.items = out
-      this.curPage = n
-    },
-    /* 翻页并复位滚动：交替 1/0 确保绑定值必变（同值不重触发，BandQQ tick 同源问题） */
-    pageTurnTo(n) {
-      this._scrollTick++
-      this.renderFilePage(n)
-      this.scrollTop = (this._scrollTick % 2) ? 1 : 0
-    },
-    pagePrev() {
-      if (this.mode === 'file' && this.curPage > 1) this.pageTurnTo(this.curPage - 1)
-    },
-    pageNext() {
-      if (this.mode === 'file' && this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1)
-    },
-    goUp() {
-      if (this._segments.length > 0) {
-        this._segments.pop()
-        if (this._shaStack.length > 0) this._shaStack.pop()
-        this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1]
-        this.loadDir()
-      }
-    },
-    reload() {
-      if (this.mode === 'file') {
-        this.openFileText(this._filePath, this._fileName, this._wantSize || 0)
-      } else {
-        this.loadDir()
-      }
-    },
-    goBack() {
-      if (this.mode === 'file') {
-        this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1]
-        this.loadDir()
-        return
-      }
-      if (this._segments.length > 0) {
-        this.goUp()
-        return
-      }
-      router.back()
-    },
-    onDestroy() {
-      this.items = []
-      this._allLines = []
-      this._block = []
-      this._dirEntries = []
-      this._dirCache = {}
+          _this3.progressText = total > 0 ? '已加载 ' + fmtB(loaded) + ' / ' + fmtB(total) : '已加载 ' + fmtB(loaded);
+        };
+        return Promise.resolve(api.getFileRawEx(_this3.full, path, _this3._branch, onProg, expectedSize || 0)).then(function (r) {
+          const text = r && r.text;
+          if (typeof text !== 'string') {
+            // raw 请求返回了对象：代理丢了 Accept 头，拿到的是文件元信息 JSON 而非内容
+            throw {
+              message: '文件响应异常，请重试'
+            };
+          }
+          if (!text) {
+            throw {
+              message: '文件内容为空'
+            };
+          }
+          _this3._fileName = name || path.split('/').pop();
+          _this3.hdTitle = _this3._fileName;
+          const lines = text.replace(/\r/g, '').split('\n');
+          if (lines.length > MAX_LINES) lines.length = MAX_LINES;
+          _this3._allLines = lines;
+          // v1.2.4：语法高亮 —— 语言探测 + 跨行块状态一次预计算（弦电子书式
+          // 限量渲染：翻页时只对当页 18 行分词，全程毫秒级）
+          _this3._lang = detectLang(_this3._fileName);
+          _this3._block = _this3._lang === 'plain' ? [] : buildBlockState(lines, _this3._lang);
+          _this3._capped = !!r.capped;
+          _this3._totalPages = Math.max(1, Math.ceil(lines.length / PAGE_SIZE));
+          _this3.mode = 'file';
+          _this3.renderFilePage(1);
+          _this3.state = 'ok';
+          _this3.progressText = '';
+        });
+      }, function (e) {
+        _this3.mode = 'dir';
+        _this3.state = 'error';
+        _this3.errMsg = e && e.message || '文件加载失败';
+        _this3.progressText = '';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
     }
+  },
+  /* ---- v1.2.2 弦电子书式分页渲染 + v1.2.4 按页语法高亮 ---- */
+  renderFilePage(n) {
+    const start = (n - 1) * PAGE_SIZE;
+    const slice = this._allLines.slice(start, start + PAGE_SIZE);
+    const hl = this._lang !== 'plain';
+    const out = [];
+    for (let i = 0; i < slice.length; i++) {
+      const raw = slice[i];
+      const s = raw.length > 160 ? raw.slice(0, 160) + '…' : raw;
+      if (hl) {
+        const bs = this._block[start + i] || {
+          inb: false,
+          lg: this._lang
+        };
+        out.push({
+          id: 'l' + start + '_' + i,
+          kind: 'cline',
+          n: start + i + 1,
+          toks: tokenizeLine(s, bs.lg, bs.inb)
+        });
+      } else {
+        out.push({
+          id: 'l' + start + '_' + i,
+          kind: 'line',
+          n: start + i + 1,
+          s: s
+        });
+      }
+    }
+    out.push({
+      id: 'pager',
+      kind: 'pager',
+      info: '第 ' + n + ' / ' + this._totalPages + ' 页',
+      canPrev: n > 1,
+      canNext: n < this._totalPages
+    });
+    out.push({
+      id: 'fai',
+      kind: 'ai',
+      text: '问 AI 关于本文件'
+    });
+    if (this._capped) out.push({
+      id: 'cap',
+      kind: 'foot',
+      text: '— 文件过大，仅显示前 1MB，其余已省略 —'
+    });else if (this._allLines.length >= MAX_LINES) out.push({
+      id: 'max',
+      kind: 'foot',
+      text: '（已达 3000 行上限，其余行已省略）'
+    });else if (n >= this._totalPages) out.push({
+      id: 'end',
+      kind: 'foot',
+      text: '— 文件结尾 —'
+    });
+    this.items = out;
+    this.curPage = n;
+  },
+  /* 翻页并复位滚动：交替 1/0 确保绑定值必变（同值不重触发，BandQQ tick 同源问题） */
+  pageTurnTo(n) {
+    this._scrollTick++;
+    this.renderFilePage(n);
+    this.scrollTop = this._scrollTick % 2 ? 1 : 0;
+  },
+  pagePrev() {
+    if (this.mode === 'file' && this.curPage > 1) this.pageTurnTo(this.curPage - 1);
+  },
+  pageNext() {
+    if (this.mode === 'file' && this.curPage < this._totalPages) this.pageTurnTo(this.curPage + 1);
+  },
+  goUp() {
+    if (this._segments.length > 0) {
+      this._segments.pop();
+      if (this._shaStack.length > 0) this._shaStack.pop();
+      this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1];
+      this.loadDir();
+    }
+  },
+  reload() {
+    if (this.mode === 'file') {
+      this.openFileText(this._filePath, this._fileName, this._wantSize || 0);
+    } else {
+      this.loadDir();
+    }
+  },
+  goBack() {
+    if (this.mode === 'file') {
+      this.hdTitle = this._segments.length === 0 ? this.full : this._segments[this._segments.length - 1];
+      this.loadDir();
+      return;
+    }
+    if (this._segments.length > 0) {
+      this.goUp();
+      return;
+    }
+    router.back();
+  },
+  onDestroy() {
+    this.items = [];
+    this._allLines = [];
+    this._block = [];
+    this._dirEntries = [];
+    this._dirCache = {};
   }
-</script>
+};</script>

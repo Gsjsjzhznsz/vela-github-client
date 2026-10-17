@@ -66,10 +66,10 @@ t('md 正文块行高 30（fs22）', /\.b-p \{ font-size: 22px; line-height: 30p
 
 // 4) 版本一致性
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.0（兼容分支后缀）', /"versionName": "2\.0\.0(-[a-z]+)?"/.test(man));
-t('manifest versionCode 30', man.includes('"versionCode": 30'));
-t('settings 版本标签同步', /GitHub for Vela v2\.0\.0(-[a-z]+)?/.test(read('src/pages/settings/settings.ux')));
-t('package.json 2.0.0（兼容分支后缀）', /"version": "2\.0\.0(-[a-z]+)?"/.test(read('package.json')));
+t('manifest versionName 2.0.0（兼容分支后缀）', /"versionName": "2\.0\.1(-[a-z]+)?"/.test(man));
+t('manifest versionCode 30', man.includes('"versionCode": 31'));
+t('settings 版本标签同步', /GitHub for Vela v2\.0\.1(-[a-z]+)?/.test(read('src/pages/settings/settings.ux')));
+t('package.json 2.0.0（兼容分支后缀）', /"version": "2\.0\.1(-[a-z]+)?"/.test(read('package.json')));
 
 console.log(`===== ${passed} passed, ${failed} failed =====`);
 process.exit(failed ? 1 : 0);

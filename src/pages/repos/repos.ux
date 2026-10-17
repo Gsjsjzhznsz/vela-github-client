@@ -87,129 +87,178 @@
   .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { mapRepo } from '../../utils/view'
-  import { query } from '../../utils/view'
-
-  export default {
-    protected: {
-      user: ''
-    },
-    private: {
-      title: '我的仓库',
-      items: [],
-      state: 'loading',
-      errMsg: '',
-      emptyText: '没有仓库',
-      page: 1,
-      hasMore: true,
-      loadingMore: false,
-      refreshing: false,
-      scY: 0,
-      tY: 0,
-      pullY: 0,
-      pullText: '下拉刷新'
-    },
-    async onInit(params) {
-      const p = query(params, this)
-      if (p.user) {
-        this.user = p.user
-        this.title = this.user + ' 的仓库'
-      } else {
-        await api.loadToken()
-        if (!api.hasToken()) {
-          this.state = 'empty'
-          this.emptyText = '仓库列表需登录：请到首页 → 设置填入 Token'
-          return
-        }
-      }
-      this.reload()
-    },
-    async fetchPage(page) {
-      if (this.user) return api.getUserRepos(this.user, page)
-      return api.getMyRepos(page, 'pushed')
-    },
-    async reload() {
-      this.state = 'loading'
-      try {
-        const list = await this.fetchPage(1)
-        if (!Array.isArray(list)) {
-          throw { message: '仓库列表响应不完整，请重试' }
-        }
-        this.items = list.map(mapRepo)
-        this.page = 1
-        this.hasMore = list.length >= api.lastListPerPage()
-        this.state = this.items.length === 0 ? 'empty' : 'ok'
-        this.emptyText = this.user ? '该用户暂无公开仓库' : '还没有仓库'
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
-      }
-    },
-    async loadMore() {
-      if (!this.hasMore || this.loadingMore || this.state !== 'ok') return
-      this.loadingMore = true
-      try {
-        const next = this.page + 1
-        const list = await this.fetchPage(next)
-        for (let i = 0; i < list.length; i++) this.items.push(mapRepo(list[i]))
-        this.page = next
-        this.hasMore = list.length >= api.lastListPerPage()
-      } catch (e) {
-        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
-      }
-      this.loadingMore = false
-    },
-    openRepo(item) {
-      if (!item) return
-      this.$app.$def.hook = { full: item.full }
-      router.push({ uri: 'pages/repo' })
-    },
-    doRefresh() {
-      if (this.refreshing) return
-      this.refreshing = true
-      this.pullY = 60
-      this.pullText = '刷新中…'
-      this.reload().then(() => {
-        this.refreshing = false
-        this.pullY = 0
-      })
-    },
-    onListScroll(e) {
-      this.scY = (e && e.scrollY) || 0
-      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
-      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 158 - 420
-        if (near > 0 && this.scY >= near) this.loadMore()
-      }
-    },
-    onTouchStart(e) {
-      if (this.scY <= 0 && !this.refreshing) {
-        const t = e && e.touches && e.touches[0]
-        this.tY = (t && (t.pageY || t.clientY)) || 0
-      }
-    },
-    onTouchMove(e) {
-      if (this.refreshing || this.tY <= 0 || this.scY > 0) return
-      const t = e && e.touches && e.touches[0]
-      const y = (t && (t.pageY || t.clientY)) || 0
-      const delta = y - this.tY
-      if (delta > 0) {
-        this.pullY = Math.min(112, Math.floor(delta * 0.45))
-        this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新'
-      }
-    },
-    onTouchEnd() {
-      if (this.refreshing) return
-      if (this.pullY > 80) this.doRefresh()
-      else this.pullY = 0
-      this.tY = 0
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { mapRepo } from '../../utils/view';
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  protected: {
+    user: ''
+  },
+  private: {
+    title: '我的仓库',
+    items: [],
+    state: 'loading',
+    errMsg: '',
+    emptyText: '没有仓库',
+    page: 1,
+    hasMore: true,
+    loadingMore: false,
+    refreshing: false,
+    scY: 0,
+    tY: 0,
+    pullY: 0,
+    pullText: '下拉刷新'
+  },
+  onInit: function (params) {
+    try {
+      let _exit = false;
+      const _this = this;
+      function _temp2(_result) {
+        if (_exit) return _result;
+        _this.reload();
+      }
+      const p = query(params, _this);
+      const _temp = function () {
+        if (p.user) {
+          _this.user = p.user;
+          _this.title = _this.user + ' 的仓库';
+        } else {
+          return Promise.resolve(api.loadToken()).then(function () {
+            if (!api.hasToken()) {
+              _this.state = 'empty';
+              _this.emptyText = '仓库列表需登录：请到首页 → 设置填入 Token';
+              _exit = true;
+            }
+          });
+        }
+      }();
+      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  fetchPage: function (page) {
+    try {
+      const _this2 = this;
+      if (_this2.user) return Promise.resolve(api.getUserRepos(_this2.user, page));
+      return Promise.resolve(api.getMyRepos(page, 'pushed'));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  reload: function () {
+    try {
+      const _this3 = this;
+      _this3.state = 'loading';
+      return Promise.resolve(_catch(function () {
+        return Promise.resolve(_this3.fetchPage(1)).then(function (list) {
+          if (!Array.isArray(list)) {
+            throw {
+              message: '仓库列表响应不完整，请重试'
+            };
+          }
+          _this3.items = list.map(mapRepo);
+          _this3.page = 1;
+          _this3.hasMore = list.length >= api.lastListPerPage();
+          _this3.state = _this3.items.length === 0 ? 'empty' : 'ok';
+          _this3.emptyText = _this3.user ? '该用户暂无公开仓库' : '还没有仓库';
+        });
+      }, function (e) {
+        _this3.state = 'error';
+        _this3.errMsg = e && e.message || '加载失败';
+      }));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  loadMore: function () {
+    try {
+      const _this4 = this;
+      function _temp4() {
+        _this4.loadingMore = false;
+      }
+      if (!_this4.hasMore || _this4.loadingMore || _this4.state !== 'ok') return Promise.resolve();
+      _this4.loadingMore = true;
+      const _temp3 = _catch(function () {
+        const next = _this4.page + 1;
+        return Promise.resolve(_this4.fetchPage(next)).then(function (list) {
+          for (let i = 0; i < list.length; i++) _this4.items.push(mapRepo(list[i]));
+          _this4.page = next;
+          _this4.hasMore = list.length >= api.lastListPerPage();
+        });
+      }, function (e) {
+        prompt.showToast({
+          message: '加载失败：' + (e && e.message || ''),
+          duration: 1500
+        });
+      });
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  openRepo(item) {
+    if (!item) return;
+    this.$app.$def.hook = {
+      full: item.full
+    };
+    router.push({
+      uri: 'pages/repo'
+    });
+  },
+  doRefresh() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    this.pullY = 60;
+    this.pullText = '刷新中…';
+    this.reload().then(() => {
+      this.refreshing = false;
+      this.pullY = 0;
+    });
+  },
+  onListScroll(e) {
+    this.scY = e && e.scrollY || 0;
+    // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
+    if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+      const near = this.items.length * 158 - 420;
+      if (near > 0 && this.scY >= near) this.loadMore();
+    }
+  },
+  onTouchStart(e) {
+    if (this.scY <= 0 && !this.refreshing) {
+      const t = e && e.touches && e.touches[0];
+      this.tY = t && (t.pageY || t.clientY) || 0;
+    }
+  },
+  onTouchMove(e) {
+    if (this.refreshing || this.tY <= 0 || this.scY > 0) return;
+    const t = e && e.touches && e.touches[0];
+    const y = t && (t.pageY || t.clientY) || 0;
+    const delta = y - this.tY;
+    if (delta > 0) {
+      this.pullY = Math.min(112, Math.floor(delta * 0.45));
+      this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新';
+    }
+  },
+  onTouchEnd() {
+    if (this.refreshing) return;
+    if (this.pullY > 80) this.doRefresh();else this.pullY = 0;
+    this.tY = 0;
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

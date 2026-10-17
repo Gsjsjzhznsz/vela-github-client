@@ -1,6 +1,6 @@
 {
   "name": "vela-github-client",
-  "version": "2.0.1-band",
+  "version": "2.0.2-band",
   "description": "小米 Vela 手环/手表 GitHub 客户端（手环 9 Pro/10 Pro 336x480 方屏专属适配）",
   "private": true,
   "license": "AGPL-3.0-or-later",

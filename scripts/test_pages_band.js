@@ -70,7 +70,7 @@ t('code 行号/代码/token 行高统一 22', /\.ln \{[^}]*line-height: 22px/.te
 t('ai 气泡宽 140（192 屏半幅）', /\.bub-u \{[^}]*width: 140px/.test(read('src/pages/ai/ai.ux')) && /\.bub-a \{[^}]*width: 140px/.test(read('src/pages/ai/ai.ux')));
 t('ai 底部输入条 68（触区适配）', /\.inbar \{[^}]*height: 68px/.test(read('src/pages/ai/ai.ux')));
 t('device 授权码 30（8 位码 192 宽放得下）', /\.code \{ font-size: 30px/.test(read('src/pages/device/device.ux')));
-t('repo 宫格 2 列 82×76', /\.gcell \{ width: 82px; height: 76px/.test(read('src/pages/repo/repo.ux')));
+t('repo 功能区 BandQQ 式列表行（宫格退役）', /\.mrow \{ flex-direction: row/.test(read('src/pages/repo/repo.ux')));
 t('md.js H_TABLE 对齐页面块类（p fs17/lh23）', /p: \{ fs: 17, lh: 23/.test(read('src/utils/md.js')));
 t('md.js 192 可用宽度（代码 138/正文 158）', /b\.t === 'c' \? 138 : 158/.test(read('src/utils/md.js')));
 t('通知页触底阈值 96（单项约 64px）', /this\.flat\.length \* 96 - 300/.test(read('src/pages/notifications/notifications.ux')));
@@ -78,10 +78,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.1-band', /"versionName": "2\.0\.1-band"/.test(man));
-t('manifest versionCode 30（四分支同步）', /"versionCode": 31/.test(man));
+t('manifest versionName 2.0.2-band', /"versionName": "2\.0\.2-band"/.test(man));
+t('manifest versionCode 32（四分支同步）', /"versionCode": 32/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.0.1-band', /"version": "2\.0\.1-band"/.test(read('package.json')));
+t('package.json 2.0.2-band', /"version": "2\.0\.2-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

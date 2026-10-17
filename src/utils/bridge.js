@@ -185,7 +185,7 @@ function init() {
     };
     _connect.onclose = () => {
       _hs = false;
-      failAll('手表-手机连接已断开');
+      failAll('手环-手机连接已断开');
     };
     _connect.onerror = () => {
       _hs = false;

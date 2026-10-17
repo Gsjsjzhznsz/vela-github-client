@@ -66,7 +66,7 @@
       <text class="gate-d">设备一键授权 · 免打字 · 不影响登录</text>
       <text class="gate-d2">VS Code 同款免费模型 GPT-4o mini</text>
       <div class="gate-btn" onclick="goCopilotAuth"><text class="gate-btn-t">一键授权</text></div>
-      <text class="gate-tip">手表显示设备码 → 手机/电脑浏览器打开</text>
+      <text class="gate-tip">手环显示设备码 → 手机/电脑浏览器打开</text>
       <text class="gate-tip2">github.com/login/device 输入即可</text>
       <text class="state-btn" onclick="goBack">返回</text>
     </div>
@@ -178,7 +178,7 @@ const QUICKS = [{
   prompt: null
 }];
 /* v1.5.0：系统提示语随通道更新（Models 已退役，统一 Copilot） */
-const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手表的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。';
+const SYSTEM_PROMPT = '你是 GitHub Copilot，运行在小米 Vela 智能手环的 GitHub 客户端里。用中文回答（用户用其他语言提问时跟随用户语言）。回答必须精炼：优先 3-6 条短句/短列表，除非用户明确要代码，代码片段不超过 10 行。不要使用 Markdown 标题与表格。';
 export default {
   protected: {},
   private: {

@@ -567,7 +567,7 @@ const aiPost = function (url, header, bodyObj, tag) {
       const tg = tag ? '[' + tag + '] ' : '';
       if (!res) throw {
         status: 0,
-        message: tg + 'AI 网络失败，请检查手表网络'
+        message: tg + 'AI 网络失败，请检查手环网络'
       };
       const code = Number(res.code) || 0;
       if (code >= 200 && code < 300) {
@@ -628,7 +628,7 @@ const copilotSession = function (force) {
       function _temp119() {
         if (!res) throw {
           status: 0,
-          message: '[交换] Copilot 凭据网络失败，请检查手表网络'
+          message: '[交换] Copilot 凭据网络失败，请检查手环网络'
         };
         const code = Number(res.code) || 0;
         const d = jsonMaybe(res);
@@ -2025,7 +2025,7 @@ export const deviceFlowStart = function (mode) {
     function _temp13() {
       if (!res) throw {
         status: 0,
-        message: '网络连接失败，请检查手表网络'
+        message: '网络连接失败，请检查手环网络'
       };
       const code = Number(res.code) || 0;
       const d = jsonMaybe(res);
@@ -2418,7 +2418,7 @@ const rawRangeOnce = function (url, start, end, mode) {
       if (_exit26) return _result45;
       if (!res) throw {
         status: 0,
-        message: '网络连接失败，请检查手表网络'
+        message: '网络连接失败，请检查手环网络'
       };
       return {
         code: Number(res.code) || 0,
@@ -2456,7 +2456,7 @@ const rawRangeOnce = function (url, start, end, mode) {
       }, function () {
         if (attempt > 0) throw {
           status: 0,
-          message: '网络连接失败，请检查手表网络'
+          message: '网络连接失败，请检查手环网络'
         };
       });
     });
@@ -2565,7 +2565,7 @@ const requestGo = function (url, header, opt) {
             }
             throw {
               status: 0,
-              message: '网络连接失败，请检查手表网络（运动健康蓝牙代理 / eSIM）'
+              message: '网络连接失败，请检查手环网络（运动健康蓝牙代理 / eSIM）'
             };
           }
           const _temp101 = function () {
@@ -2647,8 +2647,9 @@ const requestGo = function (url, header, opt) {
     // v1.1.3：新增 content-length 对照检测——raw 文本被静默截断时 JSON.parse 不会报错，
     //         页面会渲染残缺内容（比报错更糟）；真机 README 14.3KB 可达，阈值在其之上
     let attempt = 0;
+    /* v2.0.2：重试 3→2 次（1 次快速重试足够；配合 12s 超时最坏 ~24s 浮出） */
     const _temp105 = _for(function () {
-      return !(_interrupt4 || _exit22) && attempt < 3;
+      return !(_interrupt4 || _exit22) && attempt < 2;
     }, function () {
       return attempt++;
     }, function () {
@@ -2656,6 +2657,11 @@ const requestGo = function (url, header, opt) {
         let _exit23 = false;
         function _temp96(_result36) {
           if (_exit23) return _result36;
+          /* v2.0.2 手环9死机根修①：babel async-to-promises 把源码 catch 里的
+           * continue 丢掉了——网络失败被 recover 吞掉后 _temp96 仍被同步调用，
+           * res 为 null → 读 res.code 抛 TypeError → 上层 gqlShouldFallback
+           * 视为可兜底 → 重复请求 + 英文报错。此守卫等价恢复 continue 语义 */
+          if (!res) return;
           lastStatus = Number(res.code) || 0;
           let d = res.data;
           if (typeof d === 'string') {
@@ -2853,8 +2859,9 @@ const ghql = function (query, variables) {
       };
       let res = null;
       let attempt = 0;
+      /* v2.0.2：重试 3→2 次 */
       const _temp93 = _for(function () {
-        return !_interrupt3 && attempt < 3;
+        return !_interrupt3 && attempt < 2;
       }, function () {
         return attempt++;
       }, function () {
@@ -3525,7 +3532,9 @@ export function rateInfo() {
 
 /* v1.2.1：显式超时（25s）——蓝牙代理偶发挂起时不再无限等待页面卡死，
  * 超时按网络失败走重试/报错路径 */
-const FETCH_TIMEOUT = 25000;
+/* v2.0.2 手环9体感根修②：蓝牙代理挂起时 25s 超时 × 重试 × 降档最坏 75s+ 假死
+ * （用户体感=「打开趋势直接死机」）。压缩为 12s，失败更快浮出 */
+const FETCH_TIMEOUT = 12000;
 
 /* ==================== v1.9.0 AstroBox 网桥（FetchBridge）传输编排 ====================
  * 三模式（持久化 gh_bridge_mode）：
@@ -3957,7 +3966,10 @@ let _lastListPerPage = PER_PAGE;
 export function lastListPerPage() {
   return _lastListPerPage;
 }
-const ADAPT_LADDER = [10, 4, 1];
+/* v2.0.2 手环9：蓝牙代理对长响应存在确定性截断（~8-14KB），REST search
+ * 单条 3-4KB → per=10 必截断白跑 3 次才降档。改为 [3,1] 首档即安全区，
+ * 最坏 2 档 × 2 次 = 4 个请求内收敛（原 [10,4,1] 最坏 9 个） */
+const ADAPT_LADDER = [3, 1];
 
 /* v1.2.1：粘性降档（跨页防错位）——列表「数据不完整」的根因修复
  * 旧行为：每页都从 per=10 重新起梯。第 1 页 10 条成功（第 1-10 条），第 2 页 10 条

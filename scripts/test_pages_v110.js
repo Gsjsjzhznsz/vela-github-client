@@ -66,10 +66,10 @@ t('md 正文块行高 30（fs22）', /\.b-p \{ font-size: 22px; line-height: 30p
 
 // 4) 版本一致性
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.2-pro（band-pro 分支）', /"versionName": "2.0.3-pro"/.test(man));
-t('manifest versionCode 33（四分支同步）', man.includes('"versionCode": 33'));
-t('settings 版本标签同步（2.0.2-pro）', /GitHub for Vela v2.0.3-pro/.test(read('src/pages/settings/settings.ux')));
-t('package.json 2.0.2-pro（band-pro 分支）', /"version": "2.0.3-pro"/.test(read('package.json')));
+t('manifest versionName 2.0.4-pro（band-pro 分支）', /"versionName": "2.0.4-pro"/.test(man));
+t('manifest versionCode 34（四分支同步）', man.includes('"versionCode": 34'));
+t('settings 版本标签同步（2.0.4-pro）', /GitHub for Vela v2.0.4-pro/.test(read('src/pages/settings/settings.ux')));
+t('package.json 2.0.4-pro（band-pro 分支）', /"version": "2.0.4-pro"/.test(read('package.json')));
 
 console.log(`===== ${passed} passed, ${failed} failed =====`);
 process.exit(failed ? 1 : 0);

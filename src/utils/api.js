@@ -2023,7 +2023,10 @@ export const deviceFlowStart = function (mode) {
   try {
     let _interrupt = false;
     function _temp13() {
-      if (!res) throw {
+      if (!res) throw lastStatus >= 400 ? {
+        status: lastStatus,
+        message: '发起登录失败（HTTP ' + lastStatus + '），请重试'
+      } : {
         status: 0,
         message: '网络连接失败，请检查手环网络'
       };
@@ -2047,6 +2050,7 @@ export const deviceFlowStart = function (mode) {
     const clientId = cp ? DEVICE_CLIENT_COPILOT : DEVICE_CLIENT_LOGIN;
     const scope = cp ? DEVICE_SCOPE_COPILOT : DEVICE_SCOPE_LOGIN;
     let res = null;
+    let lastStatus = 0; /* v2.0.3：记录最后一次 HTTP 状态，最终报错可归因 */
     let attempt = 0;
     const _temp12 = _for(function () {
       return !_interrupt && attempt < 3;
@@ -2065,6 +2069,7 @@ export const deviceFlowStart = function (mode) {
               _interrupt = true;
               return;
             }
+            lastStatus = Number(res && res.code) || 0;
             res = null;
           });
         }, function () {
@@ -4060,30 +4065,27 @@ const DEVICE_SCOPE_LOGIN = 'repo read:user notifications';
 const DEVICE_SCOPE_COPILOT = 'read:user';
 const DEVICE_URL_CODE = 'https://github.com/login/device/code';
 const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token';
+/* v2.0.3 根修：设备授权（免打字）此前直连裸调 fetch.fetch —— 两个致命伤：
+ *  ① 完全绕过 AstroBox 网桥，砍网设备上 github.com/login/device/code
+ *     直连永远不通/挂起 → 免打字界面永远停在「正在生成授权码…」；
+ *  ② 无超时，网关半开挂起时 Promise 永不落定。
+ * 现在统一走 rawFetch 三模式传输编排（bridge/auto/direct 与主请求同路），
+ * 超时 15s（授权端点偶尔慢，比 FETCH_TIMEOUT 稍宽）。 */
+const FORM_TIMEOUT = 15000;
 function formPost(url, params) {
   const parts = [];
   for (const k in params) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-  return new Promise((resolve, reject) => {
-    try {
-      fetch.fetch({
-        url: url,
-        method: 'POST',
-        header: {
-          'User-Agent': 'vela-github-client',
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        data: parts.join('&'),
-        responseType: 'json',
-        success: res => resolve(res),
-        fail: (err, code) => reject({
-          err: err,
-          code: code
-        })
-      });
-    } catch (e) {
-      reject(e);
-    }
+  return rawFetch({
+    url: url,
+    method: 'POST',
+    header: {
+      'User-Agent': 'vela-github-client',
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    data: parts.join('&'),
+    rt: 'json',
+    timeout: FORM_TIMEOUT
   });
 }
 export function qs(params) {

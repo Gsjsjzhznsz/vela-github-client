@@ -54,8 +54,8 @@
   .hint { font-size: 22px; color: #8b949e; text-align: center; }
   .uri { font-size: 23px; color: #58a6ff; font-weight: bold; margin-top: 7px; text-align: center; }
   .hint2 { font-size: 22px; color: #8b949e; margin-top: 14px; text-align: center; }
-  .codebox { margin-top: 12px; background-color: #161b22; border-radius: 20px; padding: 16px 26px; }
-  .code { font-size: 52px; color: #3fb950; font-weight: bold; letter-spacing: 4px; }
+  .codebox { margin-top: 12px; background-color: #161b22; border-radius: 20px; padding: 12px 16px; max-width: 280px; } /* v2.0.3：授权码总宽 369→255，稳落 296px 内容区 */
+  .code { font-size: 38px; color: #3fb950; font-weight: bold; letter-spacing: 2px; lines: 1; text-align: center; }
   .status { font-size: 22px; color: #8b949e; margin-top: 14px; text-align: center; }
   .status.ok { color: #3fb950; }
   .check { font-size: 21px; color: #d29922; margin-top: 16px; padding: 12px 24px; }

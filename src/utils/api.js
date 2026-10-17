@@ -1360,25 +1360,27 @@ const DEVICE_SCOPE_COPILOT = 'read:user'
 const DEVICE_URL_CODE = 'https://github.com/login/device/code'
 const DEVICE_URL_TOKEN = 'https://github.com/login/oauth/access_token'
 
+/* v2.0.3 根修：设备授权（免打字）此前直连裸调 fetch.fetch —— 两个致命伤：
+ *  ① 完全绕过 AstroBox 网桥，砍网设备上 github.com/login/device/code
+ *     直连永远不通/挂起 → 免打字界面永远停在「正在生成授权码…」；
+ *  ② 无超时，网关半开挂起时 Promise 永不落定。
+ * 现在统一走 rawFetch 三模式传输编排（bridge/auto/direct 与主请求同路），
+ * 超时 15s（授权端点偶尔慢，比 FETCH_TIMEOUT 稍宽）。 */
+const FORM_TIMEOUT = 15000;
 function formPost(url, params) {
   const parts = []
   for (const k in params) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
-  return new Promise((resolve, reject) => {
-    try {
-      fetch.fetch({
-        url: url,
-        method: 'POST',
-        header: {
-          'User-Agent': 'vela-github-client',
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        data: parts.join('&'),
-        responseType: 'json',
-        success: (res) => resolve(res),
-        fail: (err, code) => reject({ err: err, code: code })
-      })
-    } catch (e) { reject(e) }
+  return rawFetch({
+    url: url,
+    method: 'POST',
+    header: {
+      'User-Agent': 'vela-github-client',
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    data: parts.join('&'),
+    rt: 'json',
+    timeout: FORM_TIMEOUT
   })
 }
 
@@ -1389,16 +1391,18 @@ export async function deviceFlowStart(mode) {
   const clientId = cp ? DEVICE_CLIENT_COPILOT : DEVICE_CLIENT_LOGIN
   const scope = cp ? DEVICE_SCOPE_COPILOT : DEVICE_SCOPE_LOGIN
   let res = null
+  let lastStatus = 0 /* v2.0.3：记录最后一次 HTTP 状态，最终报错可归因 */
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 1200 : 2400))
     try {
       res = await formPost(DEVICE_URL_CODE, { client_id: clientId, scope: scope })
       const dTry = jsonMaybe(res)
       if (res && Number(res.code) >= 200 && Number(res.code) < 300 && dTry && dTry.device_code) break
+      lastStatus = Number(res && res.code) || 0
       res = null
     } catch (e) { res = null }
   }
-  if (!res) throw { status: 0, message: '网络连接失败，请检查手表网络' }
+  if (!res) throw lastStatus >= 400 ? { status: lastStatus, message: '发起登录失败（HTTP ' + lastStatus + '），请重试' } : { status: 0, message: '网络连接失败，请检查手表网络' }
   const code = Number(res.code) || 0
   const d = jsonMaybe(res)
   if (code < 200 || code >= 300 || !d || !d.device_code || !d.user_code) {

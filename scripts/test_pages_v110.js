@@ -4,7 +4,7 @@
  * 1) 全页面 font-size ≥ 18px（比 v1.9.0 的 ≥16 更严）
  * 2) 显式 line-height ≥ font-size × 1.25（文字遮掩根修；垂直居中按钮模式豁免）
  * 3) 本轮修复点回归：issue 头像 32 / trending rank 28 / code 行号行高对齐 / 通知页补齐
- * 4) 版本一致性 manifest 1.10.0 / 20
+ * 4) 版本一致性 manifest 2.0.0（兼容分支后缀）/ 30（四分支版本号同步）
  */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -66,10 +66,10 @@ t('md 正文块行高 30（fs21）', /\.b-p \{ font-size: 21px; line-height: 30p
 
 // 4) 版本一致性
 const man = read('src/manifest.json');
-t('manifest versionName 1.10.0', man.includes('"versionName": "1.10.0"'));
-t('manifest versionCode 20', man.includes('"versionCode": 20'));
-t('settings 版本标签同步', read('src/pages/settings/settings.ux').includes('GitHub for Vela v1.10.0'));
-t('package.json 1.10.0', read('package.json').includes('"version": "1.10.0"'));
+t('manifest versionName 2.0.0（兼容分支后缀）', /"versionName": "2\.0\.0(-[a-z]+)?"/.test(man));
+t('manifest versionCode 30（四分支同步）', /"versionCode": 30/.test(man));
+t('settings 版本标签同步（2.0.0 系）', /GitHub for Vela v2\.0\.0/.test(read('src/pages/settings/settings.ux')));
+t('package.json 2.0.0（兼容分支后缀）', /"version": "2\.0\.0(-[a-z]+)?"/.test(read('package.json')));
 
 console.log(`===== ${passed} passed, ${failed} failed =====`);
 process.exit(failed ? 1 : 0);

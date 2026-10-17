@@ -143,12 +143,12 @@ export function mdToBlocks(md) {
  *  与页面 CSS 严格对齐（.b-h fs22/lh30 等）：行数×行高 + 内边距 + 外边距。
  *  字符宽度按保守估算（CJK≈1.0×fs / 其他≈0.58×fs，可用宽度取略小值）保证宁高勿裁。 */
 const H_TABLE = {
-  h: { fs: 22, lh: 30, pad: 12 },
-  p: { fs: 17, lh: 24, pad: 8 },
-  c: { fs: 16, lh: 21, pad: 28 },
-  q: { fs: 17, lh: 23, pad: 14 },
-  l: { fs: 17, lh: 24, pad: 14 },
-  r: { fs: 14, lh: 18, pad: 16 },
+  h: { fs: 24, lh: 32, pad: 14 },
+  p: { fs: 19, lh: 27, pad: 8 },
+  c: { fs: 18, lh: 24, pad: 32 },
+  q: { fs: 19, lh: 27, pad: 16 },
+  l: { fs: 19, lh: 27, pad: 16 },
+  r: { fs: 16, lh: 21, pad: 16 },
 }
 function estBlockH(b) {
   const t = H_TABLE[b.t] || H_TABLE.p
@@ -156,7 +156,8 @@ function estBlockH(b) {
   if (!s) return t.lh + t.pad
   // 代码块按 \n 强制分行
   const segs = b.t === 'c' ? s.split('\n') : [s]
-  const avail = b.t === 'c' ? 350 : 390
+  /* band-pro 336 版可用宽度：代码 265（336-28 li-24 内边距-3 边框 再保守）、正文 290 */
+  const avail = b.t === 'c' ? 265 : 290
   let lines = 0
   for (let si = 0; si < segs.length; si++) {
     let w = 0

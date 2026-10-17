@@ -4,7 +4,7 @@
  * 1) 全页面 font-size ≥ 18px（比 v1.9.0 的 ≥16 更严）
  * 2) 显式 line-height ≥ font-size × 1.25（文字遮掩根修；垂直居中按钮模式豁免）
  * 3) 本轮修复点回归：issue 头像 32 / trending rank 28 / code 行号行高对齐 / 通知页补齐
- * 4) 版本一致性 manifest 1.10.0 / 20
+ * 4) 版本一致性 manifest 2.0.0-pro / 30（band-pro 分支手环 9/10 Pro 大改版）
  */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -53,23 +53,23 @@ t('显式行高 ≥ 字号×1.25（违例: ' + badLh.join(',') + '）', badLh.le
 
 // 3) 修复点回归
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
-t('issue 头像放大 32px 适配 20px 字母', /\.ava \{ width: 32px; height: 32px; border-radius: 16px;/.test(read('src/pages/issue/issue.ux')));
-t('trending rank 列宽 28px 适配 22px 数字', /\.rank \{ width: 28px;/.test(read('src/pages/trending/trending.ux')));
-t('code 行号/代码/词元行高统一 26', /\.ln \{[^}]*line-height: 26px/.test(read('src/pages/code/code.ux')) &&
-  /\.code-line \{[^}]*line-height: 26px/.test(read('src/pages/code/code.ux')));
+t('issue 头像放大 40px 适配 22px 字母', /\.ava \{ width: 40px; height: 40px; border-radius: 20px;/.test(read('src/pages/issue/issue.ux')));
+t('trending rank 列宽 40px 适配 26px 数字', /\.rank \{ width: 40px;/.test(read('src/pages/trending/trending.ux')));
+t('code 行号/代码/词元行高统一 28', /\.ln \{[^}]*line-height: 28px/.test(read('src/pages/code/code.ux')) &&
+  /\.code-line \{[^}]*line-height: 28px/.test(read('src/pages/code/code.ux')));
 t('ai 思考块行高 29（fs20）', /\.think-b \{[^}]*line-height: 29px/.test(read('src/pages/ai/ai.ux')));
-t('ai 气泡行高 30（fs21）', /\.bub-u \{[^}]*line-height: 30px/.test(read('src/pages/ai/ai.ux')));
+t('ai 气泡行高 32（fs22）', /\.bub-u \{[^}]*line-height: 32px/.test(read('src/pages/ai/ai.ux')));
 t('通知页 gh-muted ≥19', /\.gh-muted \{ font-size: 19px/.test(read('src/pages/notifications/notifications.ux')));
 t('通知页 cell-ci ≥18', /\.cell-ci \{ font-size: 18px/.test(read('src/pages/notifications/notifications.ux')));
-t('输入页确认按钮垂直居中模式保留（line-height:48px）', /\.done-btn \{[^}]*line-height: 48px/.test(read('src/pages/input/input.ux')));
-t('md 正文块行高 30（fs21）', /\.b-p \{ font-size: 21px; line-height: 30px/.test(read('src/pages/issue/issue.ux')));
+t('输入页确认按钮垂直居中模式保留（line-height:56px）', /\.done-btn \{[^}]*line-height: 56px/.test(read('src/pages/input/input.ux')));
+t('md 正文块行高 30（fs22）', /\.b-p \{ font-size: 22px; line-height: 30px/.test(read('src/pages/issue/issue.ux')));
 
 // 4) 版本一致性
 const man = read('src/manifest.json');
-t('manifest versionName 1.10.0（兼容分支后缀）', /"versionName": "1\.10\.0(-[a-z]+)?"/.test(man));
-t('manifest versionCode 20', man.includes('"versionCode": 20'));
-t('settings 版本标签同步', /GitHub for Vela v1\.10\.0(-[a-z]+)?/.test(read('src/pages/settings/settings.ux')));
-t('package.json 1.10.0（兼容分支后缀）', /"version": "1\.10\.0(-[a-z]+)?"/.test(read('package.json')));
+t('manifest versionName 2.0.0（兼容分支后缀）', /"versionName": "2\.0\.0(-[a-z]+)?"/.test(man));
+t('manifest versionCode 30', man.includes('"versionCode": 30'));
+t('settings 版本标签同步', /GitHub for Vela v2\.0\.0(-[a-z]+)?/.test(read('src/pages/settings/settings.ux')));
+t('package.json 2.0.0（兼容分支后缀）', /"version": "2\.0\.0(-[a-z]+)?"/.test(read('package.json')));
 
 console.log(`===== ${passed} passed, ${failed} failed =====`);
 process.exit(failed ? 1 : 0);

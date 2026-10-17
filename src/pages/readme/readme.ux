@@ -36,30 +36,31 @@
 </template>
 
 <style>
+  /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：
+   * 块样式与 md.js H_TABLE 严格对齐（336 版 avail=250/290）：显式 line-height 保证高度估算确定性 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
-  .hd-act { width: 44px; height: 44px; }
+  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-main { flex: 1; flex-direction: column; margin-left: 7px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 19px; color: #484f58; margin-top: 1px; }
-  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 19px; color: #484f58; margin-top: 2px; }
+  /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
+  .pad-end { width: 100%; height: 24px; }
   .li { padding: 3px 14px; flex-direction: column; }
-  /* 块样式与 md.js H_TABLE 严格对齐：显式 line-height 保证高度估算确定性 */
-  .b-h { font-size: 22px; line-height: 30px; color: #58a6ff; font-weight: bold; margin-top: 5px; }
-  .b-p { font-size: 21px; line-height: 30px; color: #e6edf3; }
-  .b-c { font-size: 19px; line-height: 25px; color: #a5d6ff; background-color: #161b22; border-left: 2px solid #30363d; padding: 7px 10px; margin: 3px 0; }
-  .b-q { font-size: 21px; line-height: 28px; color: #8b949e; border-left: 2px solid #30363d; padding-left: 10px; }
-  .b-l { font-size: 21px; line-height: 30px; color: #e6edf3; }
-  .b-r { font-size: 20px; line-height: 26px; color: #30363d; text-align: center; }
-  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
-  .state { position: absolute; left: 0; top: 72px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
+  .b-h { font-size: 26px; line-height: 34px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
+  .b-p { font-size: 22px; line-height: 30px; color: #e6edf3; }
+  .b-c { font-size: 20px; line-height: 26px; color: #a5d6ff; background-color: #161b22; border-left: 3px solid #30363d; padding: 10px 12px; margin: 4px 0; }
+  .b-q { font-size: 22px; line-height: 30px; color: #8b949e; border-left: 3px solid #30363d; padding-left: 12px; }
+  .b-l { font-size: 22px; line-height: 30px; color: #e6edf3; }
+  .b-r { font-size: 18px; line-height: 24px; color: #30363d; text-align: center; }
+  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>
@@ -144,7 +145,7 @@
       const y = (e && e.scrollY) || 0
       this._sy = y
       if (this.state === 'ok' && this.rendered < this.totalBlocks) {
-        const near = this.items.length * 60 - 340
+        const near = this.items.length * 76 - 340
         if (near > 0 && y >= near) this.loadMoreBlocks()
       }
     },

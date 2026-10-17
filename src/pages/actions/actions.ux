@@ -48,40 +48,41 @@
 </template>
 
 <style>
+  /* band-pro v2.0 BDS-336：主文本 25/次 20，卡 radius 20，页头 96（手环 9/10 Pro 336×480） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
-  .hd-act { width: 44px; height: 44px; }
-  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 20px; color: #484f58; flex: 1; margin-left: 7px; lines: 1; text-overflow: ellipsis; }
+  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-act { width: 46px; height: 46px; }
+  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 19px; color: #484f58; flex: 1; margin-left: 8px; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; flex-direction: column; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }
-  .cell-title { font-size: 22px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .cell-arrow { width: 14px; height: 14px; }
+  .pad-end { width: 100%; height: 24px; }
+  .li { padding: 5px 14px; flex-direction: column; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 20px; padding: 14px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
+  .cell-title { font-size: 25px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 20px; height: 20px; }
   .arr-up { transform: rotate(180deg); }
-  .dot { width: 14px; height: 14px; border-radius: 7px; }
+  .dot { width: 18px; height: 18px; border-radius: 9px; }
   .dot-ok { background-color: #3fb950; }
   .dot-fail { background-color: #f85149; }
   .dot-run { background-color: #d29922; }
   .dot-idle { background-color: #484f58; }
-  .chk { flex-direction: column; background-color: #0d1117; border-radius: 10px; margin: 4px 12px 4px 36px; padding: 2px 10px; }
-  .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 5px 0; }
+  .chk { flex-direction: column; background-color: #0d1117; border-radius: 12px; margin: 5px 14px 5px 44px; padding: 3px 12px; }
+  .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 7px 0; }
   .chk-name { font-size: 21px; color: #c9d1d9; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .chk-state { font-size: 20px; margin-left: 8px; }
+  .chk-state { font-size: 20px; margin-left: 9px; }
   .st-ok { color: #3fb950; }
   .st-fail { color: #f85149; }
   .st-run { color: #d29922; }
   .st-idle { color: #484f58; }
-  .chk-empty { font-size: 20px; color: #484f58; padding: 5px 0; }
-  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
-  .state { position: absolute; left: 0; top: 72px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
+  .chk-empty { font-size: 20px; color: #484f58; padding: 6px 0; }
+  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>
@@ -199,7 +200,7 @@
     onListScroll(e) {
       this.scY = (e && e.scrollY) || 0
       if (this.state === 'ok' && this.hasNext && !this.loadingMore) {
-        const near = this.commits.length * 92 - 420
+        const near = this.commits.length * 135 - 420
         if (near > 0 && this.scY >= near) this.loadMore()
       }
     },

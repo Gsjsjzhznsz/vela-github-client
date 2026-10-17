@@ -34,7 +34,7 @@
           </div>
         </div>
 
-        <text class="foot">Vela JS 应用 · AGPL-3.0 · Redmi Watch 5 适配</text>
+        <text class="foot">Vela JS 应用 · AGPL-3.0 · 手环 9/10 Pro 适配</text>
         <div class="pad-end"></div>
       </scroll>
     </div>
@@ -42,30 +42,32 @@
 </template>
 
 <style>
-  /* BandQQ redmiwatch 分支同构：designWidth 432（1css=1物理px），根容器 100%/100%，页头 94px 避让屏幕圆角 */
+  /* band-pro v2.0：designWidth 336（手环 9/10 Pro 336×480，1css=1物理px，BandQQ bandpro 分支同构基准）。
+   * BDS-336 设计系统：主文本 26 / 次文本 21 / 弱文本 19，卡片 radius 20、大触区（单元格高 ≥64）。
+   * 根容器 100%/100%，页头 96px 避让状态区；wrap flex:1 + scroll absolute 铺满（固件 flex 不可靠根修保留） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 14px; }
-  .hd-logo { width: 36px; height: 36px; border-radius: 8px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .hd-act { width: 44px; height: 44px; }
+  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-logo { width: 44px; height: 44px; border-radius: 10px; }
+  .hd-title { font-size: 28px; font-weight: bold; color: #e6edf3; margin-left: 12px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act { width: 46px; height: 46px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; flex-direction: column; }
-  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 12px; }
-  .ava { width: 50px; height: 50px; border-radius: 25px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 26px; color: #ffffff; font-weight: bold; }
-  .card-main { flex-direction: column; margin-left: 12px; flex: 1; }
-  .row1 { font-size: 22px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .row2 { font-size: 19px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .row3 { font-size: 20px; color: #3fb950; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 13px 12px; }
-  .cell-icon { width: 26px; height: 26px; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
-  .cell-label { font-size: 22px; color: #e6edf3; }
-  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .cell-arrow { width: 19px; height: 19px; }
-  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .pad-end { width: 100%; height: 24px; }
+  .li { padding: 5px 14px; flex-direction: column; }
+  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 20px; padding: 14px; }
+  .ava { width: 60px; height: 60px; border-radius: 30px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 30px; color: #ffffff; font-weight: bold; }
+  .card-main { flex-direction: column; margin-left: 14px; flex: 1; }
+  .row1 { font-size: 26px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .row2 { font-size: 21px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; }
+  .row3 { font-size: 20px; color: #3fb950; margin-top: 3px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 20px; padding: 15px 14px; }
+  .cell-icon { width: 34px; height: 34px; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 14px; }
+  .cell-label { font-size: 26px; color: #e6edf3; }
+  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 24px; height: 24px; }
+  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 12px 0; }
 </style>
 
 <script>

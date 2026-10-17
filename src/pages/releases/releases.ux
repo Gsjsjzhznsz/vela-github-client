@@ -49,32 +49,33 @@
 </template>
 
 <style>
+  /* band-pro v2.0 BDS-336：主文本 25/次 20-21，卡 radius 20，页头 96（手环 9/10 Pro 336×480） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 72px; flex-direction: row; align-items: center; padding: 0 12px; }
-  .hd-act { width: 44px; height: 44px; }
+  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
-  .pull-icon { width: 17px; height: 17px; }
-  .pull-text { font-size: 20px; color: #8b949e; margin-left: 7px; }
-  /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
+  .pull-icon { width: 24px; height: 24px; }
+  .pull-text { font-size: 22px; color: #8b949e; margin-left: 8px; }
+  /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; flex-direction: column; }
-  .cell { flex-direction: column; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
+  .pad-end { width: 100%; height: 24px; }
+  .li { padding: 5px 14px; flex-direction: column; }
+  .cell { flex-direction: column; width: 100%; background-color: #161b22; border-radius: 20px; padding: 14px; }
   .cell-hd { flex-direction: row; align-items: center; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-tag { font-size: 22px; color: #3fb950; font-weight: bold; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .pre-badge { font-size: 19px; color: #d29922; border: 1px solid #d29922; border-radius: 10px; padding: 1px 7px; }
-  .cell-title { font-size: 22px; color: #e6edf3; margin-top: 6px; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
-  .cell-body { font-size: 19px; color: #8b949e; margin-top: 6px; lines: 5; text-overflow: ellipsis; }
-  .foot { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 7px 0; }
-  .state { position: absolute; left: 0; top: 72px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
+  .cell-icon { width: 24px; height: 24px; }
+  .cell-tag { font-size: 25px; color: #3fb950; font-weight: bold; margin-left: 9px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .pre-badge { font-size: 19px; color: #d29922; border: 1px solid #d29922; border-radius: 12px; padding: 2px 10px; }
+  .cell-title { font-size: 24px; color: #e6edf3; margin-top: 8px; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 5px; lines: 1; text-overflow: ellipsis; }
+  .cell-body { font-size: 20px; color: #8b949e; margin-top: 7px; lines: 5; text-overflow: ellipsis; }
+  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>
@@ -150,9 +151,9 @@
     },
     onListScroll(e) {
       this.scY = (e && e.scrollY) || 0
-      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 130px）
+      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
       if (this.loadState === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 130 - 340
+        const near = this.items.length * 190 - 340
         if (near > 0 && this.scY >= near) this.loadMore()
       }
     },

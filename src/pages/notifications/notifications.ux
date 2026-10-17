@@ -76,56 +76,55 @@
 </template>
 
 <style>
+  /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：主文本 25-26/次 20-21/弱 19，
+   * 芯片行 flex-wrap 两行排布（单行 5 枚必溢出），分组头/条目卡加高加大点击区 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  /* v1.9.0 深度优化：全页字号放大（designWidth 432 下 14px=7dp 肉眼难辨），
-   * 芯片行 flex-wrap 两行排布（单行 5 枚必溢出圆屏边缘），分组头/条目卡加高加大点击区 */
   .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
   .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 72px; height: 72px; align-items: center; justify-content: center; margin-left: -12px; }
-  .hd-title { font-size: 25px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .hd-filter { font-size: 21px; color: #58a6ff; margin-right: 8px; padding: 8px 12px; background-color: #161b22; border-radius: 16px; }
-  /* v1.9.0：类型芯片行——flex-wrap 两行排布 */
-  .chips { flex-direction: row; flex-wrap: wrap; padding: 4px 14px 2px; }
-  .chip { font-size: 21px; color: #8b949e; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #161b22; }
-  .chip-on { font-size: 21px; color: #ffffff; border-radius: 18px; padding: 8px 18px; margin: 4px 8px 4px 0; background-color: #1f6feb; }
-  /* v1.10.1：概览行——margin 内缩替代 padding（本固件 padding 被叠加到 100% 宽之外导致右缘溢出） */
-  .sum { flex-direction: row; align-items: center; justify-content: space-between; margin: 2px 14px 6px; }
-  .sum-t { font-size: 19px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; }
-  .sum-btn { font-size: 19px; color: #d29922; padding: 6px 10px; margin-right: 14px; }
+  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-filter { font-size: 22px; color: #58a6ff; margin-right: 8px; padding: 10px 16px; background-color: #161b22; border-radius: 18px; }
+  /* 类型芯片行——flex-wrap 两行排布 */
+  .chips { flex-direction: row; flex-wrap: wrap; padding: 6px 14px 2px; }
+  .chip { font-size: 22px; color: #8b949e; border-radius: 20px; padding: 10px 20px; margin: 5px 10px 5px 0; background-color: #161b22; }
+  .chip-on { font-size: 22px; color: #ffffff; border-radius: 20px; padding: 10px 20px; margin: 5px 10px 5px 0; background-color: #1f6feb; }
+  /* 概览行——margin 内缩替代 padding（本固件 padding 被叠加到 100% 宽之外导致右缘溢出，根修保留） */
+  .sum { flex-direction: row; align-items: center; justify-content: space-between; margin: 2px 14px 8px; }
+  .sum-t { font-size: 20px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; }
+  .sum-btn { font-size: 20px; color: #d29922; padding: 8px 12px; margin-right: 14px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
-  .pull-icon { width: 19px; height: 19px; }
-  .pull-text { font-size: 19px; color: #8b949e; margin-left: 8px; }
+  .pull-icon { width: 24px; height: 24px; }
+  .pull-text { font-size: 22px; color: #8b949e; margin-left: 8px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 60px; }
-  /* v1.10.1 根修：列表项容器必须显式 column（本固件 div 缺省按 row 排布，
-   * 曾导致分组头与条目卡横向散排、卡片重叠——参见 settings.ux card-col 同类问题） */
-  .li { padding: 4px 14px; flex-direction: column; }
-  /* v1.9.0：仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
-  .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 12px; padding: 13px 14px; }
-  .gh-arrow { font-size: 22px; color: #58a6ff; width: 30px; }
-  .gh-repo { font-size: 22px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .gh-muted { font-size: 19px; color: #d29922; margin-right: 8px; padding: 2px 8px; border-radius: 8px; background-color: #282013; }
+  .pad-end { width: 100%; height: 24px; }
+  /* 根修保留：列表项容器必须显式 column（本固件 div 缺省按 row 排布） */
+  .li { padding: 5px 14px; flex-direction: column; }
+  /* 仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
+  .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 16px; padding: 15px 14px; }
+  .gh-arrow { font-size: 26px; color: #58a6ff; width: 36px; }
+  .gh-repo { font-size: 25px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .gh-muted { font-size: 19px; color: #d29922; margin-right: 8px; padding: 3px 10px; border-radius: 10px; background-color: #282013; }
   .gh-n { font-size: 19px; color: #8b949e; margin-left: 8px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 14px; padding: 13px 14px; }
-  .unread { position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 5px; background-color: #3fb950; }
-  .cell-icon { width: 26px; height: 26px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 18px; padding: 14px; }
+  .unread { position: absolute; left: 4px; top: 4px; width: 12px; height: 12px; border-radius: 6px; background-color: #3fb950; }
+  .cell-icon { width: 32px; height: 32px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
-  .cell-title { font-size: 23px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
-  .cell-meta { flex-direction: row; align-items: center; margin-top: 3px; }
-  .cell-ci { font-size: 18px; color: #d29922; padding: 1px 7px; border-radius: 7px; background-color: #282013; margin-right: 7px; }
+  .cell-title { font-size: 24px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
+  .cell-meta { flex-direction: row; align-items: center; margin-top: 4px; }
+  .cell-ci { font-size: 18px; color: #d29922; padding: 2px 9px; border-radius: 9px; background-color: #282013; margin-right: 8px; }
   .cell-time { font-size: 19px; color: #6e7681; }
-  /* v1.9.0：组内操作行——整仓已读/静音的显式入口（长按不可发现的补充） */
-  .actrow { flex-direction: row; align-items: center; padding: 2px 0 6px; }
-  .actbtn { font-size: 19px; color: #58a6ff; padding: 8px 14px; margin-right: 10px; background-color: #16233a; border-radius: 12px; }
-  .actbtn2 { font-size: 19px; color: #d29922; padding: 8px 14px; background-color: #282013; border-radius: 12px; }
-  .foot { font-size: 19px; color: #6e7681; text-align: center; width: 100%; padding: 8px 0; }
+  /* 组内操作行——整仓已读/静音的显式入口 */
+  .actrow { flex-direction: row; align-items: center; padding: 3px 0 8px; }
+  .actbtn { font-size: 21px; color: #58a6ff; padding: 12px 20px; margin-right: 12px; background-color: #16233a; border-radius: 14px; }
+  .actbtn2 { font-size: 21px; color: #d29922; padding: 12px 20px; background-color: #282013; border-radius: 14px; }
+  .foot { font-size: 19px; color: #6e7681; text-align: center; width: 100%; padding: 10px 0; }
   .warn { color: #d29922; }
-  .hint { color: #8b949e; padding: 14px 0; }
+  .hint { color: #8b949e; padding: 16px 0; }
   .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 30px; }
-  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 14px; padding: 8px 16px; background-color: #16233a; border-radius: 12px; }
+  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>
@@ -612,7 +611,7 @@
       this.scY = (e && e.scrollY) || 0
       // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算：单项约 110px）
       if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.flat.length * 110 - 420
+        const near = this.flat.length * 165 - 420
         if (near > 0 && this.scY >= near) this.loadMore()
       }
     },

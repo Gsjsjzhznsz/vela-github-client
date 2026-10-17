@@ -43,128 +43,192 @@
   .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 216px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { query } from '../../utils/view'
-
-  const MAXLEN = 100
-  /* v1.3.0：AI 提问放宽到 400 字（快捷指令/追问需更长输入） */
-  const MAXLEN_AI = 400
-
-  export default {
-    protected: {
-      mode: 'search',     // search | token | user | comment
-      title: '输入',
-      initial: ''
-    },
-    private: {
-      draft: '',
-      placeholder: '在这里输入…',
-      tokHint: 'Token 仅存本机 · 输入后点确认'
-    },
-    onInit(params) {
-      try { console.log('[DBG]input onInit raw=' + JSON.stringify(params)) } catch (e) {}
-      const p = query(params, this)
-      try { console.log('[DBG]input parsed=' + JSON.stringify(p) + ' mode=' + (p.type || 'search')) } catch (e) {}
-      this.mode = p.type || 'search'
-      this.initial = p.initial || ''
-      this.draft = this.initial
-      // v1.1.3：预填是否已被用户编辑（token 模式防「预填+重打拼接脏 token」）
-      this._dirty = !this.draft
-      const conf = {
-        search: { title: '搜索仓库', ph: '输入关键词…' },
-        token: { title: '输入 Token', ph: '粘贴或键入 ghp_ …' },
-        user: { title: '查用户', ph: '输入用户名…' },
-        comment: { title: '写评论', ph: '输入评论…' },
-        ai: { title: '问 Copilot', ph: '输入问题…' }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { query } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+const MAXLEN = 100;
+/* v1.3.0：AI 提问放宽到 400 字（快捷指令/追问需更长输入） */
+const MAXLEN_AI = 400;
+export default {
+  protected: {
+    mode: 'search',
+    // search | token | user | comment
+    title: '输入',
+    initial: ''
+  },
+  private: {
+    draft: '',
+    placeholder: '在这里输入…',
+    tokHint: 'Token 仅存本机 · 输入后点确认'
+  },
+  onInit(params) {
+    try {
+      console.log('[DBG]input onInit raw=' + JSON.stringify(params));
+    } catch (e) {}
+    const p = query(params, this);
+    try {
+      console.log('[DBG]input parsed=' + JSON.stringify(p) + ' mode=' + (p.type || 'search'));
+    } catch (e) {}
+    this.mode = p.type || 'search';
+    this.initial = p.initial || '';
+    this.draft = this.initial;
+    // v1.1.3：预填是否已被用户编辑（token 模式防「预填+重打拼接脏 token」）
+    this._dirty = !this.draft;
+    const conf = {
+      search: {
+        title: '搜索仓库',
+        ph: '输入关键词…'
+      },
+      token: {
+        title: '输入 Token',
+        ph: '粘贴或键入 ghp_ …'
+      },
+      user: {
+        title: '查用户',
+        ph: '输入用户名…'
+      },
+      comment: {
+        title: '写评论',
+        ph: '输入评论…'
+      },
+      ai: {
+        title: '问 Copilot',
+        ph: '输入问题…'
       }
-      const c = conf[this.mode] || conf.search
-      this.title = c.title
-      this.placeholder = c.ph
-      this.refreshTokHint()
-    },
-    refreshTokHint() {
-      // v1.1.3：实时长度/格式反馈 —— 40 位手工键入无法目视校验，
-      // 提前暴露大小写错/漏字，避免白白消耗一次 API 验证
-      if (this.mode !== 'token') return
-      const t = (this.draft || '').replace(/\s+/g, '')
-      if (!t) {
-        this.tokHint = 'Token 仅存本机 · 键入后点确认'
-        return
+    };
+    const c = conf[this.mode] || conf.search;
+    this.title = c.title;
+    this.placeholder = c.ph;
+    this.refreshTokHint();
+  },
+  refreshTokHint() {
+    // v1.1.3：实时长度/格式反馈 —— 40 位手工键入无法目视校验，
+    // 提前暴露大小写错/漏字，避免白白消耗一次 API 验证
+    if (this.mode !== 'token') return;
+    const t = (this.draft || '').replace(/\s+/g, '');
+    if (!t) {
+      this.tokHint = 'Token 仅存本机 · 键入后点确认';
+      return;
+    }
+    const bad = api.tokenFormatHint(t);
+    this.tokHint = t.length + ' 位 · ' + (bad || '格式正确，可点确认');
+  },
+  onComplete(e) {
+    const c = e && e.detail && e.detail.content || e && e.content || '';
+    if (!c) return;
+    // v1.1.3：token 模式预填未被编辑时，首个键入直接替换（绝不拼接在旧 token 尾部）
+    if (this.mode === 'token' && !this._dirty && this.initial && this.draft === this.initial) {
+      this.draft = c.slice(0, MAXLEN);
+    } else if (this.draft.length < (this.mode === 'ai' ? MAXLEN_AI : MAXLEN)) {
+      this.draft = (this.draft + c).slice(0, this.mode === 'ai' ? MAXLEN_AI : MAXLEN);
+    }
+    this._dirty = true;
+    this.refreshTokHint();
+  },
+  onDelete() {
+    this.draft = this.draft.slice(0, -1);
+    this._dirty = true;
+    this.refreshTokHint();
+  },
+  clearDraft() {
+    this.draft = '';
+    this._dirty = true;
+    this.refreshTokHint();
+  },
+  goBack() {
+    router.back();
+  },
+  confirmDraft: function () {
+    try {
+      let _exit = false;
+      const _this = this;
+      function _temp4(_result) {
+        if (_exit) return _result;
+        // 其余模式：草稿写入应用级共享态，来源页 onShow 消费
+        app.inputResult = {
+          type: _this.mode,
+          text: raw
+        };
+        router.back();
       }
-      const bad = api.tokenFormatHint(t)
-      this.tokHint = t.length + ' 位 · ' + (bad || '格式正确，可点确认')
-    },
-    onComplete(e) {
-      const c = (e && e.detail && e.detail.content) || (e && e.content) || ''
-      if (!c) return
-      // v1.1.3：token 模式预填未被编辑时，首个键入直接替换（绝不拼接在旧 token 尾部）
-      if (this.mode === 'token' && !this._dirty && this.initial && this.draft === this.initial) {
-        this.draft = c.slice(0, MAXLEN)
-      } else if (this.draft.length < (this.mode === 'ai' ? MAXLEN_AI : MAXLEN)) {
-        this.draft = (this.draft + c).slice(0, this.mode === 'ai' ? MAXLEN_AI : MAXLEN)
-      }
-      this._dirty = true
-      this.refreshTokHint()
-    },
-    onDelete() {
-      this.draft = this.draft.slice(0, -1)
-      this._dirty = true
-      this.refreshTokHint()
-    },
-    clearDraft() {
-      this.draft = ''
-      this._dirty = true
-      this.refreshTokHint()
-    },
-    goBack() {
-      router.back()
-    },
-    async confirmDraft() {
-      const raw = (this.draft || '').trim()
+      const raw = (_this.draft || '').trim();
       if (!raw) {
-        prompt.showToast({ message: '还没有输入内容', duration: 1200 })
-        return
+        prompt.showToast({
+          message: '还没有输入内容',
+          duration: 1200
+        });
+        return Promise.resolve();
       }
-      const app = this.$app.$def
-      if (this.mode === 'token') {
-        // v1.1.3 Token 模式重构：
-        //  ① 先去空白（令牌不含空格，键盘误触空格/换行不再致命）
-        //  ② 格式预检：长度/前缀不对直接提示，不耗 API、不动旧登录
-        //  ③ 先验证后落盘：失败时绝不 clearToken（之前会把已存的 GOOD token 清掉，
-        //     用户被锁死游客模式无限重输，真机实锴）
-        const t = raw.replace(/\s+/g, '')
-        const bad = api.tokenFormatHint(t)
-        if (bad) {
-          prompt.showToast({ message: bad, duration: 2600 })
-          return
+      const app = _this.$app.$def;
+      const _temp3 = function () {
+        if (_this.mode === 'token') {
+          function _temp2() {
+            _exit = true;
+          }
+          // v1.1.3 Token 模式重构：
+          //  ① 先去空白（令牌不含空格，键盘误触空格/换行不再致命）
+          //  ② 格式预检：长度/前缀不对直接提示，不耗 API、不动旧登录
+          //  ③ 先验证后落盘：失败时绝不 clearToken（之前会把已存的 GOOD token 清掉，
+          //     用户被锁死游客模式无限重输，真机实锴）
+          const t = raw.replace(/\s+/g, '');
+          const bad = api.tokenFormatHint(t);
+          if (bad) {
+            prompt.showToast({
+              message: bad,
+              duration: 2600
+            });
+            _exit = true;
+            return;
+          }
+          prompt.showToast({
+            message: '正在验证 Token…',
+            duration: 1500
+          });
+          const _temp = _catch(function () {
+            return Promise.resolve(api.loadToken(true)).then(function () {
+              return Promise.resolve(api.validateToken(t)).then(function (user) {
+                return Promise.resolve(api.saveToken(t)).then(function () {
+                  // v1.1.4：读回验证双通道落盘状态，持久化全败时明确告知用户（
+                  // 真机 storage 曾静默失败，用户必知会话内有效/重启即丢的区别）
+                  return Promise.resolve(api.verifyPersisted()).then(function (pv) {
+                    app.inputResult = null;
+                    let msg = '登录成功 · ' + (user && user.login || '');
+                    if (!pv.storage && !pv.file) msg += '（本机持久化失败，仅本次运行有效）';else if (!pv.storage || !pv.file) msg += '（' + (pv.storage ? 'file' : 'storage') + '通道兜底）';
+                    prompt.showToast({
+                      message: msg,
+                      duration: 2400
+                    });
+                    router.back();
+                  });
+                });
+              });
+            });
+          }, function (e) {
+            const st = e && e.status !== undefined ? e.status : '?';
+            const kept = api.hasToken() ? '（已保留原登录）' : '';
+            prompt.showToast({
+              message: 'Token 验证失败[' + st + ']：' + (e && e.message || '') + kept,
+              duration: 2800
+            });
+          });
+          return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
         }
-        prompt.showToast({ message: '正在验证 Token…', duration: 1500 })
-        try {
-          await api.loadToken(true)
-          const user = await api.validateToken(t)
-          await api.saveToken(t)
-          // v1.1.4：读回验证双通道落盘状态，持久化全败时明确告知用户（
-          // 真机 storage 曾静默失败，用户必知会话内有效/重启即丢的区别）
-          const pv = await api.verifyPersisted()
-          app.inputResult = null
-          let msg = '登录成功 · ' + ((user && user.login) || '')
-          if (!pv.storage && !pv.file) msg += '（本机持久化失败，仅本次运行有效）'
-          else if (!pv.storage || !pv.file) msg += '（' + (pv.storage ? 'file' : 'storage') + '通道兜底）'
-          prompt.showToast({ message: msg, duration: 2400 })
-          router.back()
-        } catch (e) {
-          const st = e && e.status !== undefined ? e.status : '?'
-          const kept = api.hasToken() ? '（已保留原登录）' : ''
-          prompt.showToast({ message: 'Token 验证失败[' + st + ']：' + ((e && e.message) || '') + kept, duration: 2800 })
-        }
-        return
-      }
-      // 其余模式：草稿写入应用级共享态，来源页 onShow 消费
-      app.inputResult = { type: this.mode, text: raw }
-      router.back()
+      }();
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
     }
   }
-</script>
+};</script>

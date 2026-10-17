@@ -96,100 +96,138 @@
   .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { compact, avatar } from '../../utils/fmt'
-
-  export default {
-    private: {
-      isSelf: false,
-      login: '',
-      name: '',
-      bio: '',
-      reposN: '0',
-      followers: '0',
-      following: '0',
-      avCh: 'G',
-      avColor: '#21262d',
-      state: 'loading',
-      query: '',
-      errMsg: '',
-    },
-    async onInit() {
-      await api.loadToken()
-      if (api.hasToken()) {
-        this.loadUser(null)
-      } else {
-        this.state = 'error'
-        this.errMsg = '游客模式：点击下方输入用户名查询，或登录 Token'
-      }
-    },
-    async onShow() {
+<script>import router from '@system.router';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { compact, avatar } from '../../utils/fmt';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  private: {
+    isSelf: false,
+    login: '',
+    name: '',
+    bio: '',
+    reposN: '0',
+    followers: '0',
+    following: '0',
+    avCh: 'G',
+    avColor: '#21262d',
+    state: 'loading',
+    query: '',
+    errMsg: ''
+  },
+  onInit: function () {
+    try {
+      const _this = this;
+      return Promise.resolve(api.loadToken()).then(function () {
+        if (api.hasToken()) {
+          _this.loadUser(null);
+        } else {
+          _this.state = 'error';
+          _this.errMsg = '游客模式：点击下方输入用户名查询，或登录 Token';
+        }
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  onShow: function () {
+    try {
+      const _this2 = this;
       // 消费独立输入页回传的用户名（BandQQ store 同构）
-      const app = this.$app.$def
-      const r = app && app.inputResult
+      const app = _this2.$app.$def;
+      const r = app && app.inputResult;
       if (r && r.type === 'user' && r.text) {
-        app.inputResult = null
-        this.query = r.text
-        this.loadUser(r.text)
-        return
+        app.inputResult = null;
+        _this2.query = r.text;
+        _this2.loadUser(r.text);
+        return Promise.resolve();
       }
-      if (!this._shownOnce) {
+      if (!_this2._shownOnce) {
         // 首次显示由 onInit 负责，避免双重加载
-        this._shownOnce = true
-        return
+        _this2._shownOnce = true;
+        return Promise.resolve();
       }
       // 登录/登出发生在其它页的独立 JS context：force 重读存储并跟随会话身份
-      await api.loadToken(true)
-      if (!this.query && this.state !== 'loading') this.loadUser(null)
-    },
-    async loadUser(login) {
-      this.state = 'loading'
-      try {
-        const u = login ? await api.getUser(login) : await api.self()
-        this.isSelf = !login
-        this.applyUser(u)
-        this.state = 'ok'
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
-      }
-    },
-    applyUser(u) {
-      this.login = u.login || ''
-      this.name = u.name || ''
-      this.bio = u.bio || ''
-      this.reposN = compact(u.public_repos)
-      this.followers = compact(u.followers)
-      this.following = compact(u.following)
-      const av = avatar(this.login)
-      this.avCh = av.ch
-      this.avColor = av.color
-    },
-    reload() {
-      if (this.isSelf || (!api.hasToken() && !this.query)) {
-        this.loadUser(null)
-      } else {
-        this.loadUser(this.query || this.login)
-      }
-    },
-    /* 用户名输入：跳 BandQQ compose 同构输入页；onShow 消费回传草稿 */
-    goInput() {
-      const pre = this.login && !this.isSelf ? this.login : ''
-      this.$app.$def.hook = { type: 'user', initial: pre || '' }
-      router.push({ uri: 'pages/input' })
-    },
-    goUserRepos() {
-      if (!this.login) return
-      this.$app.$def.hook = { user: this.login }
-      router.push({ uri: 'pages/repos' })
-    },
-    doLogin() {
-      router.push({ uri: 'pages/settings' })
-    },
-    goBack() {
-      router.back()
+      return Promise.resolve(api.loadToken(true)).then(function () {
+        if (!_this2.query && _this2.state !== 'loading') _this2.loadUser(null);
+      });
+    } catch (e) {
+      return Promise.reject(e);
     }
+  },
+  loadUser: function (login) {
+    try {
+      const _this3 = this;
+      _this3.state = 'loading';
+      const _temp = _catch(function () {
+        return Promise.resolve(login ? api.getUser(login) : api.self()).then(function (u) {
+          _this3.isSelf = !login;
+          _this3.applyUser(u);
+          _this3.state = 'ok';
+        });
+      }, function (e) {
+        _this3.state = 'error';
+        _this3.errMsg = e && e.message || '加载失败';
+      });
+      return Promise.resolve(_temp && _temp.then ? _temp.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  applyUser(u) {
+    this.login = u.login || '';
+    this.name = u.name || '';
+    this.bio = u.bio || '';
+    this.reposN = compact(u.public_repos);
+    this.followers = compact(u.followers);
+    this.following = compact(u.following);
+    const av = avatar(this.login);
+    this.avCh = av.ch;
+    this.avColor = av.color;
+  },
+  reload() {
+    if (this.isSelf || !api.hasToken() && !this.query) {
+      this.loadUser(null);
+    } else {
+      this.loadUser(this.query || this.login);
+    }
+  },
+  /* 用户名输入：跳 BandQQ compose 同构输入页；onShow 消费回传草稿 */
+  goInput() {
+    const pre = this.login && !this.isSelf ? this.login : '';
+    this.$app.$def.hook = {
+      type: 'user',
+      initial: pre || ''
+    };
+    router.push({
+      uri: 'pages/input'
+    });
+  },
+  goUserRepos() {
+    if (!this.login) return;
+    this.$app.$def.hook = {
+      user: this.login
+    };
+    router.push({
+      uri: 'pages/repos'
+    });
+  },
+  doLogin() {
+    router.push({
+      uri: 'pages/settings'
+    });
+  },
+  goBack() {
+    router.back();
   }
-</script>
+};</script>

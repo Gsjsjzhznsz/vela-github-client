@@ -4,7 +4,7 @@
  * 1) 全页面 font-size ≥ 13px（bandQQ 校准：主 20/次 16/弱 14，微文本 13）
  * 2) 显式 line-height ≥ font-size × 1.25（垂直居中按钮模式豁免）
  * 3) BDS-192 关键回归点（键盘 216 / 页头 56 / 宫格 82 / 气泡 140 / md avail 138·158）
- * 4) 版本一致性 manifest 2.0.0-band / 30 / designWidth 192
+ * 4) 版本一致性 manifest 2.0.1-band / 31 / designWidth 192
  */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -78,10 +78,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.0-band', /"versionName": "2\.0\.0-band"/.test(man));
-t('manifest versionCode 30（四分支同步）', /"versionCode": 30/.test(man));
+t('manifest versionName 2.0.1-band', /"versionName": "2\.0\.1-band"/.test(man));
+t('manifest versionCode 30（四分支同步）', /"versionCode": 31/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.0.0-band', /"version": "2\.0\.0-band"/.test(read('package.json')));
+t('package.json 2.0.1-band', /"version": "2\.0\.1-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

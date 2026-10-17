@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v2.0.0-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v2.0.1-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配小米手环 9 / 10 / 11 标准版（192×490 / 212×520 / 224×528）米粒窄屏</text>
           <text class="c-body">网络：手环直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -119,157 +119,233 @@
   .hl { color: #3fb950; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { maskToken } from '../../utils/fmt'
-
-  export default {
-    private: {
-      hasTk: false,
-      tokenMask: '',
-      rateText: '…',
-      diagText: '',
-      bridgeModeLabel: '自动（直连优先，失败走网桥）',
-      bridgeStatus: ''
-    },
-    onInit() {
-    },
-    async onShow() {
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { maskToken } from '../../utils/fmt';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  private: {
+    hasTk: false,
+    tokenMask: '',
+    rateText: '…',
+    diagText: '',
+    bridgeModeLabel: '自动（直连优先，失败走网桥）',
+    bridgeStatus: ''
+  },
+  onInit() {},
+  onShow: function () {
+    try {
+      const _this = this;
       // force 重读存储：登录/登出发生在 input 页的独立 JS context，
       // 本页缓存的 loadToken promise 不会自动失效（游客模式假象根因）
-      await api.loadToken(true)
-      this.hasTk = api.hasToken()
-      this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
-      this.refreshDiag()
-      this.refreshRate()
-      this.syncBridge()
-    },
-    /* ---- v1.9.0：网络通道（AstroBox 网桥） ---- */
-    syncBridge() {
-      try {
-        const info = api.bridgeInfo()
-        this.bridgeModeLabel = info.mode === 'auto'
-          ? '自动（直连优先，失败走网桥）'
-          : (info.mode === 'bridge' ? '手机网桥优先' : '仅手环直连')
-        let s = ''
-        if (!info.supported) {
-          s = '本机不支持 interconnect，网桥不可用'
-        } else if (info.ready) {
-          const neg = info.neg || {}
-          s = '网桥已连接 · 协议 v' + (neg.version || 1) +
-            (neg.chunked ? ' · 分片' + (neg.chunkSize || 0) + 'B' : '') +
-            (neg.ack ? ' · ACK流控' : '') +
-            (info.stat && info.stat.sent > 0 ? ' · 已发' + info.stat.sent + ' 成功' + info.stat.ok : '')
-        } else {
-          s = '网桥未连接（需手机端 AstroBox + FetchBridge 插件）'
-        }
-        this.bridgeStatus = s
-      } catch (e) { this.bridgeStatus = '' }
-    },
-    /** 三态循环：auto → bridge → direct → auto */
-    cycleBridge() {
-      const order = ['auto', 'bridge', 'direct']
-      const cur = api.bridgeInfo().mode
-      const next = order[(order.indexOf(cur) + 1) % order.length]
-      api.bridgeSetMode(next)
-      this.syncBridge()
-      prompt.showToast({
-        message: next === 'auto' ? '已切自动：直连优先，失败走网桥'
-          : (next === 'bridge' ? '已切手机网桥优先（砍网机型选这个）' : '已切仅直连'),
-        duration: 1800
-      })
-    },
-    /** 手动检测：补发握手 + 诊断手机端连接状态 */
-    async detectBridge() {
-      prompt.showToast({ message: '正在检测手机网桥…', duration: 1200 })
-      api.bridgeDetect()
-      try {
-        const d = await api.bridgeDiagnoseHost(8000)
-        const st = Number(d && d.status)
-        const msg = st === 0 ? '手机端连接 OK（AstroBox 就绪）'
-          : (st === 1001 ? '手机端未安装 AstroBox' : (st === 204 ? '连接超时：请打开手机端 AstroBox' : '诊断失败：' + ((d && d.message) || st)))
-        prompt.showToast({ message: msg, duration: 2500 })
-      } catch (e) {
-        prompt.showToast({ message: '诊断失败', duration: 1500 })
-      }
-      this.syncBridge()
-    },
-    refreshDiag() {
-      if (!this.hasTk) {
-        this.diagText = ''
-        return
-      }
-      const d = api.storageDiag()
-      // 用「有/无」而非 √/×（× 字符未经固件字库验证，√ 已实证可用）
-      const ch = (n, v) => n + (v > 0 ? ' 有' + v + '位' : ' 无')
-      let s = ch('storage', d.storage) + ' · ' + ch('file', d.file)
-      if (d.write) s += ' · 写入:' + d.write
-      else if (d.src) s += ' · 读取自:' + d.src
-      this.diagText = s
-    },
-    async refreshRate() {
-      try {
-        const r = await api.getRateLimit()
-        const core = r && r.resources && r.resources.core
-        if (core) this.rateText = core.remaining + '/' + core.limit
-      } catch (e) {
-        this.rateText = '未知'
-      }
-    },
-    /** v1.2.1：账户卡手动刷新——重读 token + 重验 + 刷新余量 */
-    async refreshAccount() {
-      await api.loadToken(true)
-      this.hasTk = api.hasToken()
-      this.tokenMask = this.hasTk ? maskToken(api.currentToken()) : ''
-      this.refreshDiag()
-      await this.refreshRate()
-      prompt.showToast({ message: this.hasTk ? '已刷新 · 已登录' : '已刷新 · 游客模式', duration: 1200 })
-    },
-    /* ---- v1.2.0：免打字登录（Device Flow） ---- */
-    startDevice() {
-      this.$app.$def.hook = {}
-      router.push({ uri: 'pages/device' })
-    },
-    /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
-    startInput() {
-      // 预填已存 Token：重进时无需重新逐字键入 40 位（input 页首个键入会整体替换，不会拼接）
-      this.$app.$def.hook = { type: 'token', initial: api.currentToken() || '' }
-      router.push({ uri: 'pages/input' })
-    },
-    /* v1.8.0：独立关于页（照搬 BandQQ pages/about，仅改项目相关信息） */
-    goAbout() {
-      router.push({ uri: 'pages/about' })
-    },
-    /* v1.1.3：一键重验已存 Token —— 二次输入手误 401 的根治路径：根本不用再输入 */
-    async revalidate() {
-      await api.loadToken(true)
-      const t = api.currentToken()
-      if (!t) {
-        this.hasTk = false
-        return
-      }
-      prompt.showToast({ message: '正在验证已存 Token…', duration: 1500 })
-      try {
-        const user = await api.validateToken(t)
-        this.hasTk = true
-        this.tokenMask = maskToken(t)
-        prompt.showToast({ message: 'Token 有效 · ' + ((user && user.login) || ''), duration: 1800 })
-      } catch (e) {
-        const st = e && e.status !== undefined ? e.status : '?'
-        prompt.showToast({ message: '验证失败[' + st + ']：' + ((e && e.message) || '，可退出登录后重输'), duration: 2800 })
-      }
-      this.refreshRate()
-    },
-    async logout() {
-      await api.clearToken()
-      this.hasTk = false
-      this.tokenMask = ''
-      prompt.showToast({ message: '已退出登录', duration: 1500 })
-    },
-    goBack() {
-      router.back()
+      return Promise.resolve(api.loadToken(true)).then(function () {
+        _this.hasTk = api.hasToken();
+        _this.tokenMask = _this.hasTk ? maskToken(api.currentToken()) : '';
+        _this.refreshDiag();
+        _this.refreshRate();
+        _this.syncBridge();
+      });
+    } catch (e) {
+      return Promise.reject(e);
     }
+  },
+  /* ---- v1.9.0：网络通道（AstroBox 网桥） ---- */
+  syncBridge() {
+    try {
+      const info = api.bridgeInfo();
+      this.bridgeModeLabel = info.mode === 'auto' ? '自动（直连优先，失败走网桥）' : info.mode === 'bridge' ? '手机网桥优先' : '仅手环直连';
+      let s = '';
+      if (!info.supported) {
+        s = '本机不支持 interconnect，网桥不可用';
+      } else if (info.ready) {
+        const neg = info.neg || {};
+        s = '网桥已连接 · 协议 v' + (neg.version || 1) + (neg.chunked ? ' · 分片' + (neg.chunkSize || 0) + 'B' : '') + (neg.ack ? ' · ACK流控' : '') + (info.stat && info.stat.sent > 0 ? ' · 已发' + info.stat.sent + ' 成功' + info.stat.ok : '');
+      } else {
+        s = '网桥未连接（需手机端 AstroBox + FetchBridge 插件）';
+      }
+      this.bridgeStatus = s;
+    } catch (e) {
+      this.bridgeStatus = '';
+    }
+  },
+  /** 三态循环：auto → bridge → direct → auto */
+  cycleBridge() {
+    const order = ['auto', 'bridge', 'direct'];
+    const cur = api.bridgeInfo().mode;
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    api.bridgeSetMode(next);
+    this.syncBridge();
+    prompt.showToast({
+      message: next === 'auto' ? '已切自动：直连优先，失败走网桥' : next === 'bridge' ? '已切手机网桥优先（砍网机型选这个）' : '已切仅直连',
+      duration: 1800
+    });
+  },
+  /** 手动检测：补发握手 + 诊断手机端连接状态 */detectBridge: function () {
+    try {
+      const _this2 = this;
+      function _temp2() {
+        _this2.syncBridge();
+      }
+      prompt.showToast({
+        message: '正在检测手机网桥…',
+        duration: 1200
+      });
+      api.bridgeDetect();
+      const _temp = _catch(function () {
+        return Promise.resolve(api.bridgeDiagnoseHost(8000)).then(function (d) {
+          const st = Number(d && d.status);
+          const msg = st === 0 ? '手机端连接 OK（AstroBox 就绪）' : st === 1001 ? '手机端未安装 AstroBox' : st === 204 ? '连接超时：请打开手机端 AstroBox' : '诊断失败：' + (d && d.message || st);
+          prompt.showToast({
+            message: msg,
+            duration: 2500
+          });
+        });
+      }, function () {
+        prompt.showToast({
+          message: '诊断失败',
+          duration: 1500
+        });
+      });
+      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  refreshDiag() {
+    if (!this.hasTk) {
+      this.diagText = '';
+      return;
+    }
+    const d = api.storageDiag();
+    // 用「有/无」而非 √/×（× 字符未经固件字库验证，√ 已实证可用）
+    const ch = (n, v) => n + (v > 0 ? ' 有' + v + '位' : ' 无');
+    let s = ch('storage', d.storage) + ' · ' + ch('file', d.file);
+    if (d.write) s += ' · 写入:' + d.write;else if (d.src) s += ' · 读取自:' + d.src;
+    this.diagText = s;
+  },
+  refreshRate: function () {
+    try {
+      const _this3 = this;
+      const _temp3 = _catch(function () {
+        return Promise.resolve(api.getRateLimit()).then(function (r) {
+          const core = r && r.resources && r.resources.core;
+          if (core) _this3.rateText = core.remaining + '/' + core.limit;
+        });
+      }, function () {
+        _this3.rateText = '未知';
+      });
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /** v1.2.1：账户卡手动刷新——重读 token + 重验 + 刷新余量 */refreshAccount: function () {
+    try {
+      const _this4 = this;
+      return Promise.resolve(api.loadToken(true)).then(function () {
+        _this4.hasTk = api.hasToken();
+        _this4.tokenMask = _this4.hasTk ? maskToken(api.currentToken()) : '';
+        _this4.refreshDiag();
+        return Promise.resolve(_this4.refreshRate()).then(function () {
+          prompt.showToast({
+            message: _this4.hasTk ? '已刷新 · 已登录' : '已刷新 · 游客模式',
+            duration: 1200
+          });
+        });
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  /* ---- v1.2.0：免打字登录（Device Flow） ---- */
+  startDevice() {
+    this.$app.$def.hook = {};
+    router.push({
+      uri: 'pages/device'
+    });
+  },
+  /* ---- Token 输入：跳 BandQQ compose 同构输入页（键盘常驻） ---- */
+  startInput() {
+    // 预填已存 Token：重进时无需重新逐字键入 40 位（input 页首个键入会整体替换，不会拼接）
+    this.$app.$def.hook = {
+      type: 'token',
+      initial: api.currentToken() || ''
+    };
+    router.push({
+      uri: 'pages/input'
+    });
+  },
+  /* v1.8.0：独立关于页（照搬 BandQQ pages/about，仅改项目相关信息） */
+  goAbout() {
+    router.push({
+      uri: 'pages/about'
+    });
+  },
+  /* v1.1.3：一键重验已存 Token —— 二次输入手误 401 的根治路径：根本不用再输入 */revalidate: function () {
+    try {
+      const _this5 = this;
+      return Promise.resolve(api.loadToken(true)).then(function () {
+        function _temp5() {
+          _this5.refreshRate();
+        }
+        const t = api.currentToken();
+        if (!t) {
+          _this5.hasTk = false;
+          return;
+        }
+        prompt.showToast({
+          message: '正在验证已存 Token…',
+          duration: 1500
+        });
+        const _temp4 = _catch(function () {
+          return Promise.resolve(api.validateToken(t)).then(function (user) {
+            _this5.hasTk = true;
+            _this5.tokenMask = maskToken(t);
+            prompt.showToast({
+              message: 'Token 有效 · ' + (user && user.login || ''),
+              duration: 1800
+            });
+          });
+        }, function (e) {
+          const st = e && e.status !== undefined ? e.status : '?';
+          prompt.showToast({
+            message: '验证失败[' + st + ']：' + (e && e.message || '，可退出登录后重输'),
+            duration: 2800
+          });
+        });
+        return _temp4 && _temp4.then ? _temp4.then(_temp5) : _temp5(_temp4);
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  logout: function () {
+    try {
+      const _this6 = this;
+      return Promise.resolve(api.clearToken()).then(function () {
+        _this6.hasTk = false;
+        _this6.tokenMask = '';
+        prompt.showToast({
+          message: '已退出登录',
+          duration: 1500
+        });
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  goBack() {
+    router.back();
   }
-</script>
+};</script>

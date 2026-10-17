@@ -4,3 +4,4 @@
 /sign
 *.log
 .DS_Store
+sign/

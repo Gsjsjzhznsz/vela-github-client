@@ -96,121 +96,151 @@
   .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
-<script>
-  import router from '@system.router'
-  import prompt from '@system.prompt'
-  import api from '../../utils/gh' /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
-  import { mapRepo } from '../../utils/view'
-
-  export default {
-    private: {
-      mode: 'new',
-      items: [],
-      state: 'loading',
-      errMsg: '',
-      page: 1,
-      hasMore: true,
-      loadingMore: false,
-      refreshing: false,
-      scY: 0,
-      tY: 0,
-      pullY: 0,
-      pullText: '下拉刷新'
-    },
-    onInit() {},
-    onShow() {
-      if (this.items.length === 0) this.reload()
-    },
-    async reload() {
-      this.state = 'loading'
-      try {
-        const r = await api.getTrending(this.mode, 1)
-        const list = (r && Array.isArray(r.items)) ? r.items : []
-        this.items = list.map((it, i) => {
-          const m = mapRepo(it)
-          m.rank = i + 1
-          return m
-        })
-        this.page = 1
-        this.hasMore = list.length >= api.lastListPerPage()
-        this.state = this.items.length === 0 ? 'empty' : 'ok'
-      } catch (e) {
-        this.state = 'error'
-        this.errMsg = (e && e.message) || '加载失败'
-      }
-    },
-    async loadMore() {
-      if (!this.hasMore || this.loadingMore || this.state !== 'ok') return
-      this.loadingMore = true
-      try {
-        const next = this.page + 1
-        const r = await api.getTrending(this.mode, next)
-        const list = (r && Array.isArray(r.items)) ? r.items : []
-        for (let i = 0; i < list.length; i++) {
-          const m = mapRepo(list[i])
-          m.rank = this.items.length + 1
-          this.items.push(m)
-        }
-        this.page = next
-        this.hasMore = list.length >= api.lastListPerPage()
-      } catch (e) {
-        prompt.showToast({ message: '加载失败：' + ((e && e.message) || ''), duration: 1500 })
-      }
-      this.loadingMore = false
-    },
-    switchMode(m) {
-      if (this.mode === m) return
-      this.mode = m
-      this.items = []
-      this.reload()
-    },
-    openRepo(item) {
-      if (!item) return
-      this.$app.$def.hook = { full: item.full }
-      router.push({ uri: 'pages/repo' })
-    },
-    doRefresh() {
-      if (this.refreshing) return
-      this.refreshing = true
-      this.pullY = 60
-      this.pullText = '刷新中…'
-      this.reload().then(() => {
-        this.refreshing = false
-        this.pullY = 0
-      })
-    },
-    onListScroll(e) {
-      this.scY = (e && e.scrollY) || 0
-      // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
-      if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 92 - 300
-        if (near > 0 && this.scY >= near) this.loadMore()
-      }
-    },
-    onTouchStart(e) {
-      if (this.scY <= 0 && !this.refreshing) {
-        const t = e && e.touches && e.touches[0]
-        this.tY = (t && (t.pageY || t.clientY)) || 0
-      }
-    },
-    onTouchMove(e) {
-      if (this.refreshing || this.tY <= 0 || this.scY > 0) return
-      const t = e && e.touches && e.touches[0]
-      const y = (t && (t.pageY || t.clientY)) || 0
-      const delta = y - this.tY
-      if (delta > 0) {
-        this.pullY = Math.min(112, Math.floor(delta * 0.45))
-        this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新'
-      }
-    },
-    onTouchEnd() {
-      if (this.refreshing) return
-      if (this.pullY > 80) this.doRefresh()
-      else this.pullY = 0
-      this.tY = 0
-    },
-    goBack() {
-      router.back()
-    }
+<script>import router from '@system.router';
+import prompt from '@system.prompt';
+import api from '../../utils/gh'; /* v1.8.0 全局桥（api.js 只随 app.js 打包一次） */
+import { mapRepo } from '../../utils/view';
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
   }
-</script>
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+  return result;
+}
+export default {
+  private: {
+    mode: 'new',
+    items: [],
+    state: 'loading',
+    errMsg: '',
+    page: 1,
+    hasMore: true,
+    loadingMore: false,
+    refreshing: false,
+    scY: 0,
+    tY: 0,
+    pullY: 0,
+    pullText: '下拉刷新'
+  },
+  onInit() {},
+  onShow() {
+    if (this.items.length === 0) this.reload();
+  },
+  reload: function () {
+    try {
+      const _this = this;
+      _this.state = 'loading';
+      const _temp = _catch(function () {
+        return Promise.resolve(api.getTrending(_this.mode, 1)).then(function (r) {
+          const list = r && Array.isArray(r.items) ? r.items : [];
+          _this.items = list.map((it, i) => {
+            const m = mapRepo(it);
+            m.rank = i + 1;
+            return m;
+          });
+          _this.page = 1;
+          _this.hasMore = list.length >= api.lastListPerPage();
+          _this.state = _this.items.length === 0 ? 'empty' : 'ok';
+        });
+      }, function (e) {
+        _this.state = 'error';
+        _this.errMsg = e && e.message || '加载失败';
+      });
+      return Promise.resolve(_temp && _temp.then ? _temp.then(function () {}) : void 0);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  loadMore: function () {
+    try {
+      const _this2 = this;
+      function _temp3() {
+        _this2.loadingMore = false;
+      }
+      if (!_this2.hasMore || _this2.loadingMore || _this2.state !== 'ok') return Promise.resolve();
+      _this2.loadingMore = true;
+      const _temp2 = _catch(function () {
+        const next = _this2.page + 1;
+        return Promise.resolve(api.getTrending(_this2.mode, next)).then(function (r) {
+          const list = r && Array.isArray(r.items) ? r.items : [];
+          for (let i = 0; i < list.length; i++) {
+            const m = mapRepo(list[i]);
+            m.rank = _this2.items.length + 1;
+            _this2.items.push(m);
+          }
+          _this2.page = next;
+          _this2.hasMore = list.length >= api.lastListPerPage();
+        });
+      }, function (e) {
+        prompt.showToast({
+          message: '加载失败：' + (e && e.message || ''),
+          duration: 1500
+        });
+      });
+      return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  },
+  switchMode(m) {
+    if (this.mode === m) return;
+    this.mode = m;
+    this.items = [];
+    this.reload();
+  },
+  openRepo(item) {
+    if (!item) return;
+    this.$app.$def.hook = {
+      full: item.full
+    };
+    router.push({
+      uri: 'pages/repo'
+    });
+  },
+  doRefresh() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    this.pullY = 60;
+    this.pullText = '刷新中…';
+    this.reload().then(() => {
+      this.refreshing = false;
+      this.pullY = 0;
+    });
+  },
+  onListScroll(e) {
+    this.scY = e && e.scrollY || 0;
+    // 触底自动加载（scroll 组件无 scrollbottom，用 scrollY 估算）
+    if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
+      const near = this.items.length * 92 - 300;
+      if (near > 0 && this.scY >= near) this.loadMore();
+    }
+  },
+  onTouchStart(e) {
+    if (this.scY <= 0 && !this.refreshing) {
+      const t = e && e.touches && e.touches[0];
+      this.tY = t && (t.pageY || t.clientY) || 0;
+    }
+  },
+  onTouchMove(e) {
+    if (this.refreshing || this.tY <= 0 || this.scY > 0) return;
+    const t = e && e.touches && e.touches[0];
+    const y = t && (t.pageY || t.clientY) || 0;
+    const delta = y - this.tY;
+    if (delta > 0) {
+      this.pullY = Math.min(112, Math.floor(delta * 0.45));
+      this.pullText = this.pullY > 80 ? '松开刷新' : '下拉刷新';
+    }
+  },
+  onTouchEnd() {
+    if (this.refreshing) return;
+    if (this.pullY > 80) this.doRefresh();else this.pullY = 0;
+    this.tY = 0;
+  },
+  goBack() {
+    router.back();
+  }
+};</script>

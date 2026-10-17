@@ -56,37 +56,37 @@
 <style>
   /* band-pro v2.0 BDS-336：主文本 26/次 21/弱 19，卡 radius 20，页头 96（手环 9/10 Pro 336×480） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
-  .hd-act { width: 46px; height: 46px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 30px; height: 30px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
-  .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .srow { flex-direction: row; align-items: center; padding: 4px 14px 10px; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .srow { flex-direction: row; align-items: center; padding: 4px 8px 8px; }
   /* 定宽防溢出：flex:1 + 无 max-width 的文本行在引擎里不收缩，会把 sbtn 挤出屏（432 实测根修，336 同理） */
-  .sbox { width: 206px; height: 60px; background-color: #161b22; border: 1px solid #30363d; border-radius: 30px; justify-content: center; padding: 0 16px; }
-  .stext { font-size: 24px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .sbox { width: 112px; height: 44px; background-color: #161b22; border: 1px solid #30363d; border-radius: 22px; justify-content: center; padding: 0 10px; }
+  .stext { font-size: 16px; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
   .ph { color: #484f58; }
-  .sbtn { font-size: 24px; color: #ffffff; background-color: #238636; border-radius: 30px; padding: 16px 22px; margin-left: 10px; }
+  .sbtn { font-size: 16px; color: #ffffff; background-color: #238636; border-radius: 22px; padding: 10px 12px; margin-left: 8px; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 24px; }
-  .li { padding: 5px 14px; flex-direction: column; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 20px; padding: 14px; }
-  .ava { width: 48px; height: 48px; border-radius: 24px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 26px; color: #ffffff; font-weight: bold; }
-  .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
-  .cell-title { font-size: 26px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .cell-desc { font-size: 21px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; }
+  .pad-end { width: 100%; height: 14px; }
+  .li { padding: 4px 10px; flex-direction: column; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
+  .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center; }
+  .ava-t { font-size: 20px; color: #ffffff; font-weight: bold; }
+  .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
+  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .cell-desc { font-size: 16px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 7px; }
   .dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; }
-  .meta-ic { width: 18px; height: 18px; margin-left: 12px; margin-right: 3px; }
-  .meta-t { font-size: 19px; color: #8b949e; }
-  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .meta-ic { width: 18px; height: 18px; margin-left: 8px; margin-right: 3px; }
+  .meta-t { font-size: 14px; color: #8b949e; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
   /* top 180：必须让出 srow（96~170），否则遮罩盖住搜索框吞点击 */
   .state { position: absolute; left: 0; top: 180px; right: 0; bottom: 48px; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
+  .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>
@@ -149,9 +149,9 @@
     },
     onListScroll(e) {
       const y = (e && e.scrollY) || 0
-      // 触底自动加载（scrollY 估算：单项约 84px）
+      // 触底自动加载（scrollY 估算：单项约 52px）
       if (this.state === 'ok' && this.hasMore && !this.loadingMore) {
-        const near = this.items.length * 165 - 420
+        const near = this.items.length * 96 - 300
         if (near > 0 && y >= near) this.loadMore()
       }
     },

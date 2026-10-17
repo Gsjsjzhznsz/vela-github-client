@@ -86,29 +86,29 @@
   /* band-pro v2.0 BDS-336：主文本 26/次 21/弱 19，页头 96（手环 9/10 Pro 336×480）；
    * 功能宫格 3 列（308 内容宽 = 3×96 + 2×10），9 宫格整 3 行 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
-  .hd-act { width: 46px; height: 46px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 30px; height: 30px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
-  .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 6px 14px 24px; }
-  .card { background-color: #161b22; border-radius: 20px; padding: 14px; flex-direction: column; }
-  .r-desc { font-size: 23px; color: #c9d1d9; lines: 3; text-overflow: ellipsis; }
+  .card { background-color: #161b22; border-radius: 12px; padding: 10px; flex-direction: column; }
+  .r-desc { font-size: 17px; color: #c9d1d9; lines: 3; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 12px; }
   .dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; }
-  .meta-ic { width: 18px; height: 18px; margin-left: 14px; margin-right: 3px; }
-  .meta-t { font-size: 19px; color: #8b949e; }
-  .r-sub { font-size: 19px; color: #484f58; margin-top: 8px; }
+  .meta-ic { width: 18px; height: 18px; margin-left: 10px; margin-right: 3px; }
+  .meta-t { font-size: 14px; color: #8b949e; }
+  .r-sub { font-size: 14px; color: #484f58; margin-top: 8px; }
   .grid { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-top: 12px; }
-  .gcell { width: 96px; height: 92px; background-color: #161b22; border-radius: 16px; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 10px; }
-  .gicon { width: 32px; height: 32px; }
-  .glabel { font-size: 20px; color: #e6edf3; margin-top: 7px; }
-  .hint { font-size: 20px; color: #d29922; text-align: center; width: 100%; }
-  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
-  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
+  .gcell { width: 82px; height: 76px; background-color: #161b22; border-radius: 11px; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 6px; }
+  .gicon { width: 24px; height: 24px; }
+  .glabel { font-size: 16px; color: #e6edf3; margin-top: 5px; }
+  .hint { font-size: 16px; color: #d29922; text-align: center; width: 100%; }
+  .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
+  .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>

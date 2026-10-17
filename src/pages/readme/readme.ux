@@ -39,28 +39,28 @@
   /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：
    * 块样式与 md.js H_TABLE 严格对齐（336 版 avail=250/290）：显式 line-height 保证高度估算确定性 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
-  .hd-act { width: 46px; height: 46px; }
+  .hd { height: 56px; flex-direction: row; align-items: center; padding: 0 10px; }
+  .hd-act { width: 30px; height: 30px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -8px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
-  .hd-title { font-size: 26px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 19px; color: #484f58; margin-top: 2px; }
+  .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 14px; color: #484f58; margin-top: 2px; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 24px; }
-  .li { padding: 3px 14px; flex-direction: column; }
-  .b-h { font-size: 26px; line-height: 34px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
-  .b-p { font-size: 22px; line-height: 30px; color: #e6edf3; }
-  .b-c { font-size: 20px; line-height: 26px; color: #a5d6ff; background-color: #161b22; border-left: 3px solid #30363d; padding: 10px 12px; margin: 4px 0; }
-  .b-q { font-size: 22px; line-height: 30px; color: #8b949e; border-left: 3px solid #30363d; padding-left: 12px; }
-  .b-l { font-size: 22px; line-height: 30px; color: #e6edf3; }
-  .b-r { font-size: 18px; line-height: 24px; color: #30363d; text-align: center; }
-  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
-  .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
+  .pad-end { width: 100%; height: 14px; }
+  .li { padding: 3px 10px; flex-direction: column; }
+  .b-h { font-size: 20px; line-height: 26px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
+  .b-p { font-size: 17px; line-height: 23px; color: #e6edf3; }
+  .b-c { font-size: 16px; line-height: 21px; color: #a5d6ff; background-color: #161b22; border-left: 3px solid #30363d; padding: 10px 12px; margin: 4px 0; }
+  .b-q { font-size: 17px; line-height: 23px; color: #8b949e; border-left: 3px solid #30363d; padding-left: 12px; }
+  .b-l { font-size: 17px; line-height: 23px; color: #e6edf3; }
+  .b-r { font-size: 14px; line-height: 19px; color: #30363d; text-align: center; }
+  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
+  .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
+  .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
 </style>
 
 <script>

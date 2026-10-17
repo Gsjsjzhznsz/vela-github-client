@@ -184,75 +184,77 @@
            v2.22.0：动作行与字母区换序（动作行在顶部）——v2.19 重构将候选选择栏放到字母区
            下方，用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览
            （对齐 circle/pill 分支），换序不动高度链。 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 236px;flex-direction: column">
+      <!-- band 192 适配：KB 28(拼音行,共享)+44(动作行)+144(字母区)=188，KB_H_RECT=216，下展层 absolute 覆盖不变；
+           动作键改 t9 方图 44×44（避免横版素材压扁），字母键 48×48 横滚，候选条定宽 86 -->
+      <div if="{{screentype==='rect'}}" style="width: 100%;height: 188px;flex-direction: column">
         <!-- v2.22.0：动作行（语言/候选选择栏/删除）移回键盘顶部——v2.19 重构时误置字母区下方，
              用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览，
              对齐 circle/pill 分支（候选栏恒在键盘上部）。v2.23.0 高度链：
              60(动作行)+176(字母区)=236，KB_H_RECT=28+236=264，下展层 absolute 覆盖不变。 -->
-        <div style="width: 100%;height: 60px;flex-direction: row; justify-content: center; padding:0 6px;">
-          <img src="./assets/horizontal/cn.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/horizontal/jp.png" style="padding:6px;width:60px;height:60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
-          <!-- band-pro 336 适配：定宽候选条 192 = 内容区 324 - 语言键 60 - 删除键 60 - 间距 12
-               （BandQQ bandpro 分支同构：本固件 flex:1 候选条不收缩，必须定宽） -->
-          <div if="{{(lang === 'cn' || lang === 'jp') && !numFlag}}" style="margin-left: 6px;width: 192px;height: 60px;background-color:#262626;border-color: #333333; border-width: 3px; border-radius: 100px;flex-direction: row;align-items:center">
+        <div style="width: 100%;height: 44px;flex-direction: row; justify-content: center; padding:0 3px;">
+          <img src="./assets/horizontal/cn.png" style="padding: 4px;width: 44px;height: 44px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
+          <img src="./assets/horizontal/jp.png" style="padding:4px;width:44px;height:44px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
+          <!-- band 192 适配：定宽候选条 86 = 内容区 186 - 语言键 44 - 删除键 44 - 间距 12
+               （BandQQ 同构：本固件 flex:1 候选条不收缩，必须定宽） -->
+          <div if="{{(lang === 'cn' || lang === 'jp') && !numFlag}}" style="margin-left: 3px;width: 86px;height: 44px;background-color:#262626;border-color: #333333; border-width: 2px; border-radius: 22px;flex-direction: row;align-items:center">
             <!-- 候选横滚行：整词在前、单字随后（拼音已在键盘上方独立小字行显示，这里不放 cval） -->
-            <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 42px;">
+            <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 32px;">
               <div static style="position: absolute;left: 0px;height: 42px;padding-left:20px;padding-right:20px">
                 <text for="{{resultRow0}}" show="{{resultRow0.length > $idx}}" class="calbtn02" style="padding-right:10px" @click="onRsSelect(resultRow0[$idx])">{{resultRow0[$idx]}}</text>
               </div>
             </scroll>
-            <img if="{{resultRow0.length > 0}}" style="position:absolute;right: 5px; width: 60px;height: 40px;" src="./assets/horizontal/down2.png" @click="onBtnClick('down')" />
+            <img if="{{resultRow0.length > 0}}" style="position:absolute;right: 5px; width: 44px;height: 30px;" src="./assets/horizontal/down2.png" @click="onBtnClick('down')" />
           </div>
           <!-- <img src="./assets/t9/123.png" style="margin-left:6px;padding:6px;width:60px;height:60px;" @click="onBtnClick('switchNum_jp')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" /> -->
         
-          <img src="./assets/horizontal/en.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/bigA.png" style="padding: 6px;margin-left: 4px;width:88px;height:60px;" @click="onBtnClick('switchLow')" if="{{downFlag==='' && upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/a.png" style="padding: 6px;margin-left: 4px;width:88px;height:60px;" @click="onBtnClick('switchUpper')" if="{{downFlag==='' && !upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/123.png" style="padding: 6px;margin-left: 4px;width: 88px;height: 60px;" @click="onBtnClick('switchNum')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/back2.png" style="margin-left: 6px;padding: 6px;width: 159px;height: 60px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
-          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 6px;padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('D')" />
+          <img src="./assets/horizontal/en.png" style="padding: 4px;width: 44px;height: 44px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
+          <img src="./assets/t9/bigA.png" style="padding: 4px;margin-left: 3px;width:44px;height:44px;" @click="onBtnClick('switchLow')" if="{{downFlag==='' && upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/t9/a.png" style="padding: 4px;margin-left: 3px;width:44px;height:44px;" @click="onBtnClick('switchUpper')" if="{{downFlag==='' && !upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/t9/123.png" style="padding: 4px;margin-left: 3px;width: 44px;height: 44px;" @click="onBtnClick('switchNum')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
+          <img src="./assets/t9/back2.png" style="margin-left: 3px;padding: 4px;width: 44px;height: 44px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
+          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 3px;padding: 4px;width: 44px;height: 44px;" @click="onBtnClick('D')" />
           <img else src="./assets/horizontal/del2.png" style="margin-left: 6px;padding: 6px;" @click="onBtnClick('D')" />
         </div>
-        <div style="width:100%;height:176px;">
+        <div style="width:100%;height:144px;">
           <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:176px;">
             <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/horizontal/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
+                <img static src="./assets/horizontal/space.png" style="width: 48px;height: 48px;" @click="onBtnClick('space')" />
               </div>
             </div>
             <div if="{{numFlag && !numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
             <div if="{{numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn67" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
           </scroll>
         </div>
         <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 236px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
+        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 188px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
           <div static class="list67">
             <scroll class="expanded-scroll" scroll-y="{{true}}" style="width:100%;height:100%;">
               <div class="expanded-candidates">
@@ -269,36 +271,36 @@
           <progress percent="{{30+percent66}}" type="arc" style="start-angle:204deg;total-angle:-48deg;width:188px;height:188px;top:82px;left:2px;position:absolute;color:#ffffff;stroke-width:6px;layer-color:#262626;margin-left: {{(screenWidth - 192)/2}}px;"></progress>
           <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;height:170px;">
             <div if="{{!numFlag}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
                 <img static src="./assets/arc/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
               </div>
             </div>
             <div if="{{numFlag && !numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
             <div if="{{numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 24px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
+              <div static style="margin-left: 48px;margin-top: -4px;height: 48px;">
                 <text class="calbtn66" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
@@ -355,7 +357,7 @@ function deleteLast(t) {
 //   circle 321（拼音行在键盘内部，不占外高）/ rect 236+28 / pill 305+28（拼音行恒预留）
 //   根容器 + 懒建层 + 黑底层三层全部以此显式定高（见模板头注释）
 var KB_H_CIRCLE = 321;
-var KB_H_RECT = 264;
+var KB_H_RECT = 216;
 var KB_H_PILL = 333;
 function kbTotalFor(screentype) {
   if (screentype === "circle") return KB_H_CIRCLE;
@@ -980,19 +982,19 @@ export default {
 }
 .calbtn67 {
         color:rgb(255,255,255);
-        font-size:32px;
+        font-size:24px;
         font-weight:bold;
         background-color:rgb(38,38,38);
-        margin-right:4px;
-        width:60px;
-        height:60px;
-        border-radius:30px;
+        margin-right:3px;
+        width:48px;
+        height:48px;
+        border-radius:24px;
         text-align:center;
-        border:3px solid rgba(255,255,255,0.06);
+        border:2px solid rgba(255,255,255,0.06);
 }
 #keyboard67 {
         width:100%;
-        height:176px;
+        height:144px;
 }
 #keyboard66 {
         position:absolute;
@@ -1004,11 +1006,11 @@ export default {
 .list67 {
         top:0px;
         width:96.4%;
-        height:170px;
-        border-radius:30px;
+        height:110px;
+        border-radius:16px;
         background-color:#262626;
-        border:3px solid rgba(255,255,255,0.06);
-        padding:0px 10px;
+        border:2px solid rgba(255,255,255,0.06);
+        padding:0px 8px;
 }
 .calbtn66 {
         color:rgb(255,255,255);

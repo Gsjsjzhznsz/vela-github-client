@@ -67,8 +67,8 @@
   /* RW5 固件根修：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 12px; }
-  .li { padding: 4px 12px; }
+  .pad-end { width: 100%; height: 60px; }
+  .li { padding: 4px 12px; flex-direction: column; }
   .cell { flex-direction: row; align-items: flex-start; width: 100%; background-color: #161b22; border-radius: 12px; padding: 11px 12px; }
   .cell-icon { width: 18px; height: 18px; margin-top: 2px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 10px; }

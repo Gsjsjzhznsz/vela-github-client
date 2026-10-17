@@ -63,8 +63,8 @@
     <div class="state" show="{{needCp}}">
       <text class="gate-logo">AI</text>
       <text class="gate-t">开启 Copilot AI</text>
-      <text class="gate-d">一次点击设备授权 · 免打字 · 不影响已登录账号</text>
-      <text class="gate-d2">VS Code 同款免费模型（默认 GPT-4o mini）</text>
+      <text class="gate-d">设备一键授权 · 免打字 · 不影响登录</text>
+      <text class="gate-d2">VS Code 同款免费模型 GPT-4o mini</text>
       <div class="gate-btn" onclick="goCopilotAuth"><text class="gate-btn-t">一键授权</text></div>
       <text class="gate-tip">手表显示设备码 → 手机/电脑浏览器打开</text>
       <text class="gate-tip2">github.com/login/device 输入即可</text>
@@ -84,8 +84,8 @@
   .hd-clear { font-size: 19px; color: #f85149; padding: 6px 10px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .pad-end { width: 100%; height: 36px; }
-  .li { padding: 4px 12px; }
+  .pad-end { width: 100%; height: 120px; }
+  .li { padding: 4px 12px; flex-direction: column; }
   .row-u { flex-direction: row; justify-content: flex-end; }
   .row-a { flex-direction: row; justify-content: flex-start; }
   .bub-u { background-color: #1f6feb; border-radius: 12px 3px 12px 12px; padding: 9px 11px; font-size: 21px; color: #ffffff; width: 288px; line-height: 30px; }
@@ -99,19 +99,19 @@
   .quick { flex-direction: column; align-items: center; padding: 14px 12px; width: 100%; }
   .quick-h { font-size: 21px; color: #8b949e; margin-bottom: 9px; }
   .q-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 100%; }
-  .q-cell { width: 194px; background-color: #161b22; border-radius: 12px; padding: 12px 0; margin: 4px; align-items: center; }
+  .q-cell { width: 194px; background-color: #161b22; border-radius: 12px; padding: 12px 0; margin: 4px; align-items: center; flex-direction: column; }
   .q-t { font-size: 19px; color: #d2a8ff; }
   .quick-note { font-size: 19px; color: #58a6ff; margin-top: 10px; text-align: center; padding: 0 18px; }
   .quick-note.dim { color: #484f58; margin-top: 5px; }
   /* v1.7.1：授权门（未授权必须先授权，全屏拦截） */
   .gate-logo { width: 64px; height: 64px; border-radius: 16px; background-color: #1f1325; border: 1px solid #8957e5; color: #d2a8ff; font-size: 26px; font-weight: bold; text-align: center; line-height: 64px; }
   .gate-t { font-size: 22px; color: #e6edf3; font-weight: bold; margin-top: 12px; }
-  .gate-d { font-size: 21px; color: #8b949e; margin-top: 10px; text-align: center; line-height: 29px; padding: 0 26px; }
-  .gate-d2 { font-size: 21px; color: #8b949e; margin-top: 3px; text-align: center; line-height: 29px; padding: 0 26px; }
+  .gate-d { font-size: 21px; color: #8b949e; margin-top: 10px; text-align: center; line-height: 29px; width: 380px; }
+  .gate-d2 { font-size: 21px; color: #8b949e; margin-top: 3px; text-align: center; line-height: 29px; width: 380px; }
   .gate-btn { width: 250px; height: 76px; border-radius: 38px; background-color: #8957e5; align-items: center; justify-content: center; margin-top: 14px; }
   .gate-btn-t { font-size: 22px; color: #ffffff; font-weight: bold; }
-  .gate-tip { font-size: 19px; color: #484f58; margin-top: 12px; text-align: center; line-height: 28px; padding: 0 20px; }
-  .gate-tip2 { font-size: 19px; color: #484f58; margin-top: 1px; text-align: center; line-height: 28px; padding: 0 20px; }
+  .gate-tip { font-size: 19px; color: #484f58; margin-top: 12px; text-align: center; line-height: 28px; width: 392px; }
+  .gate-tip2 { font-size: 19px; color: #484f58; margin-top: 1px; text-align: center; line-height: 28px; width: 392px; }
   .inbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 92px; flex-direction: row; align-items: center; background-color: #161b22; padding: 0 16px; }
   .in-ic { width: 26px; height: 26px; }
   .in-ph { font-size: 21px; color: #484f58; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }

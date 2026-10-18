@@ -50,9 +50,9 @@
 <style>
   /* band v2.0 BDS-192：主文本 20/次 16，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
+  .hd { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16，头部内容整体离开屏幕圆角区 */
   .hd-act { width: 30px; height: 30px;  overflow: hidden;}
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px;  overflow: hidden;}
   .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .hd-sub { font-size: 14px; color: #484f58; flex: 1; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 18px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }

@@ -29,9 +29,9 @@
 <style>
   /* band v2.0 BDS-192：top-bar 56 与全页页头一致；kb-dock 333 = KB_H_PILL（BandQQ main 照搬：28 拼音行+305 键区） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
-  .top-bar { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角 */
+  .top-bar { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16 */
   .btn-back { width: 30px; height: 30px; }
-  .btn-back-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
+  .btn-back-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px; }
   .bar-title { flex: 1; font-size: 20px; color: #e6edf3; font-weight: bold; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .done-btn { width: 80px; height: 40px; text-align: center; line-height: 40px; font-size: 16px; color: #ffffff; background-color: #238636; border-radius: 20px; }
   /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */

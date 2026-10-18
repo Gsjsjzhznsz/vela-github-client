@@ -2,75 +2,63 @@
 
 # ⌚ GitHub for Vela
 
-**小米 Vela OS 手表上的 GitHub 客户端 · 通知 / 仓库 / 代码 / Copilot AI 一应俱全**
+**小米 Vela OS 手环 / 极窄米粒型上的 GitHub 客户端 · 通知 / 仓库 / 代码 / Copilot AI 一应俱全**
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
+[![Version](https://img.shields.io/badge/version-2.1.2-blue)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
 [![Platform](https://img.shields.io/badge/platform-Vela%20OS-green)]()
-[![Device](https://img.shields.io/badge/device-Redmi%20Watch%205-orange)]()
+[![Device](https://img.shields.io/badge/device-小米手环9·10·11·9Pro·10Pro-orange)]()
 [![AI](https://img.shields.io/badge/AI-GitHub%20Copilot-8956e5)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0-red)](LICENSE)
 [![Release](https://img.shields.io/badge/download-GitHub%20Releases-9cf)](https://github.com/Gsjsjzhznsz/vela-github-client/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/Gsjsjzhznsz/vela-github-client/build-release.yml?label=CI&logo=githubactions&logoColor=white)](https://github.com/Gsjsjzhznsz/vela-github-client/actions/workflows/build-release.yml)
-[![Size](https://img.shields.io/badge/rpk-461KB-success)]()
+[![Size](https://img.shields.io/badge/rpk-404KB-success)]()
 
-![GitHub for Vela 宣传图](docs/promo/banner-3x2.jpg)
+![GitHub for Vela 宣传图](docs/promo/banner.jpg)
 
-**手表上直接刷 GitHub：看通知、翻仓库、读源码、问 Copilot。**
-运行在小米 Vela OS 手表上，优先适配 Redmi Watch 5（432×514 方屏），兼容圆屏机型。
+**手环上直接刷 GitHub：看通知、翻仓库、读源码、问 Copilot。**
+运行在小米 Vela OS 手环（极窄米粒型）与手表上，主力适配手环 9/10/11 标准版与手环 9 Pro/10 Pro。
 数据经小米运动健康蓝牙代理或 eSIM 独立联网直连 GitHub REST API；**联网能力被阉割的机型可开启「手机网桥」（AstroBox FetchBridge 插件），经手机蓝牙代发 HTTP 完整恢复联网**。
 基于 Vela 官方 JS 应用框架（aiot-toolkit）开发，遵循官方组件 / API 白名单与性能规范。
 
 </div>
 
-## 🖼 界面预览（官方 Vela 虚拟机实拍 · 432×514）
+## 🖼 真机透视预览（官方样机模板精确合成）
 
-以下截图均由小米官方 Vela 虚拟机（QEMU + vela-miwear-watch-5.0 镜像）运行 rpk 实拍，
-登录态数据为真实 GitHub 账号返回，非网页模拟：
+| 手环 11 · 首页 | 手环 11 · Copilot AI | 手环 9 Pro · 首页 |
+|:---:|:---:|:---:|
+| ![手环11 首页](docs/promo/band11-home.jpg) | ![手环11 Copilot](docs/promo/band11-ai.jpg) | ![手环9Pro 首页](docs/promo/band9pro-home.jpg) |
 
-| 首页（登录态 · API 配额） | 通知中心（CI 聚合卡） |
-|:---:|:---:|
-| ![首页](docs/screenshots-vvm/01-首页-登录态-5000配额.png) | ![通知中心](docs/screenshots-vvm/02-通知中心-CI聚合卡-真实数据.png) |
+## 🖥 实机渲染（小米官方 Vela QEMU 模拟器实拍 · 192×490）
 
-| Copilot AI（真实对话） | 搜索（实时结果） |
-|:---:|:---:|
-| ![Copilot 专区](docs/screenshots-vvm/06-Copilot专区-真实对话.png) | ![搜索](docs/screenshots-vvm/04-搜索-真实结果.png) |
+| 首页（登录态） | 首页（游客态） | Copilot 专区 |
+|:---:|:---:|:---:|
+| ![首页](promo/home-band-rounded.png) | ![游客态](promo/home-band-guest-rounded.png) | ![Copilot](promo/ai-band-rounded.png) |
 
-| 趋势（新星榜） | Copilot 专区（授权门） |
-|:---:|:---:|
-| ![趋势](docs/screenshots-vvm/05-趋势-新星榜.png) | ![Copilot 专区](docs/screenshots-vvm/06-Copilot专区-授权门.png) |
+> 样机透视合成基于 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 官方屏幕四角数据；
+> 实拍图由小米官方 Vela 模拟器（vela-watch-5.0 镜像）逐页渲染输出；登录态用户名/Token 为示例数据。
 
-| 设置（双通道登录） | 关于页 |
-|:---:|:---:|
-| ![设置](docs/screenshots-vvm/07-设置-双通道登录.png) | ![关于页](docs/screenshots-vvm/08-关于页.png) |
+## 📲 下载 v2.1.2（四分支机型版 · versionCode 42 全线一致）
 
-> 宣传横幅中的真机样机由 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 模板透视合成。
+| 分支 | 机型 | 屏幕 | 安装包 |
+|------|------|------|--------|
+| `band` | 手环 9 / 10 / 11 标准版 | 192×490 跑道屏 | [rel_2.1.2-band.rpk](https://github.com/Gsjsjzhznsz/vela-github-client/releases/download/v2.1.2/rel_2.1.2-band.rpk) |
+| `band-pro` | 手环 9 Pro / 10 Pro | 336×480 方屏 | [rel_2.1.2-pro.rpk](https://github.com/Gsjsjzhznsz/vela-github-client/releases/download/v2.1.2/rel_2.1.2-pro.rpk) |
+| `main` | Redmi Watch 5 等方屏手表 | 432×514 | [rel_2.1.2-watch5.rpk](https://github.com/Gsjsjzhznsz/vela-github-client/releases/download/v2.1.2/rel_2.1.2-watch5.rpk) |
+| `xiaomi-watch-s` | Watch S 系列圆屏手表 | 466×466 | [rel_2.1.2-s.rpk](https://github.com/Gsjsjzhznsz/vela-github-client/releases/download/v2.1.2/rel_2.1.2-s.rpk) |
 
-## ✨ 功能
-
-| 模块 | 说明 |
-|------|------|
-| 🔔 通知中心 | **缓存秒开**（进页即渲染上次列表，网络抖动不白屏）、**仓库分组平铺**（点分组头折叠/展开，**长按整仓已读**，**组内操作行**一键整仓已读/静音）、**本地静音仓库**（静音组自动沉底折叠，降噪第三层）、**类型芯片**（全部/Issue/PR/CI/其他，两行换行不溢出圆屏）、未读/全部/仅参与三态过滤、CI 聚合卡 + **CI 一键已读**、单条长按已读、一键全部已读、未读数角标（与 GitHub 网页徽标对齐）、**v1.9.0 全页字号深度优化（≥16px）** |
-| 🌉 手机网桥 | **AstroBox FetchBridge 适配（v1.9.0）**：联网被砍机型经手机端 AstroBox NG 代发 HTTP——协议 v3（分片 + 累计 ACK 滑动窗口 + 重定向），三模式可选（自动/手机网桥/仅直连），设置页一键检测与连接诊断 |
-| 🤖 Copilot AI | 设备授权免打字（VS Code 同款免费模型）、**实时思考状态**（秒级计时+慢网提示）、**可折叠思考过程**（推理模型）、快捷指令 8 个（含通道自检/刷新模型列表）、会话历史持久化、上下文注入（代码页/仓库页「问 AI」）、模型点击切换、未授权全屏引导门 |
-| 📦 仓库 | 我的仓库（按最近 push 排序）、指定用户公开仓库、Star 数 / 语言 / 更新时间、**PR 列表（Draft/Merged 徽标）**、**订阅三态（订阅/忽略通知/取消，源头降噪）** |
-| 📖 README | Base64 解码 + 轻量 Markdown 转换，分块懒加载阅读 |
-| 🐛 Issues | 开放/已关闭切换、标签展示、正文与评论流式阅读（支持 PR 会话）、**T9 拼音键盘发评论**、**关闭/重新打开** |
-| 🚢 Releases | 版本列表、预发布标记、附件数、发布说明预览 |
-| 🔍 搜索 | 关键词搜仓库（支持拼音输入中文关键词），显示结果总数 |
-| 📈 趋势 | 新星（周）/ 黑马（季）/ 经典 三档榜单（GitHub 无官方 Trending API，用 stars 排序模拟） |
-| 🌲 代码浏览 | 目录树逐级进入、源码等宽分行查看、二进制与大文件守卫 |
-| 👤 个人主页 | 登录自动加载 / 游客输入用户名查询，仓库/粉丝/关注统计 |
-| ⭐ Star | 仓库页一键 Star / 取消 Star |
-| 🔑 双模式 | Personal Access Token 登录 或 游客模式（匿名限流 60 次/小时） |
+> 覆盖安装不丢失登录态；卸载重装后「免打字登录」30 秒即可恢复。
+> 同版本号四分支同步发布，各机型 UI 按屏幕形态独立适配（跑道屏 R 角安全区 / 方屏 / 圆屏）。
 
 ## 📱 适配设备
 
 | 设备 | 屏幕 | 适配状态 |
 |------|------|----------|
-| Redmi Watch 5 | 432×514 方形 | ✅ 主力适配（designWidth 432，1 设计 px = 1 物理 px，BandQQ redmiwatch 分支同策略） |
-| Xiaomi Watch S 系列 | 466×466 圆形 | ⚠️ 兼容（圆屏安全边距待真机微调） |
+| 小米手环 9 / 10 / 11 标准版 | 192×490 / 212×520 / 224×528 跑道屏 | ✅ 主力适配（`band` 分支，designWidth 192，R 角安全区适配） |
+| 小米手环 9 Pro / 10 Pro | 336×480 方形 | ✅ 主力适配（`band-pro` 分支，designWidth 336，BDS-336 设计系统） |
+| Redmi Watch 5 | 432×514 方形 | ✅ 已适配（`main` 分支，designWidth 432，BandQQ redmiwatch 分支同策略） |
+| Xiaomi Watch S 系列 | 466×466 圆形 | ⚠️ 兼容（`xiaomi-watch-s` 分支，圆屏安全边距待真机微调） |
 | 联网被砍机型 | — | 🌉 **开启「手机网桥」恢复联网**（需手机端 [AstroBox NG](https://github.com/AstralSightStudios/AstroBox-NG) + [FetchBridge 插件](https://github.com/AstralSightStudios/AstroBox-NG-Plugin-MiWear-InterconnectFetch)），设置 → 网络通道 → 手机网桥 |
-| 其他 Vela OS 手表/手环 | — | 理论兼容，欢迎反馈 |
+| 其他 Vela OS 手环/手表 | — | 理论兼容，欢迎反馈 |
 
 ## 🚀 构建与安装
 

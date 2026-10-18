@@ -69,17 +69,17 @@
   /* band v2.0 BDS-192：主文本 20/次 16/弱 14，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 6px 14px 24px; }
   .card { background-color: #161b22; border-radius: 12px; padding: 18px 14px; flex-direction: column; }
   .head-card { align-items: center; }
-  .ava-big { width: 60px; height: 60px; border-radius: 30px; justify-content: center; align-items: center; }
-  .ava-big-t { font-size: 30px; color: #ffffff; font-weight: bold; }
+  .ava-big { width: 60px; height: 60px; border-radius: 30px; justify-content: center; align-items: center;  overflow: hidden;}
+  .ava-big-t { font-size: 30px; color: #ffffff; font-weight: bold;  overflow: hidden;}
   .p-login { font-size: 22px; color: #e6edf3; font-weight: bold; margin-top: 9px; }
   .p-name { font-size: 17px; color: #c9d1d9; margin-top: 3px; }
   .p-bio { font-size: 16px; color: #8b949e; margin-top: 6px; text-align: center; lines: 2; text-overflow: ellipsis; }
@@ -88,8 +88,8 @@
   .stat-n { font-size: 21px; color: #e6edf3; font-weight: bold; }
   .stat-l { font-size: 16px; color: #8b949e; margin-top: 3px; }
   .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 11px 10px; margin-top: 10px; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-label { flex: 1; font-size: 19px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; }
+  .cell-icon { width: 18px; height: 18px;  overflow: hidden;}
+  .cell-label { flex: 1; font-size: 17px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 26px;}
   .cell-arrow { width: 16px; height: 16px; }
   .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
   .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }

@@ -59,10 +59,10 @@
   /* band v2.0 BDS-192：主文本 20/次 16/弱 14，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 24px; height: 24px; }
   .pull-text { font-size: 17px; color: #8b949e; margin-left: 8px; }
@@ -72,10 +72,10 @@
   .pad-end { width: 100%; height: 44px; } /* v2.0.3 R角：尾部缓冲 14→44，末张卡片离开底部圆角+手势区 */
   .li { padding: 4px 10px; flex-direction: column; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
-  .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center; }
-  .ava-t { font-size: 20px; color: #ffffff; font-weight: bold; }
+  .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center;  overflow: hidden;}
+  .ava-t { font-size: 20px; color: #ffffff; font-weight: bold;  overflow: hidden;}
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .cell-desc { font-size: 16px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 7px; }
   .dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; }

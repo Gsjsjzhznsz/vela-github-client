@@ -80,10 +80,10 @@
    * 芯片行 flex-wrap 两行排布（单行 5 枚必溢出），分组头/条目卡加高加大点击区 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .hd-filter { font-size: 17px; color: #58a6ff; margin-right: 8px; padding: 7px 11px; background-color: #161b22; border-radius: 11px; }
   /* 类型芯片行——flex-wrap 两行排布 */
   .chips { flex-direction: row; flex-wrap: wrap; padding: 6px 14px 2px; }
@@ -91,7 +91,7 @@
   .chip-on { font-size: 17px; color: #ffffff; border-radius: 12px; padding: 10px 20px; margin: 5px 10px 5px 0; background-color: #1f6feb; }
   /* 概览行——margin 内缩替代 padding（本固件 padding 被叠加到 100% 宽之外导致右缘溢出，根修保留） */
   .sum { flex-direction: row; align-items: center; justify-content: space-between; margin: 2px 14px 8px; }
-  .sum-t { font-size: 16px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; }
+  .sum-t { font-size: 14px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; line-height: 22px;}
   .sum-btn { font-size: 16px; color: #d29922; padding: 8px 12px; margin-right: 14px; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 24px; height: 24px; }
@@ -104,12 +104,12 @@
   /* 仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
   .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 16px; padding: 11px 10px; }
   .gh-arrow { font-size: 20px; color: #58a6ff; width: 36px; }
-  .gh-repo { font-size: 19px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .gh-repo { font-size: 17px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 26px;}
   .gh-muted { font-size: 14px; color: #d29922; margin-right: 8px; padding: 3px 10px; border-radius: 10px; background-color: #282013; }
   .gh-n { font-size: 14px; color: #8b949e; margin-left: 8px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 11px; padding: 10px; }
   .unread { position: absolute; left: 4px; top: 4px; width: 12px; height: 12px; border-radius: 6px; background-color: #3fb950; }
-  .cell-icon { width: 18px; height: 18px; }
+  .cell-icon { width: 18px; height: 18px;  overflow: hidden;}
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
   .cell-title { font-size: 18px; color: #e6edf3; margin-top: 2px; lines: 2; text-overflow: ellipsis; }
   .cell-meta { flex-direction: row; align-items: center; margin-top: 4px; }

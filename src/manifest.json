@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
-  "versionName": "2.0.7-band",
-  "versionCode": 37,
+  "versionName": "2.0.8-band",
+  "versionCode": 38,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"

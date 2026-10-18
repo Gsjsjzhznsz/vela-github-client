@@ -19,6 +19,7 @@
    * 挂到全局后由 src/utils/gh.js 桥接给各页面（api.js 此前被 17 个
    * 页面 bundle 逐页内联，≈2.6MB 重复源码）。 */
   import api from './utils/api'
+  import { bridgeKick } from './utils/bridge'
 
   if (typeof globalThis !== 'undefined') globalThis.__GH_API_IMPL__ = api
   else if (typeof window !== 'undefined') window.__GH_API_IMPL__ = api
@@ -33,6 +34,11 @@
       /* 双保险：个别固件模块求值顺序异常时，onCreate 阶段再补挂一次 */
       const g = typeof globalThis !== 'undefined' ? globalThis : window
       if (g) g.__GH_API_IMPL__ = api
+      /* v2.0.8 根修：启动即预握手（非阻塞）——否则 _hs 恒 false，
+         auto 模式直连失败后的网桥 fallback 永不触发（刚安装场景实锤） */
+      try {
+        bridgeKick()
+      } catch (e) {}
       console.log('[GH] app created')
     },
     onError(err) {

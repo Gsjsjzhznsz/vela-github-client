@@ -52,10 +52,10 @@
   /* band v2.0 BDS-192：主文本 20/次 16-21，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 24px; height: 24px; }
   .pull-text { font-size: 17px; color: #8b949e; margin-left: 8px; }
@@ -66,12 +66,12 @@
   .li { padding: 4px 10px; flex-direction: column; }
   .cell { flex-direction: column; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
   .cell-hd { flex-direction: row; align-items: center; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-tag { font-size: 19px; color: #3fb950; font-weight: bold; margin-left: 9px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .cell-icon { width: 18px; height: 18px;  overflow: hidden;}
+  .cell-tag { font-size: 17px; color: #3fb950; font-weight: bold; margin-left: 9px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 26px;}
   .pre-badge { font-size: 14px; color: #d29922; border: 1px solid #d29922; border-radius: 12px; padding: 2px 10px; }
   .cell-title { font-size: 18px; color: #e6edf3; margin-top: 8px; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 16px; color: #8b949e; margin-top: 5px; lines: 1; text-overflow: ellipsis; }
-  .cell-body { font-size: 16px; color: #8b949e; margin-top: 7px; lines: 5; text-overflow: ellipsis; }
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 5px; lines: 1; text-overflow: ellipsis; line-height: 22px;}
+  .cell-body { font-size: 14px; color: #8b949e; margin-top: 7px; lines: 5; text-overflow: ellipsis; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
   .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
   .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }

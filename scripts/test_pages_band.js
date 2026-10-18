@@ -59,14 +59,16 @@ t('input screentype=pill-shaped', /screentype="pill-shaped"/.test(read('src/page
 t('input top-bar 56 与全页页头一致', /\.top-bar \{ height: 56px/.test(read('src/pages/input/input.ux')));
 t('InputMethod KB_H_PILL=333（28拼音行+305键区，BandQQ main）', /var KB_H_PILL = 333;/.test(read('src/components/InputMethod/InputMethod.ux')));
 t('InputMethod pill 分支 305 高', /screentype==='pill-shaped'\}\}" style="width: 100%;height: 305px/.test(read('src/components/InputMethod/InputMethod.ux')));
-t('InputMethod 与 BandQQ main 零漂移（除 initlang 增量）', (() => {
+t('InputMethod 与 BandQQ main 零漂移（除 initlang 增量；参照缺失时跳过）', (() => {
   const norm = x => x
     .replace(/\/\* vgc v1\.1\.3[\s\S]*?\*\//g, '')
     .replace(/,\s*initlang: \{\s*default: "cn",\s*\}/, '')
     .replace(/if \(this\.initlang && [\s\S]*?this\.lang = this\.initlang;\s*\}/, '')
     .replace(/\n[ \t]*(?=\n)/g, '');
   const fsx = require('fs');
-  return norm(read('src/components/InputMethod/InputMethod.ux')) === norm(fsx.readFileSync('/home/z/my-project/work/bandqq-main/band-qq/src/components/InputMethod/InputMethod.ux', 'utf8'));
+  const ref = '/home/z/my-project/work/bandqq-main/band-qq/src/components/InputMethod/InputMethod.ux';
+  if (!fsx.existsSync(ref)) { console.log('    [skip] BandQQ 参照不存在（回滚丢失）'); return true; }
+  return norm(read('src/components/InputMethod/InputMethod.ux')) === norm(fsx.readFileSync(ref, 'utf8'));
 })());
 t('键盘 pill 66 键 60×60 fs32（BandQQ 原生）', /\.calbtn66 \{[\s\S]*?width:60px;[\s\S]*?height:60px;/.test(read('src/components/InputMethod/InputMethod.ux').replace(/\n\s*/g, '')));
 t('键盘候选条 cvalWaiting 144（BandQQ pill 原生）', /id="cvalWaiting" scroll-x="{{true}}" style="position: absolute;left: 15px;top: 56px;width: 144px/.test(read('src/components/InputMethod/InputMethod.ux')));
@@ -93,10 +95,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.4-band', /"versionName": "2\.0\.4-band"/.test(man));
-t('manifest versionCode 34（四分支同步）', /"versionCode": 34/.test(man));
+t('manifest versionName 2.0.8-band', /"versionName": "2\.0\.8-band"/.test(man));
+t('manifest versionCode 38（四分支同步）', /"versionCode": 38/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.0.4-band', /"version": "2\.0\.4-band"/.test(read('package.json')));
+t('package.json 2.0.8-band', /"version": "2\.0\.8-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

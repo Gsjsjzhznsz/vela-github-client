@@ -47,10 +47,10 @@
    * 现在 22px/字距1/内边 12 → 总宽 ~156px，稳落 168px 内容区内；R 角同步适配（hd 顶垫 8、侧 14）。 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; }
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击；-6 让触区外扩但字形离开 R 角裁切区 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .center { flex-direction: column; align-items: center; padding: 10px 12px 20px; }
@@ -64,7 +64,7 @@
   .check { font-size: 16px; color: #d29922; margin-top: 12px; padding: 12px 20px; }
   .cancel { font-size: 17px; color: #58a6ff; margin-top: 12px; padding: 12px 20px; }
   .retry { color: #3fb950; }
-  .err-t { font-size: 19px; color: #f85149; text-align: center; padding: 0 10px; }
+  .err-t { font-size: 17px; color: #f85149; text-align: center; padding: 0 10px; }
 </style>
 
 <script>import router from '@system.router';

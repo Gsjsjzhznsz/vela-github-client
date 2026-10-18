@@ -96,25 +96,25 @@
   /* band v2.0 BDS-192：主文本 20/次 16/弱 14，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
   .hd { height: 56px; flex-direction: row; align-items: center; padding: 8px 14px 0; } /* v2.0.3 R角：顶垫8+侧垫14，图标字形离开手环屏幕圆角裁切区 */
-  .hd-act { width: 30px; height: 30px; }
+  .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px; }
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 6px 14px 24px; }
   .card { background-color: #161b22; border-radius: 12px; padding: 10px; margin-bottom: 7px; flex-direction: column; }
   /* 卡内列容器必须显式声明 column：本固件 div 缺省按 row 排布，缺定义会导致卡内多行文本横向串排（v1.10.1 根修保留） */
   .card-col { flex-direction: column; }
-  .c-title { font-size: 19px; color: #e6edf3; font-weight: bold; margin-bottom: 6px; }
-  .c-row { font-size: 16px; color: #c9d1d9; }
-  .c-row2 { font-size: 16px; color: #3fb950; margin-top: 5px; }
-  .c-body { font-size: 16px; color: #8b949e; line-height: 22px; margin-top: 3px; }
+  .c-title { font-size: 17px; color: #e6edf3; font-weight: bold; margin-bottom: 6px; }
+  .c-row { font-size: 14px; color: #c9d1d9; }
+  .c-row2 { font-size: 14px; color: #3fb950; margin-top: 5px; }
+  .c-body { font-size: 14px; color: #8b949e; line-height: 22px; margin-top: 3px; }
   .warn { color: #d29922; }
   .c-act { font-size: 16px; color: #58a6ff; margin-top: 9px; }
   .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 11px 10px; margin-bottom: 7px; }
-  .cell-icon { width: 18px; height: 18px; }
-  .cell-label { flex: 1; font-size: 19px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; }
+  .cell-icon { width: 18px; height: 18px;  overflow: hidden;}
+  .cell-label { flex: 1; font-size: 17px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 26px;}
   .cell-arrow { width: 16px; height: 16px; }
   .hl { color: #3fb950; }
 </style>

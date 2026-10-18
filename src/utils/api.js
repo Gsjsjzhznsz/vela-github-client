@@ -8,7 +8,7 @@ import storage from '@system.storage';
 import file from '@system.file';
 import downloader from '@system.request';
 import b64decode from './b64'; /* v1.2.3：通道⑤ contents JSON base64 解码（默认导出） */
-import { bridgeFetch, bridgeSupported, bridgeReady, bridgeStats, bridgeKick as bridgeKick0, bridgeDiagnose as bridgeDiagnose0 } from './bridge'; /* v1.9.0：AstroBox 网桥（砍网机型经手机代发 HTTP） */
+import { bridgeFetch, bridgeSupported, bridgeReady, bridgeWaitHs, bridgeStats, bridgeKick as bridgeKick0, bridgeDiagnose as bridgeDiagnose0 } from './bridge'; /* v1.9.0：AstroBox 网桥（砍网机型经手机代发 HTTP）；v2.0.8 +bridgeWaitHs */
 
 /** 批量标记通知线程已读（v1.2.3 CI 聚合卡长按用）：mapLimit 限并发 3，
  *  返回成功数；单条失败不计入（404 已读等常态）。 */
@@ -3071,14 +3071,17 @@ const rawFetch = function (opts) {
           throw e;
         }
         const _temp78 = function () {
-          if (mode === 'auto' && !_bridgeSticky && bridgeReady()) {
-            return _catch(function () {
+          /* v2.0.8 根修：刚安装时握手未完成（bridgeReady()=false）导致 fallback 永不触发；
+             改为本机支持 interconnect 即等握手（短超时）再试网桥，等不到才放弃 */
+          if (mode === 'auto' && !_bridgeSticky && bridgeSupported()) {
+            return bridgeWaitHs(2000).then(function (ready) {
+              if (!ready) return;
               return Promise.resolve(bridgeFetch(opts)).then(function (r) {
                 _bridgeSticky = true;
                 _exit19 = true;
                 return r;
               });
-            }, function () {});
+            });
           }
         }();
         /* 直连失败且网桥就绪 → 网桥重试一次（砍网机型的根救路径） */

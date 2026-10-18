@@ -543,6 +543,13 @@ export function bridgeReady() {
   init();
   return supported() && _hs;
 }
+/* v2.0.8 根修：等握手完成（带超时）——auto 模式直连失败后的兜底前置；
+   刚安装时 _hs 恒 false，旧逻辑直接跳过网桥重试导致「自动失败不走网桥」 */
+export function bridgeWaitHs(ms) {
+  init();
+  if (!supported()) return Promise.resolve(false);
+  return waitHs(ms);
+}
 export function bridgeNegotiated() {
   return _neg;
 }

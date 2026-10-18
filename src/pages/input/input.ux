@@ -28,9 +28,9 @@
 <style>
   /* band-pro v2.0 BDS-336：top-bar 96 与全页页头一致；kb-dock 264 = KB_H_RECT（rect 键盘 28+236） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
-  .top-bar { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .top-bar { height: 112px; flex-direction: row; align-items: center; padding: 24px 28px 0; } /* v2.0.6 R角二轮 */
   .btn-back { width: 46px; height: 46px; }
-  .btn-back-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .btn-back-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: 4px; }
   .bar-title { flex: 1; font-size: 26px; color: #e6edf3; font-weight: bold; margin-left: 6px; lines: 1; text-overflow: ellipsis; }
   .done-btn { width: 108px; height: 56px; text-align: center; line-height: 56px; font-size: 24px; color: #ffffff; background-color: #238636; border-radius: 28px; }
   /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */

@@ -58,10 +58,10 @@
 <style>
   /* band-pro v2.0 BDS-336：主文本 26/次 21/弱 19，卡 radius 20，页头 96（手环 9/10 Pro 336×480） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
-  .hd { height: 96px; flex-direction: row; align-items: center; padding: 0 14px; }
+  .hd { height: 112px; flex-direction: row; align-items: center; padding: 24px 28px 0; } /* v2.0.6 R角二轮：顶垫24+侧垫28，返回钮完全离开屏幕圆角区 */
   .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: -12px; }
+  .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: 4px; }
   .hd-title { font-size: 27px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 24px; height: 24px; }

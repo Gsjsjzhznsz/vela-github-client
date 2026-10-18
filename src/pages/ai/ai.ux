@@ -13,7 +13,7 @@
     <div class="body-wrap">
       <scroll class="body" scroll-y="true" scroll-top="{{scrollTop}}">
         <!-- 空态：快捷指令网格（Copilot 专区功能入口，尽量多） -->
-        <div class="quick" show="{{msgs.length === 0}}">
+        <div class="{{msgs.length === 0 ? 'quick' : 'ghost'}}">
           <text class="quick-h">快捷指令</text>
           <div class="q-grid">
             <div class="q-cell" for="{{q in quicks}}" tid="q.id" onclick="quickAsk(q)">
@@ -25,21 +25,19 @@
         </div>
 
         <!-- 会话气泡 -->
+        <!-- v2.0.5 固件级根修（band 分支 QEMU 实证同步）：for 内 div 级 show 从第 2 项起打断渲染子树、for 前 show=false 静态兄弟杀 for，全改动态 class + ghost -->
         <div class="li" for="{{m in msgs}}" tid="m.id">
-          <div class="row-u" show="{{m.role === 'user'}}">
+          <div class="{{m.role === 'user' ? 'row-u' : 'ghost'}}">
             <text class="bub-u">{{m.text}}</text>
           </div>
-          <div class="row-a" show="{{m.role !== 'user'}}">
-            <div class="bub-col">
-              <!-- v1.8.0：思考过程折叠块（推理模型才有内容，非推理模型不显示） -->
-              <text class="think-h" show="{{m.think}}" onclick="toggleThink(m)">{{m.thinkOpen ? '▾ 收起思考过程' : '▸ 思考过程（点此展开）'}}</text>
-              <text class="think-b" show="{{m.thinkOpen && m.think}}">{{m.think}}</text>
-              <text class="bub-a">{{m.text}}</text>
-              <text class="meta" show="{{m.meta}}">{{m.meta}}</text>
-            </div>
+          <div class="{{m.role === 'user' ? 'ghost' : 'bub-col'}}">
+            <text class="{{m.think ? 'think-h' : 'ghost'}}" onclick="toggleThink(m)">{{m.thinkOpen ? '▾ 收起思考过程' : '▸ 思考过程（点此展开）'}}</text>
+            <text class="{{m.think && m.thinkOpen ? 'think-b' : 'ghost'}}">{{m.think}}</text>
+            <text class="bub-a">{{m.text}}</text>
+            <text class="{{m.meta ? 'meta' : 'ghost'}}">{{m.meta}}</text>
           </div>
         </div>
-        <div class="li" show="{{busy}}">
+        <div class="{{busy ? 'li' : 'ghost'}}">
           <!-- v1.8.0：实时思考状态（计时 + 模型 + 慢网提示，替换静态思考中） -->
           <div class="row-a"><text class="bub-a dim">{{thinkText || '思考中…'}}</text></div>
         </div>
@@ -86,6 +84,7 @@
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 132px; }
+  .ghost { display: none; } /* v2.0.5 动态 class 隐藏位（for 内禁用 show 固件根修） */
   .li { padding: 5px 14px; flex-direction: column; }
   .row-u { flex-direction: row; justify-content: flex-end; }
   .row-a { flex-direction: row; justify-content: flex-start; }

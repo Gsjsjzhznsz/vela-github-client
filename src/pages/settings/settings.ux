@@ -24,32 +24,32 @@
         <!-- v1.2.0：免打字登录（Device Flow），置顶推荐 -->
         <div class="cell" onclick="startDevice">
           <image class="cell-icon" src="/common/icons/check.png" />
-          <text class="cell-label hl">免打字登录（推荐）</text>
+          <text class="cell-label hl">免打字登录</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
         <div class="cell" onclick="startInput">
           <image class="cell-icon" src="/common/icons/gear.png" />
-          <text class="cell-label">手动输入 Token</text>
+          <text class="cell-label">输入 Token</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
         <!-- v1.1.3：一键重验已存 Token（无需重打 40 位） -->
         <div class="cell" show="{{hasTk}}" onclick="revalidate">
           <image class="cell-icon" src="/common/icons/refresh.png" />
-          <text class="cell-label">重新验证当前 Token</text>
+          <text class="cell-label">重验 Token</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
         <div class="cell" show="{{hasTk}}" onclick="logout">
           <image class="cell-icon" src="/common/icons/back.png" />
-          <text class="cell-label warn">退出登录（清除本机 Token）</text>
+          <text class="cell-label warn">退出登录</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
         <div class="cell" onclick="goAbout">
           <image class="cell-icon" src="/common/icons/book.png" />
-          <text class="cell-label">关于 GitHub for Vela</text>
+          <text class="cell-label">关于应用</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
@@ -64,7 +64,7 @@
         </div>
         <div class="cell" onclick="detectBridge">
           <image class="cell-icon" src="/common/icons/refresh.png" />
-          <text class="cell-label">检测手机网桥（AstroBox）</text>
+          <text class="cell-label">检测手机网桥</text>
           <image class="cell-arrow" src="/common/icons/chevron.png" />
         </div>
 
@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v2.0.9-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v2.1.0-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配小米手环 9 / 10 / 11 标准版（192×490 / 212×520 / 224×528）米粒窄屏</text>
           <text class="c-body">网络：手环直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -333,12 +333,20 @@ export default {
   logout: function () {
     try {
       const _this6 = this;
-      return Promise.resolve(api.clearToken()).then(function () {
-        _this6.hasTk = false;
-        _this6.tokenMask = '';
-        prompt.showToast({
-          message: '已退出登录',
-          duration: 1500
+      // v2.1.0 手环误触防护：退出前二次确认（showDialog 确认按钮回调才执行清除）
+      return Promise.resolve(prompt.showDialog({
+        title: '退出登录',
+        message: '将清除本机 Token，需重新登录',
+        buttons: [{ text: '取消', color: '#8b949e' }, { text: '退出', color: '#f85149' }]
+      })).then(function (res) {
+        if (res && res.index !== 1) return undefined;
+        return Promise.resolve(api.clearToken()).then(function () {
+          _this6.hasTk = false;
+          _this6.tokenMask = '';
+          prompt.showToast({
+            message: '已退出登录',
+            duration: 1500
+          });
         });
       });
     } catch (e) {

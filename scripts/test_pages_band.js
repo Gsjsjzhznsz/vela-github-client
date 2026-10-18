@@ -75,7 +75,7 @@ t('键盘候选条 cvalWaiting 144（BandQQ pill 原生）', /id="cvalWaiting" s
 t('home 页头 56（BDS-192）', /\.hd \{ height: 56px/.test(read('src/pages/home/home.ux')));
 t('home 主文本 20', /\.row1 \{ font-size: 20px/.test(read('src/pages/home/home.ux')));
 t('issue 头像 30 适配 17px 字母', /\.ava \{ width: 30px; height: 30px; border-radius: 15px;/.test(read('src/pages/issue/issue.ux')));
-t('trending rank 列宽 30', /\.rank \{ width: 30px;/.test(read('src/pages/trending/trending.ux')));
+t('trending rank 列宽 26', /\.rank \{ width: 26px;/.test(read('src/pages/trending/trending.ux')));
 t('code 行号/代码/token 行高统一 22', /\.ln \{[^}]*line-height: 22px/.test(read('src/pages/code/code.ux')) &&
   /\.code-line \{[^}]*line-height: 22px/.test(read('src/pages/code/code.ux')) &&
   /\.tk \{[^}]*line-height: 22px/.test(read('src/pages/code/code.ux')));
@@ -95,10 +95,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.0.9-band', /"versionName": "2\.0\.9-band"/.test(man));
-t('manifest versionCode 39（四分支同步）', /"versionCode": 39/.test(man));
+t('manifest versionName 2.1.0-band', /"versionName": "2\.1\.0-band"/.test(man));
+t('manifest versionCode 40（四分支同步）', /"versionCode": 40/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.0.9-band', /"version": "2\.0\.9-band"/.test(read('package.json')));
+t('package.json 2.1.0-band', /"version": "2\.1\.0-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

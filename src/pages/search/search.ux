@@ -64,7 +64,7 @@
   .srow { flex-direction: row; align-items: center; padding: 4px 8px 8px; }
   /* 定宽防溢出：flex:1 + 无 max-width 的文本行在引擎里不收缩，会把 sbtn 挤出屏（432 实测根修，336 同理） */
   .sbox { width: 112px; height: 44px; background-color: #161b22; border: 1px solid #30363d; border-radius: 22px; justify-content: center; padding: 0 10px; }
-  .stext { font-size: 14px; color: #e6edf3; lines: 1; text-overflow: ellipsis; line-height: 22px;}
+  .stext { font-size: 14px; color: #e6edf3; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .ph { color: #484f58; }
   .sbtn { font-size: 16px; color: #ffffff; background-color: #238636; border-radius: 22px; padding: 10px 12px; margin-left: 8px; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
@@ -76,7 +76,7 @@
   .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center;  overflow: hidden;}
   .ava-t { font-size: 20px; color: #ffffff; font-weight: bold;  overflow: hidden;}
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 2; text-overflow: ellipsis; line-height: 27px;}
   .cell-desc { font-size: 16px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 7px; }
   .dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; }

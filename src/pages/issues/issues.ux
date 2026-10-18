@@ -59,8 +59,8 @@
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: -6px;  overflow: hidden;}
   .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
-  .tabs { flex-direction: row; padding: 3px 10px 9px; }
-  .tab { font-size: 17px; color: #8b949e; padding: 8px 20px; background-color: #161b22; border-radius: 11px; margin-right: 12px; }
+  .tabs { flex-direction: row; padding: 3px 8px 8px; }
+  .tab { flex: 1; text-align: center; font-size: 15px; color: #8b949e; padding: 9px 0; background-color: #161b22; border-radius: 11px; margin-right: 8px; line-height: 20px; }
   .on { color: #ffffff; background-color: #1f6feb; }
   .pull { flex-direction: row; align-items: center; justify-content: center; overflow: hidden; }
   .pull-icon { width: 24px; height: 24px; }
@@ -74,7 +74,7 @@
   .cell-icon { width: 26px; height: 26px; margin-top: 3px;  overflow: hidden;}
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
   .cell-title { font-size: 17px; color: #e6edf3; font-weight: bold; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 5px; lines: 1; text-overflow: ellipsis; line-height: 22px;}
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 5px; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .labels { flex-direction: row; margin-top: 6px; }
   .lb { font-size: 14px; margin-right: 8px; border: 1px solid #30363d; border-radius: 12px; padding: 2px 10px; }
   .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }

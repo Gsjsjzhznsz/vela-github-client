@@ -87,8 +87,8 @@
   .hd-filter { font-size: 17px; color: #58a6ff; margin-right: 8px; padding: 7px 11px; background-color: #161b22; border-radius: 11px; }
   /* 类型芯片行——flex-wrap 两行排布 */
   .chips { flex-direction: row; flex-wrap: wrap; padding: 6px 14px 2px; }
-  .chip { font-size: 17px; color: #8b949e; border-radius: 12px; padding: 10px 20px; margin: 5px 10px 5px 0; background-color: #161b22; }
-  .chip-on { font-size: 17px; color: #ffffff; border-radius: 12px; padding: 10px 20px; margin: 5px 10px 5px 0; background-color: #1f6feb; }
+  .chip { font-size: 14px; color: #8b949e; border-radius: 10px; padding: 7px 13px; margin: 4px 8px 4px 0; background-color: #161b22; }
+  .chip-on { font-size: 14px; color: #ffffff; border-radius: 10px; padding: 7px 13px; margin: 4px 8px 4px 0; background-color: #1f6feb; }
   /* 概览行——margin 内缩替代 padding（本固件 padding 被叠加到 100% 宽之外导致右缘溢出，根修保留） */
   .sum { flex-direction: row; align-items: center; justify-content: space-between; margin: 2px 14px 8px; }
   .sum-t { font-size: 14px; color: #6e7681; lines: 1; text-overflow: ellipsis; margin-right: 12px; line-height: 22px;}
@@ -104,7 +104,7 @@
   /* 仓库分组头（点击折叠 / 长按整仓已读 / 静音徽标） */
   .ghdr { flex-direction: row; align-items: center; background-color: #1c2128; border-radius: 16px; padding: 11px 10px; }
   .gh-arrow { font-size: 20px; color: #58a6ff; width: 36px; }
-  .gh-repo { font-size: 17px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 26px;}
+  .gh-repo { font-size: 17px; color: #c9d1d9; font-weight: bold; flex: 1; lines: 2; text-overflow: ellipsis; line-height: 23px;}
   .gh-muted { font-size: 14px; color: #d29922; margin-right: 8px; padding: 3px 10px; border-radius: 10px; background-color: #282013; }
   .gh-n { font-size: 14px; color: #8b949e; margin-left: 8px; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 11px; padding: 10px; }

@@ -78,7 +78,7 @@
   .li-code { padding: 1px 10px; width: 100%; }
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 16px; padding: 10px; }
   .cell-icon { width: 28px; height: 28px;  overflow: hidden;}
-  .cell-name { flex: 1; font-size: 18px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 24px;}
+  .cell-name { flex: 1; font-size: 18px; color: #e6edf3; margin-left: 8px; lines: 2; text-overflow: ellipsis; line-height: 24px;}
   .muted { color: #8b949e; }
   .cell-size { font-size: 14px; color: #484f58; }
   .cell-arrow { width: 20px; height: 20px; margin-left: 6px; }

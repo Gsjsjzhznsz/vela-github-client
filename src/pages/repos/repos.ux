@@ -75,7 +75,7 @@
   .ava { width: 36px; height: 36px; border-radius: 18px; justify-content: center; align-items: center;  overflow: hidden;}
   .ava-t { font-size: 20px; color: #ffffff; font-weight: bold;  overflow: hidden;}
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .cell-title { font-size: 20px; color: #58a6ff; font-weight: bold; lines: 2; text-overflow: ellipsis; line-height: 27px;}
   .cell-desc { font-size: 16px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; }
   .meta { flex-direction: row; align-items: center; margin-top: 7px; }
   .dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; }

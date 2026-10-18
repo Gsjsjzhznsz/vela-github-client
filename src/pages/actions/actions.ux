@@ -62,7 +62,7 @@
   .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
   .cell-title { font-size: 17px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 3px; lines: 1; text-overflow: ellipsis; line-height: 22px;}
+  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .cell-arrow { width: 20px; height: 20px; }
   .arr-up { transform: rotate(180deg); }
   .dot { width: 18px; height: 18px; border-radius: 9px; }
@@ -72,7 +72,7 @@
   .dot-idle { background-color: #484f58; }
   .chk { flex-direction: column; background-color: #0d1117; border-radius: 12px; margin: 5px 14px 5px 44px; padding: 3px 12px; }
   .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 7px 0; }
-  .chk-name { font-size: 14px; color: #c9d1d9; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 22px;}
+  .chk-name { font-size: 14px; color: #c9d1d9; flex: 1; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .chk-state { font-size: 16px; margin-left: 9px; }
   .st-ok { color: #3fb950; }
   .st-fail { color: #f85149; }

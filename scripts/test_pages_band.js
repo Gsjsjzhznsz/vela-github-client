@@ -95,10 +95,10 @@ t('通知下拉阈值 56（原 80 同比缩放）', /this\.pullY > 56/.test(read
 
 // 4) 版本与设计宽度
 const man = read('src/manifest.json');
-t('manifest versionName 2.1.0-band', /"versionName": "2\.1\.0-band"/.test(man));
-t('manifest versionCode 40（四分支同步）', /"versionCode": 40/.test(man));
+t('manifest versionName 2.1.1-band', /"versionName": "2\.1\.1-band"/.test(man));
+t('manifest versionCode 41（四分支同步）', /"versionCode": 41/.test(man));
 t('manifest designWidth 192（经典手环原生宽）', /"designWidth": 192/.test(man));
-t('package.json 2.1.0-band', /"version": "2\.1\.0-band"/.test(read('package.json')));
+t('package.json 2.1.1-band', /"version": "2\.1\.1-band"/.test(read('package.json')));
 
 // 5) 无 336 残留检查
 let leak = [];

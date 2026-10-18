@@ -22,19 +22,13 @@
 
 </div>
 
-## 🖼 真机透视预览（官方样机模板精确合成）
-
-| 手环 11 · 首页 | 手环 11 · Copilot AI | 手环 9 Pro · 首页 |
-|:---:|:---:|:---:|
-| ![手环11 首页](docs/promo/band11-home.jpg) | ![手环11 Copilot](docs/promo/band11-ai.jpg) | ![手环9Pro 首页](docs/promo/band9pro-home.jpg) |
-
 ## 🖥 实机渲染（小米官方 Vela QEMU 模拟器实拍 · 192×490）
 
 | 首页（登录态） | 首页（游客态） | Copilot 专区 |
 |:---:|:---:|:---:|
 | ![首页](promo/home-band-rounded.png) | ![游客态](promo/home-band-guest-rounded.png) | ![Copilot](promo/ai-band-rounded.png) |
 
-> 样机透视合成基于 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 官方屏幕四角数据；
+> 首图按 BandQQ 官方宣传图构图合成：右侧手环屏幕为 Copilot 对话发送实机图，样机与屏幕贴合基于 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 官方屏幕四角数据；
 > 实拍图由小米官方 Vela 模拟器（vela-watch-5.0 镜像）逐页渲染输出；登录态用户名/Token 为示例数据。
 
 ## 📲 下载 v2.1.2（四分支机型版 · versionCode 42 全线一致）

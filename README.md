@@ -28,8 +28,8 @@
 |:---:|:---:|:---:|
 | ![首页](promo/home-band-rounded.png) | ![游客态](promo/home-band-guest-rounded.png) | ![Copilot](promo/ai-band-rounded.png) |
 
-> 首图以 BandQQ 官方宣传图为底版最小改编：仅替换品牌文字与右侧设备——白色手环 11 屏显 Copilot 对话发送实机图，黑色手环 9 Pro 屏显首页登录态；
-> 设备透视图贴合基于 [miband-proto-forge](https://github.com/zaona/miband-proto-forge) 官方屏幕四角数据，实拍图由小米官方 Vela 模拟器（vela-watch-5.0 镜像）逐页渲染输出；登录态用户名/Token 为示例数据。
+> 首图以 BandQQ 官方宣传图为底版最小改编：仅替换品牌文字与右侧设备——白色手环 11 与黑色手环 9 Pro 为小米官方模板渲染图（屏显本应用实机界面，首页登录态）；
+> 背景渐变/辉光/版式与原版 1:1 对位；登录态用户名/Token 为示例数据。
 
 ## 📲 下载 v2.1.2（四分支机型版 · versionCode 42 全线一致）
 

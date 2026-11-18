@@ -3,7 +3,7 @@
   "name": "GitHub",
   "icon": "/common/icons/logo.png",
   "versionName": "2.1.2",
-  "versionCode": 42,
+  "versionCode": 43,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"

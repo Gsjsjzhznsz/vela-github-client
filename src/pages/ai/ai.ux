@@ -5,7 +5,7 @@
       <div class="hd-main">
         <text class="hd-title">Copilot 专区</text>
         <!-- 点通道/模型行循环切换模型 -->
-        <text class="hd-sub" onclick="cycleModel">{{chan}} · {{modelShort}}（点击切换）</text>
+        <text class="hd-sub" onclick="cycleModel">{{modelShort ? modelShort : '待授权'}}</text>
       </div>
       <text class="hd-clear" onclick="clearHist">清空</text>
     </div>
@@ -82,7 +82,7 @@
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
   .hd-title { font-size: 20px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .hd-sub { font-size: 14px; color: #d2a8ff; margin-top: 2px; lines: 1; text-overflow: ellipsis; line-height: 18px;}
-  .hd-clear { font-size: 16px; color: #f85149; padding: 10px 14px; }
+  .hd-clear { font-size: 16px; color: #f85149; padding: 6px 10px; margin-right: 2px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 84px; }

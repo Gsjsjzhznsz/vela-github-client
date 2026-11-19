@@ -66,33 +66,33 @@
 </template>
 
 <style>
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #ffffff; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 5px 12px 50px; }
-  .card { background-color: #161b22; border-radius: 12px; padding: 14px; flex-direction: column; }
+  .card { background-color: #262626; border-radius: 19px; padding: 14px; flex-direction: column; }
   .head-card { align-items: center; }
   .ava-big { width: 67px; height: 67px; border-radius: 34px; justify-content: center; align-items: center; }
   .ava-big-t { font-size: 35px; color: #ffffff; font-weight: bold; }
-  .p-login { font-size: 24px; color: #e6edf3; font-weight: bold; margin-top: 7px; }
-  .p-name { font-size: 21px; color: #c9d1d9; margin-top: 2px; }
-  .p-bio { font-size: 19px; color: #8b949e; margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
+  .p-login { font-size: 24px; color: #ffffff; font-weight: bold; margin-top: 7px; }
+  .p-name { font-size: 21px; color: #dddddd; margin-top: 2px; }
+  .p-bio { font-size: 19px; color: rgba(255, 255, 255, 0.45); margin-top: 5px; text-align: center; lines: 2; text-overflow: ellipsis; }
   .stats { flex-direction: row; margin-top: 12px; }
-  .stat { flex: 1; background-color: #161b22; border-radius: 12px; padding: 12px 0; align-items: center; margin-right: 10px; }
-  .stat-n { font-size: 24px; color: #e6edf3; font-weight: bold; }
-  .stat-l { font-size: 20px; color: #8b949e; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-top: 10px; }
+  .stat { flex: 1; background-color: #262626; border-radius: 19px; padding: 12px 0; align-items: center; margin-right: 10px; }
+  .stat-n { font-size: 24px; color: #ffffff; font-weight: bold; }
+  .stat-l { font-size: 20px; color: rgba(255, 255, 255, 0.45); margin-top: 2px; }
+  .cell { flex-direction: row; align-items: center; background-color: #262626; border-radius: 19px; padding: 13px 12px; margin-top: 10px; }
   .cell-icon { width: 22px; height: 22px; }
-  .cell-label { flex: 1; font-size: 22px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-label { flex: 1; font-size: 22px; color: #ffffff; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
   .cell-arrow { width: 17px; height: 17px; }
-  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #0d1117; }
-  .state-t { font-size: 22px; color: #8b949e; text-align: center; padding: 0 29px; }
-  .state-btn { font-size: 21px; color: #58a6ff; margin-top: 12px; }
+  .state { position: absolute; left: 0; top: 94px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; background-color: #000000; }
+  .state-t { font-size: 22px; color: rgba(255, 255, 255, 0.45); text-align: center; padding: 0 29px; }
+  .state-btn { font-size: 21px; color: #0d84ff; margin-top: 12px; padding: 8px 16px; background-color: rgba(13, 132, 255, 0.16); border-radius: 20px; }
 </style>
 
 <script>
@@ -110,7 +110,7 @@
       followers: '0',
       following: '0',
       avCh: 'G',
-      avColor: '#21262d',
+      avColor: '#3a3a3a',
       state: 'loading',
       query: '',
       errMsg: '',

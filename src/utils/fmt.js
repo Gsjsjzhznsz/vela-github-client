@@ -64,7 +64,7 @@ const LANG_COLORS = {
 
 /** 语言 → GitHub 语言色点 */
 export function langColor(lang) {
-  if (!lang) return '#30363d'
+  if (!lang) return '#4d4d4d'
   if (LANG_COLORS[lang]) return LANG_COLORS[lang]
   // 未收录语言按名称 hash 出稳定颜色
   let h = 0

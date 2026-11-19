@@ -94,52 +94,52 @@
 <style>
   /* band-pro v2.0 BDS-336（手环 9/10 Pro 336×480）：
    * 块样式与 md.js H_TABLE 严格对齐（336 版 avail=250/290，readme 页同款）：显式 line-height 保证估算确定性 */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 112px; flex-direction: row; align-items: center; padding: 24px 28px 0; } /* v2.0.6 R角二轮：顶垫24+侧垫28，返回钮完全离开屏幕圆角区 */
   .hd-act { width: 46px; height: 46px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 76px; height: 76px; align-items: center; justify-content: center; margin-left: 4px; }
   .hd-main { flex: 1; flex-direction: column; margin-left: 6px; }
-  .hd-title { font-size: 26px; font-weight: bold; color: #e6edf3; lines: 1; text-overflow: ellipsis; }
-  .hd-sub { font-size: 19px; color: #484f58; margin-top: 2px; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #ffffff; lines: 1; text-overflow: ellipsis; }
+  .hd-sub { font-size: 19px; color: rgba(255, 255, 255, 0.30); margin-top: 2px; }
   /* 固件根修保留：wrap flex:1 + scroll absolute 铺满（BandQQ v2.9.6 同构） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 24px; }
   .li { padding: 3px 14px; flex-direction: column; }
-  .head-card { background-color: #161b22; border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
+  .head-card { background-color: #262626; border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
   .badge { align-self: flex-start; border-radius: 14px; padding: 3px 12px; }
-  .b-open { background-color: #238636; }
-  .b-closed { background-color: #8957e5; }
+  .b-open { background-color: #07c160; }
+  .b-closed { background-color: #924fca; }
   .badge-t { font-size: 20px; color: #ffffff; }
-  .h-title { font-size: 25px; color: #e6edf3; font-weight: bold; margin-top: 8px; lines: 3; text-overflow: ellipsis; }
-  .h-meta { font-size: 20px; color: #8b949e; margin-top: 6px; }
+  .h-title { font-size: 25px; color: #ffffff; font-weight: bold; margin-top: 8px; lines: 3; text-overflow: ellipsis; }
+  .h-meta { font-size: 20px; color: rgba(255, 255, 255, 0.45); margin-top: 6px; }
   .labels { flex-direction: row; flex-wrap: wrap; margin-top: 8px; }
-  .lb { font-size: 19px; margin-right: 8px; border: 1px solid #30363d; border-radius: 12px; padding: 2px 10px; }
-  .b-h { font-size: 26px; line-height: 34px; color: #58a6ff; font-weight: bold; margin-top: 6px; }
-  .b-p { font-size: 22px; line-height: 30px; color: #e6edf3; }
-  .b-c { font-size: 20px; line-height: 26px; color: #a5d6ff; background-color: #161b22; border-left: 3px solid #30363d; padding: 10px 12px; margin: 4px 0; }
-  .b-q { font-size: 22px; line-height: 30px; color: #8b949e; border-left: 3px solid #30363d; padding-left: 12px; }
-  .b-l { font-size: 22px; line-height: 30px; color: #e6edf3; }
-  .b-r { font-size: 18px; line-height: 24px; color: #30363d; text-align: center; }
-  .sepa-t { font-size: 20px; color: #484f58; text-align: center; width: 100%; padding: 9px 0; }
-  .cmt-card { background-color: #161b22; border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
+  .lb { font-size: 19px; margin-right: 8px; border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 16px; padding: 2px 10px; }
+  .b-h { font-size: 26px; line-height: 34px; color: #0d84ff; font-weight: bold; margin-top: 6px; }
+  .b-p { font-size: 22px; line-height: 30px; color: #ffffff; }
+  .b-c { font-size: 20px; line-height: 26px; color: #a5d6ff; background-color: #262626; border-left: 3px solid rgba(255, 255, 255, 0.10); padding: 10px 12px; margin: 4px 0; }
+  .b-q { font-size: 22px; line-height: 30px; color: rgba(255, 255, 255, 0.45); border-left: 3px solid rgba(255, 255, 255, 0.10); padding-left: 12px; }
+  .b-l { font-size: 22px; line-height: 30px; color: #ffffff; }
+  .b-r { font-size: 18px; line-height: 24px; color: rgba(255, 255, 255, 0.10); text-align: center; }
+  .sepa-t { font-size: 20px; color: rgba(255, 255, 255, 0.30); text-align: center; width: 100%; padding: 9px 0; }
+  .cmt-card { background-color: #262626; border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
   .cmt-hd { flex-direction: row; align-items: center; }
   .ava { width: 40px; height: 40px; border-radius: 20px; justify-content: center; align-items: center; }
   .ava-t { font-size: 22px; color: #ffffff; font-weight: bold; }
-  .cmt-author { font-size: 23px; color: #58a6ff; margin-left: 9px; flex: 1; lines: 1; text-overflow: ellipsis; }
-  .cmt-time { font-size: 19px; color: #484f58; }
-  .cmt-body { font-size: 22px; color: #c9d1d9; line-height: 30px; margin-top: 8px; }
-  .cmt-empty { font-size: 19px; color: #484f58; margin-top: 6px; }
-  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .cmt-author { font-size: 23px; color: #0d84ff; margin-left: 9px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .cmt-time { font-size: 19px; color: rgba(255, 255, 255, 0.30); }
+  .cmt-body { font-size: 22px; color: #dddddd; line-height: 30px; margin-top: 8px; }
+  .cmt-empty { font-size: 19px; color: rgba(255, 255, 255, 0.30); margin-top: 6px; }
+  .foot { font-size: 19px; color: rgba(255, 255, 255, 0.30); text-align: center; width: 100%; padding: 10px 0; }
   .state { position: absolute; left: 0; top: 96px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 26px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 24px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
-  .compose-label { font-size: 22px; color: #58a6ff; font-weight: bold; }
-  .compose-hint { font-size: 20px; color: #484f58; margin-top: 5px; }
-  .trunc-card { background-color: #302018; border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
-  .trunc-t { font-size: 22px; color: #d29922; }
-  .trunc-btn { font-size: 22px; color: #58a6ff; margin-top: 8px; }
+  .state-t { font-size: 26px; color: rgba(255, 255, 255, 0.45); text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 24px; color: #0d84ff; margin-top: 16px; padding: 12px 22px; background-color: rgba(13, 132, 255, 0.16); border-radius: 16px; }
+  .compose-label { font-size: 22px; color: #0d84ff; font-weight: bold; }
+  .compose-hint { font-size: 20px; color: rgba(255, 255, 255, 0.30); margin-top: 5px; }
+  .trunc-card { background-color: rgba(255, 184, 0, 0.12); border-radius: 20px; padding: 14px; width: 100%; flex-direction: column; }
+  .trunc-t { font-size: 22px; color: #ffb800; }
+  .trunc-btn { font-size: 22px; color: #0d84ff; margin-top: 8px; }
 </style>
 
 <script>import router from '@system.router';
@@ -171,7 +171,7 @@ export default {
     author: '',
     created: '',
     labelsText: '',
-    labelColor: '#8b949e',
+    labelColor: 'rgba(255, 255, 255, 0.45)',
     commentN: 0,
     bodyBlocks: [],
     bodyTrunc: false,
@@ -218,7 +218,7 @@ export default {
           _this.author = m.author;
           _this.created = m.time;
           _this.labelsText = (iss.labels || []).map(l => l.name).join(' · ');
-          _this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : '#8b949e';
+          _this.labelColor = iss.labels && iss.labels[0] && iss.labels[0].color ? '#' + iss.labels[0].color : 'rgba(255, 255, 255, 0.45)';
           _this.commentN = iss.comments || 0;
           _this.canCmt = api.hasToken();
           const body = mdToBlocks(iss.body || '');

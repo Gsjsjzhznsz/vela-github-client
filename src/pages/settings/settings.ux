@@ -81,7 +81,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v2.1.2-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
+          <text class="c-body">GitHub for Vela v2.1.3-band（设置页版本号与发布同步；详情见下方「关于」入口独立页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配小米手环 9 / 10 / 11 标准版（192×490 / 212×520 / 224×528）米粒窄屏</text>
           <text class="c-body">网络：手环直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -94,29 +94,29 @@
 
 <style>
   /* band v2.0 BDS-192：主文本 20/次 16/弱 14，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16，头部内容整体离开屏幕圆角区 */
   .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px;  overflow: hidden;}
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #ffffff; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .wrap { flex-direction: column; padding: 6px 14px 24px; }
-  .card { background-color: #161b22; border-radius: 12px; padding: 10px; margin-bottom: 7px; flex-direction: column; }
+  .card { background-color: #262626; border-radius: 16px; padding: 10px; margin-bottom: 7px; flex-direction: column; }
   /* 卡内列容器必须显式声明 column：本固件 div 缺省按 row 排布，缺定义会导致卡内多行文本横向串排（v1.10.1 根修保留） */
   .card-col { flex-direction: column; }
-  .c-title { font-size: 17px; color: #e6edf3; font-weight: bold; margin-bottom: 6px; }
-  .c-row { font-size: 14px; color: #c9d1d9; }
-  .c-row2 { font-size: 14px; color: #3fb950; margin-top: 5px; }
-  .c-body { font-size: 14px; color: #8b949e; line-height: 22px; margin-top: 3px; }
-  .warn { color: #d29922; }
-  .c-act { font-size: 16px; color: #58a6ff; margin-top: 9px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 11px 10px; margin-bottom: 7px; }
+  .c-title { font-size: 17px; color: #ffffff; font-weight: bold; margin-bottom: 6px; }
+  .c-row { font-size: 14px; color: #dddddd; }
+  .c-row2 { font-size: 14px; color: #07c160; margin-top: 5px; }
+  .c-body { font-size: 14px; color: rgba(255, 255, 255, 0.45); line-height: 22px; margin-top: 3px; }
+  .warn { color: #ffb800; }
+  .c-act { font-size: 16px; color: #0d84ff; margin-top: 9px; }
+  .cell { flex-direction: row; align-items: center; background-color: #262626; border-radius: 16px; padding: 11px 10px; margin-bottom: 7px; }
   .cell-icon { width: 18px; height: 18px;  overflow: hidden;}
-  .cell-label { flex: 1; font-size: 17px; color: #e6edf3; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 26px;}
+  .cell-label { flex: 1; font-size: 17px; color: #ffffff; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 26px;}
   .cell-arrow { width: 16px; height: 16px; }
-  .hl { color: #3fb950; }
+  .hl { color: #07c160; }
 </style>
 
 <script>import router from '@system.router';
@@ -337,7 +337,7 @@ export default {
       return Promise.resolve(prompt.showDialog({
         title: '退出登录',
         message: '将清除本机 Token，需重新登录',
-        buttons: [{ text: '取消', color: '#8b949e' }, { text: '退出', color: '#f85149' }]
+        buttons: [{ text: '取消', color: 'rgba(255, 255, 255, 0.45)' }, { text: '退出', color: '#ff5a5a' }]
       })).then(function (res) {
         if (res && res.index !== 1) return undefined;
         return Promise.resolve(api.clearToken()).then(function () {

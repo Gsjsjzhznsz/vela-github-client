@@ -136,7 +136,7 @@ export function mapIssue(i) {
     author: i.user ? i.user.login : '',
     comments: i.comments || 0,
     labelsText: labels.map((l) => truncate(l.name, 10)).join(' · '),
-    labelColor: labels[0] && labels[0].color ? '#' + labels[0].color : '#8b949e',
+    labelColor: labels[0] && labels[0].color ? '#' + labels[0].color : '#999999',
     time: relTime(i.created_at)
   }
 }

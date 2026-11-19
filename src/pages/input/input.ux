@@ -28,18 +28,18 @@
 
 <style>
   /* band v2.0 BDS-192：top-bar 56 与全页页头一致；kb-dock 333 = KB_H_PILL（BandQQ main 照搬：28 拼音行+305 键区） */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; position: relative; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; position: relative; }
   .top-bar { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16 */
   .btn-back { width: 30px; height: 30px; }
   .btn-back-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px; }
-  .bar-title { flex: 1; font-size: 20px; color: #e6edf3; font-weight: bold; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
-  .done-btn { width: 80px; height: 40px; text-align: center; line-height: 40px; font-size: 16px; color: #ffffff; background-color: #238636; border-radius: 20px; }
+  .bar-title { flex: 1; font-size: 20px; color: #ffffff; font-weight: bold; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .done-btn { width: 80px; height: 40px; text-align: center; line-height: 40px; font-size: 16px; color: #ffffff; background-color: #07c160; border-radius: 20px; }
   /* 预览区绝对锚定（top 与 top-bar 等高、底到键盘顶），文字不被键盘遮住 */
   .preview-box { position: absolute; left: 0; top: 56px; bottom: 333px; width: 100%; flex-direction: column; padding: 5px 10px; }
-  .preview-text { font-size: 18px; color: #58a6ff; line-height: 25px; text-align: left; word-break: break-all; }
+  .preview-text { font-size: 18px; color: #0d84ff; line-height: 25px; text-align: left; word-break: break-all; }
   .preview-tools { flex-direction: row; align-items: center; justify-content: space-between; margin-top: 9px; }
-  .preview-hint { font-size: 16px; color: #484f58; text-align: left; flex: 1; }
-  .clear-btn { font-size: 17px; color: #f85149; padding: 6px 16px; border: 1px solid #30363d; border-radius: 16px; }
+  .preview-hint { font-size: 16px; color: rgba(255, 255, 255, 0.30); text-align: left; flex: 1; }
+  .clear-btn { font-size: 17px; color: #ff5a5a; padding: 6px 16px; border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 16px; }
   /* 键盘坞：bottom:0 由引擎按页面可用底解析（避让固件手势保留区），显式高 = 键盘物理高 */
   .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 333px; }
 </style>

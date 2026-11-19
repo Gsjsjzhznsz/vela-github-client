@@ -45,26 +45,26 @@
    * v2.0.3 授权码显形根修：旧版授权码 30px+2 字距+codebox 内边 26 → 总宽 ~222px，
    * 远超 192 屏（内容区仅 152px）——码被两侧裁掉，用户看到的是「没有授权码」。
    * 现在 22px/字距1/内边 12 → 总宽 ~156px，稳落 168px 内容区内；R 角同步适配（hd 顶垫 8、侧 14）。 */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16 */
   .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击；-6 让触区外扩但字形离开 R 角裁切区 */
   .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px;  overflow: hidden;}
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #ffffff; margin-left: 6px; flex: 1; lines: 1; text-overflow: ellipsis; line-height: 28px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .center { flex-direction: column; align-items: center; padding: 10px 12px 20px; }
-  .hint { font-size: 17px; color: #8b949e; text-align: center; }
-  .uri { font-size: 17px; color: #58a6ff; font-weight: bold; margin-top: 7px; text-align: center; }
-  .hint2 { font-size: 16px; color: #8b949e; margin-top: 10px; text-align: center; }
-  .codebox { margin-top: 10px; background-color: #161b22; border-radius: 12px; padding: 10px 12px; max-width: 168px; }
-  .code { font-size: 22px; color: #3fb950; font-weight: bold; letter-spacing: 1px; lines: 1; text-align: center; }
-  .status { font-size: 16px; color: #8b949e; margin-top: 12px; text-align: center; }
-  .status.ok { color: #3fb950; }
-  .check { font-size: 16px; color: #d29922; margin-top: 12px; padding: 12px 20px; }
-  .cancel { font-size: 17px; color: #58a6ff; margin-top: 12px; padding: 12px 20px; }
-  .retry { color: #3fb950; }
-  .err-t { font-size: 17px; color: #f85149; text-align: center; padding: 0 10px; }
+  .hint { font-size: 17px; color: rgba(255, 255, 255, 0.45); text-align: center; }
+  .uri { font-size: 17px; color: #0d84ff; font-weight: bold; margin-top: 7px; text-align: center; }
+  .hint2 { font-size: 16px; color: rgba(255, 255, 255, 0.45); margin-top: 10px; text-align: center; }
+  .codebox { margin-top: 10px; background-color: #262626; border-radius: 16px; padding: 10px 12px; max-width: 168px; }
+  .code { font-size: 22px; color: #07c160; font-weight: bold; letter-spacing: 1px; lines: 1; text-align: center; }
+  .status { font-size: 16px; color: rgba(255, 255, 255, 0.45); margin-top: 12px; text-align: center; }
+  .status.ok { color: #07c160; }
+  .check { font-size: 16px; color: #ffb800; margin-top: 12px; padding: 12px 20px; }
+  .cancel { font-size: 17px; color: #0d84ff; margin-top: 12px; padding: 12px 20px; }
+  .retry { color: #07c160; }
+  .err-t { font-size: 17px; color: #ff5a5a; text-align: center; padding: 0 10px; }
 </style>
 
 <script>import router from '@system.router';

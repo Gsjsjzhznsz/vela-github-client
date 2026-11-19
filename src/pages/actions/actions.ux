@@ -49,40 +49,40 @@
 
 <style>
   /* band v2.0 BDS-192：主文本 20/次 16，卡 radius 12，页头 56（手环 9/10/11 标准版 192×490 / 212×520） */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 64px; flex-direction: row; align-items: center; padding: 14px 16px 0; } /* v2.1.2 R角二轮：顶垫14+侧垫16，头部内容整体离开屏幕圆角区 */
   .hd-act { width: 30px; height: 30px;  overflow: hidden;}
   .hd-act-wrap { width: 48px; height: 48px; align-items: center; justify-content: center; margin-left: 2px;  overflow: hidden;}
-  .hd-title { font-size: 21px; font-weight: bold; color: #e6edf3; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
-  .hd-sub { font-size: 14px; color: #484f58; flex: 1; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 18px;}
+  .hd-title { font-size: 21px; font-weight: bold; color: #ffffff; margin-left: 6px; lines: 1; text-overflow: ellipsis; line-height: 28px;}
+  .hd-sub { font-size: 14px; color: rgba(255, 255, 255, 0.30); flex: 1; margin-left: 8px; lines: 1; text-overflow: ellipsis; line-height: 18px;}
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 44px; } /* v2.0.3 R角：尾部缓冲 14→44，末张卡片离开底部圆角+手势区 */
   .li { padding: 4px 10px; flex-direction: column; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 10px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #262626; border-radius: 16px; padding: 10px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 8px; }
-  .cell-title { font-size: 17px; color: #e6edf3; lines: 2; text-overflow: ellipsis; }
-  .cell-sub { font-size: 14px; color: #8b949e; margin-top: 3px; lines: 2; text-overflow: ellipsis; line-height: 19px;}
+  .cell-title { font-size: 17px; color: #ffffff; lines: 2; text-overflow: ellipsis; }
+  .cell-sub { font-size: 14px; color: rgba(255, 255, 255, 0.45); margin-top: 3px; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .cell-arrow { width: 20px; height: 20px; }
   .arr-up { transform: rotate(180deg); }
   .dot { width: 18px; height: 18px; border-radius: 9px; }
-  .dot-ok { background-color: #3fb950; }
-  .dot-fail { background-color: #f85149; }
-  .dot-run { background-color: #d29922; }
-  .dot-idle { background-color: #484f58; }
-  .chk { flex-direction: column; background-color: #0d1117; border-radius: 12px; margin: 5px 14px 5px 44px; padding: 3px 12px; }
+  .dot-ok { background-color: #07c160; }
+  .dot-fail { background-color: #ff5a5a; }
+  .dot-run { background-color: #ffb800; }
+  .dot-idle { background-color: rgba(255, 255, 255, 0.30); }
+  .chk { flex-direction: column; background-color: #000000; border-radius: 16px; margin: 5px 14px 5px 44px; padding: 3px 12px; }
   .chk-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 7px 0; }
-  .chk-name { font-size: 14px; color: #c9d1d9; flex: 1; lines: 2; text-overflow: ellipsis; line-height: 19px;}
+  .chk-name { font-size: 14px; color: #dddddd; flex: 1; lines: 2; text-overflow: ellipsis; line-height: 19px;}
   .chk-state { font-size: 16px; margin-left: 9px; }
-  .st-ok { color: #3fb950; }
-  .st-fail { color: #f85149; }
-  .st-run { color: #d29922; }
-  .st-idle { color: #484f58; }
-  .chk-empty { font-size: 16px; color: #484f58; padding: 6px 0; }
-  .foot { font-size: 14px; color: #484f58; text-align: center; width: 100%; padding: 8px 0; }
+  .st-ok { color: #07c160; }
+  .st-fail { color: #ff5a5a; }
+  .st-run { color: #ffb800; }
+  .st-idle { color: rgba(255, 255, 255, 0.30); }
+  .chk-empty { font-size: 16px; color: rgba(255, 255, 255, 0.30); padding: 6px 0; }
+  .foot { font-size: 14px; color: rgba(255, 255, 255, 0.30); text-align: center; width: 100%; padding: 8px 0; }
   .state { position: absolute; left: 0; top: 56px; right: 0; bottom: 0; flex-direction: column; align-items: center; justify-content: center; }
-  .state-t { font-size: 20px; color: #8b949e; text-align: center; padding: 0 24px; }
-  .state-btn { font-size: 18px; color: #58a6ff; margin-top: 16px; padding: 12px 22px; background-color: #16233a; border-radius: 16px; }
+  .state-t { font-size: 20px; color: rgba(255, 255, 255, 0.45); text-align: center; padding: 0 24px; }
+  .state-btn { font-size: 18px; color: #0d84ff; margin-top: 16px; padding: 12px 22px; background-color: rgba(13, 132, 255, 0.16); border-radius: 16px; }
 </style>
 
 <script>import router from '@system.router';

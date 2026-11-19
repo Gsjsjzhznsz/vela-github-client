@@ -1,18 +1,16 @@
 <template>
   <div class="page">
-    <div class="top-row">
-      <div class="btn-wrap" onclick="goBack"><image class="btn" src="/common/icons/back.png"></image></div>
+    <div class="hd">
+      <div class="hd-act-wrap" onclick="goBack"><image class="hd-act" src="/common/icons/back.png" /></div>
+      <text class="hd-title">关于</text>
     </div>
-    <div class="title-bar">
-      <text class="page-title">关于</text>
-    </div>
-    <!-- BandQQ v2.9.6 同构：与 settings/index 同构，scroll absolute 铺满不依赖引擎 flex -->
+    <!-- BandQQ v2.9.6 同构：与 settings 同构，scroll absolute 铺满不依赖引擎 flex -->
     <div class="body-wrap">
     <scroll class="body" scroll-y="true">
       <div class="hero">
         <image class="icon" src="/common/icons/logo.png"></image>
         <text class="app-name">GitHub for Vela</text>
-        <text class="ver">v2.1.2-s · 小米 Watch S 系列 · AGPL-3.0</text>
+        <text class="ver">v2.1.3-s · 小米 Watch S 系列 · AGPL-3.0</text>
       </div>
       <div class="card col">
         <text class="line">运行在小米 Vela OS 手表上的 GitHub 客户端：通知中心、仓库、README、Issues、PR、Releases、代码浏览、搜索与趋势，内置 GitHub Copilot AI 对话（设备授权免打字），支持 AstroBox 网桥为砍网机型恢复联网。</text>
@@ -44,13 +42,13 @@
 </template>
 
 <style>
+  /* v2.1.3：页头统一 94px 标准行（与全 App 一致，原 78+40 双行结构废弃） */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
-  .btn { width: 102px; height: 72px; }
+  .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
+  .hd-act { width: 44px; height: 44px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
-  .btn-wrap { width: 110px; height: 78px; align-items: center; justify-content: center; }
-  .title-bar { height: 40px; align-items: center; justify-content: center; }
-  .page-title { font-size: 24px; color: #ffffff; }
+  .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #ffffff; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   /* BandQQ v2.9.6：wrap flex:1 + scroll absolute 铺满（index/settings 同构方案） */
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }

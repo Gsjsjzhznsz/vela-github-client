@@ -42,30 +42,31 @@
 </template>
 
 <style>
-  /* BandQQ redmiwatch 分支同构：designWidth 432（1css=1物理px），根容器 100%/100%，页头 94px 避让屏幕圆角 */
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  /* Vela 原生风格（BandQQ v2.28.2 RW5 同款令牌）：纯黑底 + #262626 圆角19卡片 + 白色多级透明度文字 + #07c160 强调绿。
+   * designWidth 432（1css=1物理px），页头 94px 避让屏幕圆角。 */
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 14px; }
   .hd-logo { width: 36px; height: 36px; border-radius: 8px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #ffffff; margin-left: 10px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .hd-act { width: 44px; height: 44px; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .pad-end { width: 100%; height: 60px; }
-  .li { padding: 4px 12px; }
-  .card { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 12px; }
-  .ava { width: 50px; height: 50px; border-radius: 25px; justify-content: center; align-items: center; }
+  .li { padding: 4px 12px; flex-direction: column; }
+  .card { flex-direction: row; align-items: center; width: 100%; background-color: #262626; border-radius: 19px; padding: 13px 14px; }
+  .ava { width: 53px; height: 53px; border-radius: 26px; justify-content: center; align-items: center; }
   .ava-t { font-size: 26px; color: #ffffff; font-weight: bold; }
   .card-main { flex-direction: column; margin-left: 12px; flex: 1; }
-  .row1 { font-size: 22px; color: #e6edf3; font-weight: bold; lines: 1; text-overflow: ellipsis; }
-  .row2 { font-size: 19px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .row3 { font-size: 20px; color: #3fb950; margin-top: 2px; }
-  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #161b22; border-radius: 12px; padding: 13px 12px; }
-  .cell-icon { width: 26px; height: 26px; }
+  .row1 { font-size: 24px; color: #ffffff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .row2 { font-size: 18px; color: rgba(255, 255, 255, 0.45); margin-top: 3px; lines: 1; text-overflow: ellipsis; }
+  .row3 { font-size: 18px; color: #07c160; margin-top: 3px; }
+  .cell { flex-direction: row; align-items: center; width: 100%; background-color: #262626; border-radius: 19px; padding: 13px 14px; }
+  .cell-icon { width: 28px; height: 28px; }
   .cell-main { flex: 1; flex-direction: column; margin-left: 12px; }
-  .cell-label { font-size: 22px; color: #e6edf3; }
-  .cell-sub { font-size: 20px; color: #8b949e; margin-top: 2px; lines: 1; text-overflow: ellipsis; }
-  .cell-arrow { width: 19px; height: 19px; }
-  .foot { font-size: 19px; color: #484f58; text-align: center; width: 100%; padding: 10px 0; }
+  .cell-label { font-size: 24px; color: #ffffff; }
+  .cell-sub { font-size: 18px; color: rgba(255, 255, 255, 0.45); margin-top: 2px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 20px; height: 20px; }
+  .foot { font-size: 17px; color: rgba(255, 255, 255, 0.25); text-align: center; width: 100%; padding: 10px 0; }
 </style>
 
 <script>
@@ -82,7 +83,7 @@
       tokenMask: '',
       rateText: '…',
       avCh: 'G',
-      avColor: '#21262d'
+      avColor: '#3a3a3a'
     },
     onInit() {
       this.menu = [
@@ -109,12 +110,12 @@
         } catch (e) {
           this.loginName = 'Token 异常'
           this.avCh = '!'
-          this.avColor = '#8b1f1f'
+          this.avColor = '#7a3030'
         }
       } else {
         this.loginName = ''
         this.avCh = 'G'
-        this.avColor = '#21262d'
+        this.avColor = '#3a3a3a'
       }
       this.refreshRate()
     },

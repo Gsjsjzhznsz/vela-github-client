@@ -10,6 +10,7 @@
     <scroll class="body" scroll-y="true">
       <div class="wrap">
         <!-- 账户状态 -->
+        <text class="section">账户</text>
         <div class="card" onclick="refreshAccount">
           <div class="card-col">
             <text class="c-title">GitHub 账户</text>
@@ -22,6 +23,7 @@
 
         <!-- Token 操作 -->
         <!-- v1.2.0：免打字登录（Device Flow），置顶推荐 -->
+        <text class="section">Token 登录</text>
         <div class="cell" onclick="startDevice">
           <image class="cell-icon" src="/common/icons/check.png" />
           <text class="cell-label hl">免打字登录（推荐）</text>
@@ -54,6 +56,7 @@
         </div>
 
         <!-- v1.9.0：网络通道（AstroBox 网桥 FetchBridge / 直连） -->
+        <text class="section">网络</text>
         <div class="card" onclick="cycleBridge">
           <div class="card-col">
             <text class="c-title">网络通道</text>
@@ -69,6 +72,7 @@
         </div>
 
         <!-- 说明 -->
+        <text class="section">帮助与关于</text>
         <div class="card">
           <div class="card-col">
             <text class="c-title">如何登录？</text>
@@ -81,7 +85,7 @@
 
         <div class="card">
           <text class="c-title">关于</text>
-          <text class="c-body">GitHub for Vela v2.1.2-s（小米 Watch S3/S4/S5 版 · 466×466 圆屏；详情见「关于」页）</text>
+          <text class="c-body">GitHub for Vela v2.1.3-s（小米 Watch S3/S4/S5 版 · 466×466 圆屏；详情见「关于」页）</text>
           <text class="c-body">运行于 Xiaomi Vela OS（NuttX），适配 Redmi Watch 5（432×514）方屏，兼容圆屏</text>
           <text class="c-body">网络：手表直连 api.github.com；砍网机型可用手机网桥（AstroBox FetchBridge）代发</text>
           <text class="c-body">开源协议：AGPL-3.0 · 参考 BandQQ 键盘组件架构</text>
@@ -93,27 +97,32 @@
 </template>
 
 <style>
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #0d1117; }
+  /* Vela 原生风格（BandQQ v2.28.2 RW5 同款令牌）：纯黑底 + #262626 圆角19卡片 + hairline 边 + 分组节标题。 */
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .hd { height: 94px; flex-direction: row; align-items: center; padding: 0 12px; }
   .hd-act { width: 44px; height: 44px; }
   /* 固件 image onclick 不触发：返回图标包一层 div 承接点击 */
   .hd-act-wrap { width: 64px; height: 64px; align-items: center; justify-content: center; margin-left: -10px; }
-  .hd-title { font-size: 24px; font-weight: bold; color: #e6edf3; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .hd-title { font-size: 26px; font-weight: bold; color: #ffffff; margin-left: 7px; flex: 1; lines: 1; text-overflow: ellipsis; }
   .body-wrap { position: relative; flex: 1; flex-direction: column; }
   .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
-  .wrap { flex-direction: column; padding: 5px 12px 50px; }
-  .card { background-color: #161b22; border-radius: 12px; padding: 12px; margin-bottom: 10px; flex-direction: column; }
-  .c-title { font-size: 22px; color: #e6edf3; font-weight: bold; margin-bottom: 5px; }
-  .c-row { font-size: 19px; color: #c9d1d9; }
-  .c-row2 { font-size: 20px; color: #3fb950; margin-top: 4px; }
-  .c-body { font-size: 20px; color: #8b949e; line-height: 26px; margin-top: 2px; }
-  .warn { color: #d29922; }
-  .c-act { font-size: 20px; color: #58a6ff; margin-top: 8px; }
-  .cell { flex-direction: row; align-items: center; background-color: #161b22; border-radius: 12px; padding: 13px 12px; margin-bottom: 10px; }
-  .cell-icon { width: 22px; height: 22px; }
-  .cell-label { flex: 1; font-size: 22px; color: #e6edf3; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
-  .cell-arrow { width: 17px; height: 17px; }
-  .hl { color: #3fb950; }
+  .wrap { flex-direction: column; padding: 0px 12px 50px; }
+  /* BandQQ 同款节标题：17px 45% 白，拉开分组层次 */
+  .section { font-size: 17px; color: rgba(255, 255, 255, 0.45); padding: 16px 2px 3px; }
+  .card { background-color: #262626; border-radius: 19px; padding: 12px 14px; margin-bottom: 10px; flex-direction: column; }
+  /* 卡内列容器必须显式声明 column：本固件 div 缺省按 row 排布，缺定义会导致卡内多行文本横向串排（v1.10.1 根修） */
+  .card-col { flex-direction: column; }
+  .c-title { font-size: 23px; color: #ffffff; font-weight: bold; margin-bottom: 5px; }
+  .c-row { font-size: 20px; color: #dddddd; }
+  .c-row2 { font-size: 20px; color: #07c160; margin-top: 4px; }
+  .c-body { font-size: 20px; color: rgba(255, 255, 255, 0.45); line-height: 26px; margin-top: 2px; }
+  .warn { color: #ffb800; }
+  .c-act { font-size: 20px; color: #0d84ff; margin-top: 8px; }
+  .cell { flex-direction: row; align-items: center; background-color: #262626; border-radius: 19px; padding: 13px 14px; margin-bottom: 10px; }
+  .cell-icon { width: 24px; height: 24px; }
+  .cell-label { flex: 1; font-size: 24px; color: #ffffff; margin-left: 10px; lines: 1; text-overflow: ellipsis; }
+  .cell-arrow { width: 18px; height: 18px; }
+  .hl { color: #07c160; }
 </style>
 
 <script>

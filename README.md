@@ -22,14 +22,14 @@
 
 </div>
 
-## 🖥 实机渲染（小米官方 Vela QEMU 模拟器实拍 · 192×490）
+## 🖥 实机渲染（v2.1.3 界面 · 小米官方 Vela QEMU 模拟器实拍 · Redmi Watch 5 432×514）
 
 | 首页（登录态） | 首页（游客态） | Copilot 专区 |
 |:---:|:---:|:---:|
-| ![首页](promo/home-band-rounded.png) | ![游客态](promo/home-band-guest-rounded.png) | ![Copilot](promo/ai-band-rounded.png) |
+| ![首页](promo/rw5-home-login.png) | ![游客态](promo/rw5-home-guest.png) | ![Copilot](promo/rw5-copilot.png) |
 
-> 首图以 BandQQ 官方宣传图为底版最小改编：仅替换品牌文字与右侧设备——白色手环 11 与黑色手环 9 Pro 为小米官方模板渲染图（屏显本应用实机界面，首页登录态）；
-> 背景渐变/辉光/版式与原版 1:1 对位；登录态用户名/Token 为示例数据。
+> 首图以 BandQQ 官方宣传图为底版最小改编：仅替换品牌文字与右侧设备——白色手环 11 与黑色手环 9 Pro 为小米官方模板渲染图（屏显本应用实机界面，首页登录态）；背景渐变/辉光/版式与原版 1:1 对位。
+> 实机渲染行：游客态首页为真实网络状态（API 余量为实时匿名配额）；登录态用户名/Token 与 Copilot 对话内容为示例数据（官方模拟器 DIAG-MOCK 示例构建截图，正式包无任何 mock）。
 
 ## 📲 下载 v2.1.2（四分支机型版 · versionCode 42 全线一致）
 

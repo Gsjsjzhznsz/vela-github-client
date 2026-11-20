@@ -11,9 +11,12 @@
 | home-bandpro-rounded.png | 336×480 | 同上 · R 角透明圆角版（r30） |
 | ai-band.png | 192×490 | Copilot 专区 · 对话页 |
 | ai-band-rounded.png | 192×490 | 同上 · R 角透明圆角版 |
+| rw5-home-login.png | 432×514 | Redmi Watch 5 · 首页登录态（v2.1.3 miuix，示例数据构建） |
+| rw5-home-guest.png | 432×514 | Redmi Watch 5 · 首页游客态（v2.1.3 miuix，真实网络） |
+| rw5-copilot.png | 432×514 | Redmi Watch 5 · Copilot 专区对话（v2.1.3 miuix，示例数据构建） |
 
 说明：
 
 - 登录态用户名/Token 掩码为示例数据，仅用于展示界面布局。
 - 圆角版 PNG 四角透明，可直接叠加在手环产品透视图/表盘模板上制作宣传图。
-- 截图对应版本：band 2.1.2-band/42 · band-pro 2.0.6-pro/36。
+- 截图对应版本：band 2.1.2-band/42 · band-pro 2.0.6-pro/36 · RW5 2.1.3/44（miuix 原生风格，v2.1.3 界面三格已替换旧 192×490 组图）。

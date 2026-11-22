@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.github",
   "name": "Vela Github",
   "icon": "/common/icons/logo.png",
-  "versionName": "2.1.4-s",
-  "versionCode": 45,
+  "versionName": "2.1.5-s",
+  "versionCode": 46,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
